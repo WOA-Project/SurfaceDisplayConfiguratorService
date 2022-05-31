@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.3.32519.111
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SurfaceDisplayConfiguratorService", "SurfaceDisplayConfiguratorService\SurfaceDisplayConfiguratorService.vcxproj", "{1DA4C4F1-AEEB-465D-B47A-7AD31D5DDB9C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|ARM64 = Debug|ARM64
+		Release|ARM64 = Release|ARM64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{1DA4C4F1-AEEB-465D-B47A-7AD31D5DDB9C}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{1DA4C4F1-AEEB-465D-B47A-7AD31D5DDB9C}.Debug|ARM64.Build.0 = Debug|ARM64
+		{1DA4C4F1-AEEB-465D-B47A-7AD31D5DDB9C}.Release|ARM64.ActiveCfg = Release|ARM64
+		{1DA4C4F1-AEEB-465D-B47A-7AD31D5DDB9C}.Release|ARM64.Build.0 = Release|ARM64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {5C88ADC6-2139-4F9C-A6F3-35C13AA75E2A}
+	EndGlobalSection
+EndGlobal
