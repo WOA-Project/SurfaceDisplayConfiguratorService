@@ -121,10 +121,13 @@ VOID WINAPI ServiceCtrlHandler(DWORD CtrlCode)
 
 DWORD WINAPI ServiceWorkerThread(LPVOID lpParam)
 {
-	if (!AreDisplaysAlreadyConfigured())
+	//if (!AreDisplaysAlreadyConfigured())
 	{
 		SetCorrectDisplayConfiguration();
-		MarkDisplaysAlreadyConfigured();
+		EnableTabletPosture();
+		EnableTabletPostureTaskbar();
+
+		//MarkDisplaysAlreadyConfigured();
 	}
 	
 	return ERROR_SUCCESS;
