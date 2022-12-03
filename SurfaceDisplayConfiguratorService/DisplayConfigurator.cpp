@@ -534,8 +534,8 @@ NTSTATUS WINAPI _RegSetKeyValue(
 
 BOOL WINAPI EnableTabletPostureTaskbar()
 {
-    DWORD pcbData = 0;
-    int pvData = 4;
+    DWORD pcbData = 4;
+    int pvData = 0;
 
     NTSTATUS status = RegGetValue(
         HKEY_CURRENT_USER,
