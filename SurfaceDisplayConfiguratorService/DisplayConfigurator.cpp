@@ -469,17 +469,17 @@ extern "C" {
 
 BOOL WINAPI EnableTabletPosture()
 {
-    BYTE TabletPosture = 0;
+    BYTE TabletPosture[4];
     DWORD TabletPostureSize = 1;
     WNF_CHANGE_STAMP TabletPostureChangeStamp;
 
     NTSTATUS status = NtQueryWnfStateData(&WNF_TMCN_ISTABLETPOSTURE, nullptr, nullptr, &TabletPostureChangeStamp,
-        &TabletPosture, &TabletPostureSize);
+        TabletPosture, &TabletPostureSize);
 
-    if (status == ERROR_SUCCESS && TabletPosture != 1)
+    if (status == ERROR_SUCCESS && TabletPosture[0] != 1)
     {
-        TabletPosture = 1;
-        status = RtlPublishWnfStateData(WNF_TMCN_ISTABLETPOSTURE, nullptr, &TabletPosture, TabletPostureSize, nullptr);
+        TabletPosture[0] = 1;
+        status = RtlPublishWnfStateData(WNF_TMCN_ISTABLETPOSTURE, nullptr, TabletPosture, 1, nullptr);
     }
 
     return status == ERROR_SUCCESS;
@@ -487,17 +487,17 @@ BOOL WINAPI EnableTabletPosture()
 
 BOOL WINAPI EnableTabletMode()
 {
-    DWORD TabletMode = 0;
-    DWORD TabletModeSize = 4;
+    BYTE TabletMode[4];
+    DWORD TabletModeSize = 1;
     WNF_CHANGE_STAMP TabletModeChangeStamp;
 
     NTSTATUS status = NtQueryWnfStateData(&WNF_TMCN_ISTABLETMODE, nullptr, nullptr, &TabletModeChangeStamp,
-        &TabletMode, &TabletModeSize);
+        TabletMode, &TabletModeSize);
 
-    if (status == ERROR_SUCCESS && TabletMode != 1)
+    if (status == ERROR_SUCCESS && TabletMode[0] != 1)
     {
-        TabletMode = 1;
-        status = RtlPublishWnfStateData(WNF_TMCN_ISTABLETMODE, nullptr, &TabletMode, TabletModeSize, nullptr);
+        TabletMode[0] = 1;
+        status = RtlPublishWnfStateData(WNF_TMCN_ISTABLETMODE, nullptr, TabletMode, 1, nullptr);
     }
 
     return status == ERROR_SUCCESS;
