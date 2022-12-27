@@ -1,3 +1,4 @@
+#include "pch.h"
 #include <string>
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,6 +9,7 @@
 #include <SetupAPI.h>
 #include <strsafe.h>
 #include <cfgmgr32.h>
+#include <winternl.h>
 #include "DisplayConfigurator.h"
 
 DWORD WINAPI SetExtendedDisplayConfiguration()

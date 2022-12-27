@@ -7,7 +7,12 @@ SERVICE_STATUS_HANDLE g_StatusHandle = NULL;
 HANDLE                g_ServiceStopEvent = INVALID_HANDLE_VALUE;
 
 VOID WINAPI ServiceMain(DWORD argc, LPTSTR* argv);
-VOID WINAPI ServiceCtrlHandler(DWORD);
+DWORD WINAPI ServiceCtrlHandlerEx(
+    DWORD    dwControl,
+    DWORD    dwEventType,
+    LPVOID   lpEventData,
+    LPVOID   lpContext
+);
 DWORD WINAPI ServiceWorkerThread(LPVOID lpParam);
 
 TCHAR SERVICE_NAME[] = _T("SurfaceDisplayConfiguratorService");

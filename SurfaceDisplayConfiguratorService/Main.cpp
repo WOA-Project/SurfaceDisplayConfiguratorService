@@ -1,8 +1,15 @@
+﻿#include "pch.h"
 #include "Main.h"
 #include "DisplayConfigurator.h"
+#include "AutoRotate.h"
+
+using namespace winrt;
 
 int main(int argc, TCHAR* argv[])
 {
+	UNREFERENCED_PARAMETER(argc);
+	UNREFERENCED_PARAMETER(argv);
+
 	SERVICE_TABLE_ENTRY ServiceTable[] =
 	{
 		{SERVICE_NAME, (LPSERVICE_MAIN_FUNCTION)ServiceMain},
@@ -11,7 +18,6 @@ int main(int argc, TCHAR* argv[])
 
 	if (StartServiceCtrlDispatcher(ServiceTable) == FALSE)
 	{
-		//return GetLastError();
 		// The application was ran by the user
 		// So we run our main procedure
 
@@ -23,10 +29,12 @@ int main(int argc, TCHAR* argv[])
 
 VOID WINAPI ServiceMain(DWORD argc, LPTSTR* argv)
 {
-	DWORD Status = E_FAIL;
+	UNREFERENCED_PARAMETER(argc);
+	UNREFERENCED_PARAMETER(argv);
+
 	HANDLE hThread;
 
-	g_StatusHandle = RegisterServiceCtrlHandler(SERVICE_NAME, ServiceCtrlHandler);
+	g_StatusHandle = RegisterServiceCtrlHandlerEx(SERVICE_NAME, ServiceCtrlHandlerEx, NULL);
 
 	if (g_StatusHandle == NULL)
 	{
@@ -90,10 +98,18 @@ EXIT:
 	return;
 }
 
-
-VOID WINAPI ServiceCtrlHandler(DWORD CtrlCode)
+DWORD WINAPI ServiceCtrlHandlerEx(
+	DWORD    dwControl,
+	DWORD    dwEventType,
+	LPVOID   lpEventData,
+	LPVOID   lpContext
+)
 {
-	switch (CtrlCode)
+	PPOWERBROADCAST_SETTING broadCastSetting = NULL;
+
+	UNREFERENCED_PARAMETER(dwEventType);
+
+	switch (dwControl)
 	{
 	case SERVICE_CONTROL_STOP:
 
@@ -114,12 +130,25 @@ VOID WINAPI ServiceCtrlHandler(DWORD CtrlCode)
 
 		break;
 
+	case SERVICE_CONTROL_POWEREVENT:
+		broadCastSetting = (PPOWERBROADCAST_SETTING)lpEventData;
+		OnPowerEvent(broadCastSetting->PowerSetting, broadCastSetting->Data, broadCastSetting->DataLength, lpContext);
+
+		break;
+
 	default:
 		break;
 	}
+
+	return ERROR_SUCCESS;
 }
 
-DWORD WINAPI ServiceWorkerThread(LPVOID lpParam)
+VOID ExecuteAutoRotateRoutines()
+{
+	AutoRotateMain(g_StatusHandle);
+}
+
+VOID InitializeDisplayLayout()
 {
 	//if (!AreDisplaysAlreadyConfigured())
 	{
@@ -129,6 +158,24 @@ DWORD WINAPI ServiceWorkerThread(LPVOID lpParam)
 
 		//MarkDisplaysAlreadyConfigured();
 	}
-	
+}
+
+DWORD WINAPI ServiceWorkerThread(LPVOID lpParam)
+{
+	UNREFERENCED_PARAMETER(lpParam);
+
+	init_apartment();
+
+	InitializeDisplayLayout();
+
+	std::thread tAutoRotate(ExecuteAutoRotateRoutines);
+
+	while (WaitForSingleObject(g_ServiceStopEvent, 0) != WAIT_OBJECT_0)
+	{
+		Sleep(1000);
+	}
+
+	uninit_apartment();
+
 	return ERROR_SUCCESS;
 }
