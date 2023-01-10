@@ -16,13 +16,8 @@ int main(int argc, TCHAR* argv[])
 		{NULL, NULL}
 	};
 
-	if (StartServiceCtrlDispatcher(ServiceTable) == FALSE)
-	{
-		// The application was ran by the user
-		// So we run our main procedure
 
-		return ServiceWorkerThread(NULL);
-	}
+	StartServiceCtrlDispatcher(ServiceTable);
 
 	return 0;
 }
@@ -32,8 +27,6 @@ VOID WINAPI ServiceMain(DWORD argc, LPTSTR* argv)
 	UNREFERENCED_PARAMETER(argc);
 	UNREFERENCED_PARAMETER(argv);
 
-	HANDLE hThread;
-
 	g_StatusHandle = RegisterServiceCtrlHandlerEx(SERVICE_NAME, ServiceCtrlHandlerEx, NULL);
 
 	if (g_StatusHandle == NULL)
@@ -42,15 +35,10 @@ VOID WINAPI ServiceMain(DWORD argc, LPTSTR* argv)
 	}
 
 	// Tell the service controller we are starting
-	ZeroMemory(&g_ServiceStatus, sizeof(g_ServiceStatus));
 	g_ServiceStatus.dwServiceType = SERVICE_USER_OWN_PROCESS;
-	g_ServiceStatus.dwControlsAccepted = 0;
-	g_ServiceStatus.dwCurrentState = SERVICE_START_PENDING;
-	g_ServiceStatus.dwWin32ExitCode = 0;
 	g_ServiceStatus.dwServiceSpecificExitCode = 0;
-	g_ServiceStatus.dwCheckPoint = 0;
 
-	SetServiceStatus(g_StatusHandle, &g_ServiceStatus);
+	ReportSvcStatus(SERVICE_START_PENDING, NO_ERROR, 3000);
 
 	/*
 	 * Perform tasks neccesary to start the service here
@@ -60,42 +48,64 @@ VOID WINAPI ServiceMain(DWORD argc, LPTSTR* argv)
 	g_ServiceStopEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 	if (g_ServiceStopEvent == NULL)
 	{
-		g_ServiceStatus.dwControlsAccepted = 0;
-		g_ServiceStatus.dwCurrentState = SERVICE_STOPPED;
-		g_ServiceStatus.dwWin32ExitCode = GetLastError();
-		g_ServiceStatus.dwCheckPoint = 1;
+		ReportSvcStatus(SERVICE_STOPPED, GetLastError(), 0);
 
 		goto EXIT;
 	}
 
-	// Tell the service controller we are started
-	g_ServiceStatus.dwControlsAccepted = SERVICE_ACCEPT_STOP;
-	g_ServiceStatus.dwCurrentState = SERVICE_RUNNING;
-	g_ServiceStatus.dwWin32ExitCode = 0;
-	g_ServiceStatus.dwCheckPoint = 0;
+	ReportSvcStatus(SERVICE_START_PENDING, NO_ERROR, 3000);
+	SetCorrectDisplayConfiguration();
+	ReportSvcStatus(SERVICE_START_PENDING, NO_ERROR, 3000);
+	EnableTabletPosture();
+	ReportSvcStatus(SERVICE_START_PENDING, NO_ERROR, 3000);
+	EnableTabletPostureTaskbar();
 
-	SetServiceStatus(g_StatusHandle, &g_ServiceStatus);
+	// Tell the service controller we are started
+	ReportSvcStatus(SERVICE_RUNNING, NO_ERROR, 0);
 
 	// Start the thread that will perform the main task of the service
-	hThread = CreateThread(NULL, 0, ServiceWorkerThread, NULL, 0, NULL);
 
 	// Wait until our worker thread exits effectively signaling that the service needs to stop
-	WaitForSingleObject(hThread, INFINITE);
+
+	init_apartment();
+
+	AutoRotateMain(g_StatusHandle, g_ServiceStopEvent);
+
+	uninit_apartment();
 
 	/*
 	 * Perform any cleanup tasks
 	 */
 	CloseHandle(g_ServiceStopEvent);
 
-	g_ServiceStatus.dwControlsAccepted = 0;
-	g_ServiceStatus.dwCurrentState = SERVICE_STOPPED;
-	g_ServiceStatus.dwWin32ExitCode = 0;
-	g_ServiceStatus.dwCheckPoint = 3;
-
-	SetServiceStatus(g_StatusHandle, &g_ServiceStatus);
+	ReportSvcStatus(SERVICE_STOPPED, NO_ERROR, 0);
 
 EXIT:
 	return;
+}
+
+VOID ReportSvcStatus(DWORD dwCurrentState,
+					 DWORD dwWin32ExitCode,
+					 DWORD dwWaitHint)
+{
+	static DWORD dwCheckPoint = 1;
+
+	g_ServiceStatus.dwCurrentState = dwCurrentState;
+	g_ServiceStatus.dwWin32ExitCode = dwWin32ExitCode;
+	g_ServiceStatus.dwWaitHint = dwWaitHint;
+
+	if (dwCurrentState == SERVICE_START_PENDING)
+		g_ServiceStatus.dwControlsAccepted = 0;
+	else
+		g_ServiceStatus.dwControlsAccepted = SERVICE_ACCEPT_STOP;
+
+	if ((dwCurrentState == SERVICE_RUNNING) ||
+		(dwCurrentState == SERVICE_STOPPED))
+		g_ServiceStatus.dwCheckPoint = 0;
+	else
+		g_ServiceStatus.dwCheckPoint = dwCheckPoint++;
+
+	SetServiceStatus(g_StatusHandle, &g_ServiceStatus);
 }
 
 DWORD WINAPI ServiceCtrlHandlerEx(
@@ -120,13 +130,12 @@ DWORD WINAPI ServiceCtrlHandlerEx(
 		 * Perform tasks neccesary to stop the service here
 		 */
 
-		g_ServiceStatus.dwControlsAccepted = 0;
-		g_ServiceStatus.dwCurrentState = SERVICE_STOP_PENDING;
-		g_ServiceStatus.dwWin32ExitCode = 0;
-		g_ServiceStatus.dwCheckPoint = 4;
+		ReportSvcStatus(SERVICE_STOP_PENDING, NO_ERROR, 0);
 
 		// This will signal the worker thread to start shutting down
 		SetEvent(g_ServiceStopEvent);
+
+		ReportSvcStatus(g_ServiceStatus.dwCurrentState, NO_ERROR, 0);
 
 		break;
 
@@ -139,43 +148,6 @@ DWORD WINAPI ServiceCtrlHandlerEx(
 	default:
 		break;
 	}
-
-	return ERROR_SUCCESS;
-}
-
-VOID ExecuteAutoRotateRoutines()
-{
-	AutoRotateMain(g_StatusHandle);
-}
-
-VOID InitializeDisplayLayout()
-{
-	//if (!AreDisplaysAlreadyConfigured())
-	{
-		SetCorrectDisplayConfiguration();
-		EnableTabletPosture();
-		EnableTabletPostureTaskbar();
-
-		//MarkDisplaysAlreadyConfigured();
-	}
-}
-
-DWORD WINAPI ServiceWorkerThread(LPVOID lpParam)
-{
-	UNREFERENCED_PARAMETER(lpParam);
-
-	init_apartment();
-
-	InitializeDisplayLayout();
-
-	std::thread tAutoRotate(ExecuteAutoRotateRoutines);
-
-	while (WaitForSingleObject(g_ServiceStopEvent, 0) != WAIT_OBJECT_0)
-	{
-		Sleep(1000);
-	}
-
-	uninit_apartment();
 
 	return ERROR_SUCCESS;
 }

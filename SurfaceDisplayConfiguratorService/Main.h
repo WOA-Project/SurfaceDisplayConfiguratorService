@@ -13,6 +13,6 @@ DWORD WINAPI ServiceCtrlHandlerEx(
     LPVOID   lpEventData,
     LPVOID   lpContext
 );
-DWORD WINAPI ServiceWorkerThread(LPVOID lpParam);
+VOID ReportSvcStatus(DWORD, DWORD, DWORD);
 
 TCHAR SERVICE_NAME[] = _T("SurfaceDisplayConfiguratorService");

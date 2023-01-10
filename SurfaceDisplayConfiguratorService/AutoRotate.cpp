@@ -417,7 +417,7 @@ VOID SetupAutoRotation(SERVICE_STATUS_HANDLE g_StatusHandle)
 	}
 }
 
-int AutoRotateMain(SERVICE_STATUS_HANDLE g_StatusHandle)
+int AutoRotateMain(SERVICE_STATUS_HANDLE g_StatusHandle, HANDLE g_ServiceStopEvent)
 {
 	NTSTATUS Status;
 	UNICODE_STRING DestinationString;
@@ -498,7 +498,9 @@ int AutoRotateMain(SERVICE_STATUS_HANDLE g_StatusHandle)
 		// Wait indefinetly
 		while (true)
 		{
-			Sleep(4294967295U);
+			// Check whether to stop the service.
+
+			WaitForSingleObject(g_ServiceStopEvent, INFINITE);
 		}
 	}
 
