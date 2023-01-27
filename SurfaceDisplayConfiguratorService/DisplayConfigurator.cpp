@@ -43,7 +43,7 @@ DWORD WINAPI SetLeftPanelPosition()
         return GetLastError();
     }
 
-    if (!EnumDisplaySettings(device.DeviceName, -1, &deviceMode))
+    if (!EnumDisplaySettings(device.DeviceName, ENUM_CURRENT_SETTINGS, &deviceMode))
     {
         return GetLastError();
     }
@@ -80,7 +80,7 @@ DWORD WINAPI SetRightPanelPosition()
         return GetLastError();
     }
 
-    if (!EnumDisplaySettings(device.DeviceName, -1, &deviceMode))
+    if (!EnumDisplaySettings(device.DeviceName, ENUM_CURRENT_SETTINGS, &deviceMode))
     {
         return GetLastError();
     }

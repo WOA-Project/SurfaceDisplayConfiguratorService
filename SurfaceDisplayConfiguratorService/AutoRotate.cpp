@@ -197,7 +197,7 @@ DWORD WINAPI SetPanelOrientation(DWORD PanelId, INT Orientation)
 				device.DeviceName,
 				&deviceMode,
 				NULL,
-				CDS_UPDATEREGISTRY | CDS_NORESET,
+				CDS_UPDATEREGISTRY | CDS_GLOBAL,
 				NULL) != DISP_CHANGE_SUCCESSFUL)
 		{
 			return GetLastError();
