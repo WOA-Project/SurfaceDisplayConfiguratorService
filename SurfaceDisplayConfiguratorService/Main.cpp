@@ -27,6 +27,11 @@ VOID WINAPI ServiceMain(DWORD argc, LPTSTR* argv)
 	UNREFERENCED_PARAMETER(argc);
 	UNREFERENCED_PARAMETER(argv);
 
+	DWORD oobeInProgress = 0;
+
+	HKEY key;
+	DWORD type = REG_DWORD, size = 8;
+
 	g_StatusHandle = RegisterServiceCtrlHandlerEx(SERVICE_NAME, ServiceCtrlHandlerEx, NULL);
 
 	if (g_StatusHandle == NULL)
@@ -56,9 +61,18 @@ VOID WINAPI ServiceMain(DWORD argc, LPTSTR* argv)
 	ReportSvcStatus(SERVICE_START_PENDING, NO_ERROR, 3000);
 	SetCorrectDisplayConfiguration();
 	ReportSvcStatus(SERVICE_START_PENDING, NO_ERROR, 3000);
-	EnableTabletPosture();
-	ReportSvcStatus(SERVICE_START_PENDING, NO_ERROR, 3000);
-	EnableTabletPostureTaskbar();
+
+	if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, L"SYSTEM\\Setup", NULL, KEY_WRITE, &key) == ERROR_SUCCESS)
+	{
+		RegQueryValueEx(key, L"OOBEInProgress", NULL, &type, (LPBYTE)&oobeInProgress, &size);
+	}
+
+	if (oobeInProgress == 0)
+	{
+		EnableTabletPosture();
+		ReportSvcStatus(SERVICE_START_PENDING, NO_ERROR, 3000);
+		EnableTabletPostureTaskbar();
+	}
 
 	// Tell the service controller we are started
 	ReportSvcStatus(SERVICE_RUNNING, NO_ERROR, 0);

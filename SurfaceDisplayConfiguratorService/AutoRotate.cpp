@@ -1,6 +1,5 @@
 #include "pch.h"
 #include "AutoRotate.h"
-#include "NtAlpc.h"
 #include <powrprof.h>
 
 #define WINDOWS_AUTO_ROTATION_KEY_PATH L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\AutoRotation"
@@ -34,126 +33,9 @@ HPOWERNOTIFY m_systemSuspendHandle = NULL;
 HPOWERNOTIFY m_hScreenStateNotify = NULL;
 
 //
-// The handle to the auto rotation ALPC port
-//
-HANDLE PortHandle = NULL;
-
-//
 // Get the default simple orientation sensor on the system
 //
 TwoPanelHingedDevicePosturePreview sensor = TwoPanelHingedDevicePosturePreview::GetDefaultAsync().get();
-
-//
-// Subject: Notify auto rotation with the following current auto rotation settings
-//			using ALPC port
-//
-// Parameters:
-//
-//			   Handle: the ALPC Port Handle
-//
-//             Orientation:
-//             - DMDO_270     (Portrait)
-//             - DMDO_90      (Portrait flipped)
-//             - DMDO_180     (Landscape)
-//             - DMDO_DEFAULT (Landscape flipped)
-//
-// Returns: NTSTATUS
-//
-NTSTATUS NotifyAutoRotationAlpcPortOfOrientationChange(INT Orientation)
-{
-	ROTATION_COMMAND_MESSAGE RotationCommandMessage;
-	NTSTATUS Status;
-
-	if (PortHandle == NULL)
-		return STATUS_INVALID_PARAMETER;
-
-	EnterCriticalSection(&g_AutoRotationCriticalSection);
-
-	RtlZeroMemory(&RotationCommandMessage, sizeof(RotationCommandMessage));
-
-	RotationCommandMessage.PortMessage.u1.s1.DataLength = sizeof(RotationCommandMessage.RotationMessage);
-	RotationCommandMessage.PortMessage.u1.s1.TotalLength = sizeof(RotationCommandMessage);
-	RotationCommandMessage.PortMessage.u2.s2.Type = 1;
-
-	RotationCommandMessage.RotationMessage.Type = 2;
-	RotationCommandMessage.RotationMessage.Orientation = Orientation;
-
-	Status = NtAlpcSendWaitReceivePort(PortHandle, 0, (PVOID)&RotationCommandMessage, NULL, NULL, NULL, NULL, NULL);
-
-	LeaveCriticalSection(&g_AutoRotationCriticalSection);
-
-	return Status;
-}
-
-//
-// Subject: Change screen orientation while following current auto rotation settings
-//
-// Parameters:
-//
-//			   Handle: the ALPC Port Handle
-//
-//             Orientation:
-//             - DMDO_270     (Portrait)
-//             - DMDO_90      (Portrait flipped)
-//             - DMDO_180     (Landscape)
-//             - DMDO_DEFAULT (Landscape flipped)
-//
-// Returns: void
-//
-VOID ChangeDisplayOrientation(INT Orientation)
-{
-	DWORD type = REG_DWORD, size = 8;
-
-	//
-	// Check if we are supposed to use the mobile behavior, if we do, then prevent the screen from rotating to Portrait (flipped)
-	//
-	if (Orientation == DMDO_90)
-	{
-		DWORD mobilebehavior = 0;
-		RegQueryValueEx(autoRotationKey, L"MobileBehavior", NULL, &type, (LPBYTE)&mobilebehavior, &size);
-		if (mobilebehavior == 1)
-		{
-			return;
-		}
-	}
-
-	//
-	// Check if new API is available
-	//
-	if (PortHandle != NULL)
-	{
-		NotifyAutoRotationAlpcPortOfOrientationChange(Orientation);
-	}
-	// Otherwise fallback to the old API
-	else
-	{
-		//
-		// Get the current display settings
-		//
-		DEVMODE mode;
-		EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &mode);
-
-		//
-		// In order to switch from portrait to landscape and vice versa we need to swap the resolution width and height
-		// So we check for that
-		//
-		if ((mode.dmDisplayOrientation + Orientation) % 2 == 1)
-		{
-			int temp = mode.dmPelsHeight;
-			mode.dmPelsHeight = mode.dmPelsWidth;
-			mode.dmPelsWidth = temp;
-		}
-
-		//
-		// Change the display orientation and save to the registry the changes (1 parameter for ChangeDisplaySettings)
-		//
-		if (mode.dmFields | DM_DISPLAYORIENTATION)
-		{
-			mode.dmDisplayOrientation = Orientation;
-			ChangeDisplaySettingsEx(NULL, &mode, NULL, CDS_UPDATEREGISTRY | CDS_GLOBAL, NULL);
-		}
-	}
-}
 
 DWORD WINAPI SetPanelOrientation(DWORD PanelId, INT Orientation)
 {
@@ -243,8 +125,8 @@ VOID OnPostureChanged(TwoPanelHingedDevicePosturePreview const & /*sender*/, Two
 	INT Panel1Orientation = ConvertSimpleOrientationToDMDO(reading.Panel1Orientation());
 	INT Panel2Orientation = ConvertSimpleOrientationToDMDO(reading.Panel2Orientation());
 
-	SetPanelOrientation(0, Panel1Orientation);
-	SetPanelOrientation(1, Panel2Orientation);
+	SetPanelOrientation(1, Panel1Orientation);
+	SetPanelOrientation(0, Panel2Orientation);
 }
 
 VOID OnPowerEvent(
@@ -419,47 +301,12 @@ VOID SetupAutoRotation(SERVICE_STATUS_HANDLE g_StatusHandle)
 
 int AutoRotateMain(SERVICE_STATUS_HANDLE g_StatusHandle, HANDLE g_ServiceStopEvent)
 {
-	NTSTATUS Status;
-	UNICODE_STRING DestinationString;
-	OBJECT_ATTRIBUTES ObjectAttribs;
-	ALPC_PORT_ATTRIBUTES PortAttribs = {0};
-
 	//
 	// If no sensor is found return 1
 	//
 	if (sensor == NULL)
 	{
 		return 1;
-	}
-
-	//
-	// Initialize ALPC Port. This will decide the way we do screen flip
-	//
-	RtlZeroMemory(&ObjectAttribs, sizeof(ObjectAttribs));
-	ObjectAttribs.Length = sizeof(ObjectAttribs);
-
-	RtlZeroMemory(&PortAttribs, sizeof(PortAttribs));
-	PortAttribs.MaxMessageLength = 56;
-
-	RtlInitUnicodeString(&DestinationString, L"\\RPC Control\\AutoRotationApiPort");
-
-#pragma warning(disable : 6387)
-	Status = NtAlpcConnectPort(&PortHandle, &DestinationString, &ObjectAttribs, &PortAttribs, ALPC_MSGFLG_SYNC_REQUEST, NULL, NULL, NULL, NULL, NULL, NULL);
-#pragma warning(default : 6387)
-
-	if (NT_SUCCESS(Status))
-	{
-		// Initialize the critical section one time only.
-		if (!InitializeCriticalSectionAndSpinCount(&g_AutoRotationCriticalSection, 0x00000400))
-		{
-			// Can't initialize critical section; skip Auto rotation API
-			PortHandle = NULL;
-		}
-	}
-	else
-	{
-		// Reset it anyway
-		PortHandle = NULL;
 	}
 
 	//
@@ -505,14 +352,6 @@ int AutoRotateMain(SERVICE_STATUS_HANDLE g_StatusHandle, HANDLE g_ServiceStopEve
 	}
 
 	UnregisterEverything();
-
-	// Close handle for the future
-	// Even the thread doesn't support exit right now
-	if (PortHandle != NULL)
-	{
-		NtClose(PortHandle);
-		DeleteCriticalSection(&g_AutoRotationCriticalSection);
-	}
 
 	return 0;
 }
