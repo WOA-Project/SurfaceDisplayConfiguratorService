@@ -1,5 +1,10 @@
 #pragma once
 
-DWORD WINAPI SetExtendedDisplayConfiguration();
-DWORD WINAPI SetCorrectDisplayConfiguration();
-DWORD WINAPI SetPanelsOrientationState(SimpleOrientation Panel1SimpleOrientation, SimpleOrientation Panel2SimpleOrientation);
+DWORD WINAPI
+SetExtendedDisplayConfiguration();
+DWORD WINAPI
+SetCorrectDisplayConfiguration();
+DWORD WINAPI
+SetPanelsOrientationState(SimpleOrientation Panel1SimpleOrientation, SimpleOrientation Panel2SimpleOrientation);
+DWORD WINAPI
+SetHardwareEnabledStateForPanel(CONST WCHAR *devicePanelId, BOOLEAN enabledState);

@@ -2,17 +2,14 @@
 #include <Windows.h>
 #include <tchar.h>
 
-SERVICE_STATUS        g_ServiceStatus = { 0 };
+SERVICE_STATUS g_ServiceStatus = {0};
 SERVICE_STATUS_HANDLE g_StatusHandle = NULL;
-HANDLE                g_ServiceStopEvent = INVALID_HANDLE_VALUE;
+HANDLE g_ServiceStopEvent = INVALID_HANDLE_VALUE;
 
-VOID WINAPI ServiceMain(DWORD argc, LPTSTR* argv);
-DWORD WINAPI ServiceCtrlHandlerEx(
-    DWORD    dwControl,
-    DWORD    dwEventType,
-    LPVOID   lpEventData,
-    LPVOID   lpContext
-);
+VOID WINAPI
+ServiceMain(DWORD argc, LPTSTR *argv);
+DWORD WINAPI
+ServiceCtrlHandlerEx(DWORD dwControl, DWORD dwEventType, LPVOID lpEventData, LPVOID lpContext);
 VOID ReportSvcStatus(DWORD, DWORD, DWORD);
 
 TCHAR SERVICE_NAME[] = _T("SurfaceDisplayConfiguratorService");

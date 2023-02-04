@@ -9,7 +9,6 @@
 #include <winrt/Windows.Internal.Devices.Sensors.h>
 #include <winrt/Windows.Internal.System.h>
 
-
 using namespace winrt;
 using namespace Windows::System;
 using namespace Windows::Foundation;

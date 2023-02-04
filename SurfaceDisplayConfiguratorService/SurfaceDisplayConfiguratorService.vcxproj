@@ -124,7 +124,6 @@
     <ClInclude Include="DisplayRotationManager.h" />
     <ClInclude Include="Main.h" />
     <ClInclude Include="pch.h" />
-    <ClInclude Include="NtAlpc.h" />
     <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
