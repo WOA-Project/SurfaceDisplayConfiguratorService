@@ -25,6 +25,22 @@ DEFINE_DEVPROPKEY2(
 #endif
 
 DWORD WINAPI
+SetSingleMonitorMode(DWORD PanelId, INT Orientation, CONST WCHAR *devicePanelId, BOOLEAN enabledState)
+{
+    if (!enabledState)
+    {
+        SetHardwareEnabledStateForPanel(devicePanelId, L"HID_DEVICE_UP:000D_U:000F", FALSE);
+    }
+
+    // Code to turn off/on display must go here
+
+    if (enabledState)
+    {
+        SetHardwareEnabledStateForPanel(devicePanelId, L"HID_DEVICE_UP:000D_U:000F", TRUE);
+    }
+}
+
+DWORD WINAPI
 SetHardwareEnabledStateForPanel(CONST WCHAR *devicePanelId, CONST WCHAR *deviceHardwareId, BOOLEAN enabledState)
 {
     HDEVINFO devInfo;
