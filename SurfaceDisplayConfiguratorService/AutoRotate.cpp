@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "DisplayRotationManager.h"
 #include "AutoRotate.h"
 #include <powrprof.h>
 
@@ -35,98 +36,16 @@ HPOWERNOTIFY m_hScreenStateNotify = NULL;
 //
 // Get the default simple orientation sensor on the system
 //
-TwoPanelHingedDevicePosturePreview sensor = TwoPanelHingedDevicePosturePreview::GetDefaultAsync().get();
+TwoPanelHingedDevicePosture sensor = TwoPanelHingedDevicePosture::GetDefaultAsync().get();
 
-DWORD WINAPI SetPanelOrientation(DWORD PanelId, INT Orientation)
+VOID OnPostureChanged(TwoPanelHingedDevicePosture const & /*sender*/, TwoPanelHingedDevicePostureReadingChangedEventArgs const &args)
 {
-	DISPLAY_DEVICE device = {0};
-	DEVMODE deviceMode = {0};
+	TwoPanelHingedDevicePostureReading reading = args.Reading();
 
-	RtlZeroMemory(&device, sizeof(DISPLAY_DEVICE));
-	RtlZeroMemory(&deviceMode, sizeof(DEVMODE));
+	SimpleOrientation Panel1SimpleOrientation = reading.Panel1Orientation();
+	SimpleOrientation Panel2SimpleOrientation = reading.Panel2Orientation();
 
-	device.cb = sizeof(DISPLAY_DEVICE);
-
-	if (!EnumDisplayDevices(NULL, PanelId, &device, 0))
-	{
-		return GetLastError();
-	}
-
-	if (!EnumDisplaySettings(device.DeviceName, ENUM_CURRENT_SETTINGS, &deviceMode))
-	{
-		return GetLastError();
-	}
-
-	//
-	// In order to switch from portrait to landscape and vice versa we need to swap the resolution width and height
-	// So we check for that
-	//
-	if ((deviceMode.dmDisplayOrientation + Orientation) % 2 == 1)
-	{
-		int temp = deviceMode.dmPelsHeight;
-		deviceMode.dmPelsHeight = deviceMode.dmPelsWidth;
-		deviceMode.dmPelsWidth = temp;
-	}
-
-	//
-	// Change the display orientation and save to the registry the changes (1 parameter for ChangeDisplaySettings)
-	//
-	if (deviceMode.dmFields | DM_DISPLAYORIENTATION)
-	{
-		deviceMode.dmDisplayOrientation = Orientation;
-
-		if (ChangeDisplaySettingsEx(
-				device.DeviceName,
-				&deviceMode,
-				NULL,
-				CDS_UPDATEREGISTRY | CDS_GLOBAL,
-				NULL) != DISP_CHANGE_SUCCESSFUL)
-		{
-			return GetLastError();
-		}
-	}
-
-	return ERROR_SUCCESS;
-}
-
-INT WINAPI ConvertSimpleOrientationToDMDO(SimpleOrientation orientation)
-{
-	switch (orientation)
-	{
-	// Portrait
-	case SimpleOrientation::NotRotated:
-	{
-		return DMDO_270;
-	}
-	// Portrait (flipped)
-	case SimpleOrientation::Rotated180DegreesCounterclockwise:
-	{
-		return DMDO_90;
-	}
-	// Landscape
-	case SimpleOrientation::Rotated90DegreesCounterclockwise:
-	{
-		return DMDO_180;
-	}
-	// Landscape (flipped)
-	case SimpleOrientation::Rotated270DegreesCounterclockwise:
-	{
-		return DMDO_DEFAULT;
-	}
-	}
-
-	return DMDO_DEFAULT;
-}
-
-VOID OnPostureChanged(TwoPanelHingedDevicePosturePreview const & /*sender*/, TwoPanelHingedDevicePosturePreviewReadingChangedEventArgs const &args)
-{
-	TwoPanelHingedDevicePosturePreviewReading reading = args.Reading();
-
-	INT Panel1Orientation = ConvertSimpleOrientationToDMDO(reading.Panel1Orientation());
-	INT Panel2Orientation = ConvertSimpleOrientationToDMDO(reading.Panel2Orientation());
-
-	SetPanelOrientation(1, Panel1Orientation);
-	SetPanelOrientation(0, Panel2Orientation);
+	SetPanelsOrientationState(Panel1SimpleOrientation, Panel2SimpleOrientation);
 }
 
 VOID OnPowerEvent(
@@ -301,6 +220,8 @@ VOID SetupAutoRotation(SERVICE_STATUS_HANDLE g_StatusHandle)
 
 int AutoRotateMain(SERVICE_STATUS_HANDLE g_StatusHandle, HANDLE g_ServiceStopEvent)
 {
+	sensor = TwoPanelHingedDevicePosture::GetDefaultAsync().get();
+
 	//
 	// If no sensor is found return 1
 	//
@@ -318,7 +239,7 @@ int AutoRotateMain(SERVICE_STATUS_HANDLE g_StatusHandle, HANDLE g_ServiceStopEve
 		RegSetValueEx(key, L"SensorPresent", NULL, REG_DWORD, (LPBYTE)1, 8);
 	}
 
-	if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, WINDOWS_AUTO_ROTATION_KEY_PATH, NULL, KEY_READ, &autoRotationKey) == ERROR_SUCCESS)
+	/*if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, WINDOWS_AUTO_ROTATION_KEY_PATH, NULL, KEY_READ, &autoRotationKey) == ERROR_SUCCESS)
 	{
 		SetupAutoRotation(g_StatusHandle);
 
@@ -338,7 +259,7 @@ int AutoRotateMain(SERVICE_STATUS_HANDLE g_StatusHandle, HANDLE g_ServiceStopEve
 			RegNotifyChangeKeyValue(autoRotationKey, false, REG_NOTIFY_CHANGE_LAST_SET | REG_NOTIFY_CHANGE_NAME | REG_NOTIFY_CHANGE_ATTRIBUTES | REG_NOTIFY_CHANGE_SECURITY, hEvent, true);
 		}
 	}
-	else
+	else*/
 	{
 		RegisterEverything(g_StatusHandle);
 
@@ -347,7 +268,8 @@ int AutoRotateMain(SERVICE_STATUS_HANDLE g_StatusHandle, HANDLE g_ServiceStopEve
 		{
 			// Check whether to stop the service.
 
-			WaitForSingleObject(g_ServiceStopEvent, INFINITE);
+			Sleep(123456u);
+			//WaitForSingleObject(g_ServiceStopEvent, INFINITE);
 		}
 	}
 

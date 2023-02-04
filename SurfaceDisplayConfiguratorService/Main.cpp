@@ -1,12 +1,18 @@
 ﻿#include "pch.h"
 #include "Main.h"
-#include "DisplayConfigurator.h"
+#include "TabletPostureManager.h"
+#include "DisplayRotationManager.h"
 #include "AutoRotate.h"
 
 using namespace winrt;
 
 int main(int argc, TCHAR* argv[])
 {
+	DWORD oobeInProgress = 0;
+
+	HKEY key;
+	DWORD type = REG_DWORD, size = 8;
+
 	UNREFERENCED_PARAMETER(argc);
 	UNREFERENCED_PARAMETER(argv);
 
@@ -16,6 +22,26 @@ int main(int argc, TCHAR* argv[])
 		{NULL, NULL}
 	};
 
+	// Wait until our worker thread exits effectively signaling that the service needs to stop
+
+	SetCorrectDisplayConfiguration();
+
+	if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, L"SYSTEM\\Setup", NULL, KEY_WRITE, &key) == ERROR_SUCCESS)
+	{
+		RegQueryValueEx(key, L"OOBEInProgress", NULL, &type, (LPBYTE)&oobeInProgress, &size);
+	}
+
+	if (oobeInProgress == 0)
+	{
+		EnableTabletPosture();
+		EnableTabletPostureTaskbar();
+	}
+
+	init_apartment();
+
+	AutoRotateMain(NULL, NULL);
+
+	uninit_apartment();
 
 	StartServiceCtrlDispatcher(ServiceTable);
 
