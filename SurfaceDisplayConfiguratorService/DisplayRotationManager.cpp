@@ -25,7 +25,7 @@ DEFINE_DEVPROPKEY2(
 #endif
 
 DWORD WINAPI
-SetHardwareEnabledStateForPanel(CONST WCHAR *devicePanelId, BOOLEAN enabledState)
+SetHardwareEnabledStateForPanel(CONST WCHAR *devicePanelId, CONST WCHAR *deviceHardwareId, BOOLEAN enabledState)
 {
     HDEVINFO devInfo;
     DWORD dwBuffersize;
@@ -51,10 +51,46 @@ SetHardwareEnabledStateForPanel(CONST WCHAR *devicePanelId, BOOLEAN enabledState
             break;
         }
 
-        if (!SetupDiGetDeviceProperty(devInfo, &devData, &DEVPKEY_Device_PanelId, &devProptype, NULL, 0, &dwBuffersize, 0))
+
+        SetupDiGetDeviceProperty(devInfo, &devData, &DEVPKEY_Device_HardwareIds, &devProptype, NULL, 0, &dwBuffersize, 0);
+
+        if ((devBuffer = (LPWSTR)HeapAlloc(GetProcessHeap(), 0, dwBuffersize)) == NULL)
         {
             continue;
         }
+
+        if (!SetupDiGetDeviceProperty(devInfo, &devData, &DEVPKEY_Device_HardwareIds, &devProptype, (PBYTE)devBuffer, dwBuffersize, NULL, 0))
+        {
+            continue;
+        }
+
+        DWORD index = 0;
+        DWORD length = wcslen(devBuffer);
+        BOOLEAN match = FALSE;
+
+        while (length > 0)
+        {
+            match = lstrcmp(devBuffer + index, deviceHardwareId) == 0;
+            if (match)
+            {
+                break;
+            }
+
+            index += length + 1;
+            length = wcslen(devBuffer + index);
+        }
+
+        if (!HeapFree(GetProcessHeap(), 0, devBuffer))
+        {
+            continue;
+        }
+
+        if (!match)
+        {
+            continue;
+        }
+
+        SetupDiGetDeviceProperty(devInfo, &devData, &DEVPKEY_Device_PanelId, &devProptype, NULL, 0, &dwBuffersize, 0);
 
         if ((devBuffer = (LPWSTR)HeapAlloc(GetProcessHeap(), 0, dwBuffersize)) == NULL)
         {
@@ -66,13 +102,18 @@ SetHardwareEnabledStateForPanel(CONST WCHAR *devicePanelId, BOOLEAN enabledState
             continue;
         }
 
-        if (!lstrcmp(devBuffer, devicePanelId))
+        if (lstrcmp(devBuffer, devicePanelId))
         {
             if (!HeapFree(GetProcessHeap(), 0, devBuffer))
             {
                 continue;
             }
 
+            continue;
+        }
+
+        if (!HeapFree(GetProcessHeap(), 0, devBuffer))
+        {
             continue;
         }
 
@@ -89,11 +130,6 @@ SetHardwareEnabledStateForPanel(CONST WCHAR *devicePanelId, BOOLEAN enabledState
         }
 
         if (!SetupDiChangeState(devInfo, &devData))
-        {
-            continue;
-        }
-
-        if (!HeapFree(GetProcessHeap(), 0, devBuffer))
         {
             continue;
         }

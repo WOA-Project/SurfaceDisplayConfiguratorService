@@ -59,8 +59,11 @@ OnPostureChanged(
 
     ForTestingPurposesOnly = ~ForTestingPurposesOnly;
 
-    SetHardwareEnabledStateForPanel(panel1Id, ForTestingPurposesOnly);
-    SetHardwareEnabledStateForPanel(panel2Id, ~ForTestingPurposesOnly);
+    // Heat 1
+    SetHardwareEnabledStateForPanel(panel1Id, L"HID_DEVICE_UP:000D_U:000F", ForTestingPurposesOnly);
+
+    // Heat 2
+    SetHardwareEnabledStateForPanel(panel2Id, L"HID_DEVICE_UP:000D_U:000F", ~ForTestingPurposesOnly);
 }
 
 VOID
