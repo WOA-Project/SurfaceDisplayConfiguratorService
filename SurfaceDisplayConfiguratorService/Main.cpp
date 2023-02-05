@@ -6,39 +6,30 @@
 
 using namespace winrt;
 
-int
-main(int argc, TCHAR *argv[])
+BOOLEAN WINAPI
+IsOOBEInProgress()
 {
     DWORD oobeInProgress = 0;
 
     HKEY key;
     DWORD type = REG_DWORD, size = 8;
 
+    if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, L"SYSTEM\\Setup", NULL, KEY_WRITE, &key) == ERROR_SUCCESS)
+    {
+        RegQueryValueEx(key, L"OOBEInProgress", NULL, &type, (LPBYTE)&oobeInProgress, &size);
+        RegCloseKey(key);
+    }
+
+    return oobeInProgress == 1;
+}
+
+int
+main(int argc, TCHAR *argv[])
+{
     UNREFERENCED_PARAMETER(argc);
     UNREFERENCED_PARAMETER(argv);
 
     SERVICE_TABLE_ENTRY ServiceTable[] = {{SERVICE_NAME, (LPSERVICE_MAIN_FUNCTION)ServiceMain}, {NULL, NULL}};
-
-    // Wait until our worker thread exits effectively signaling that the service needs to stop
-
-    SetCorrectDisplayConfiguration();
-
-    if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, L"SYSTEM\\Setup", NULL, KEY_WRITE, &key) == ERROR_SUCCESS)
-    {
-        RegQueryValueEx(key, L"OOBEInProgress", NULL, &type, (LPBYTE)&oobeInProgress, &size);
-    }
-
-    if (oobeInProgress == 0)
-    {
-        EnableTabletPosture();
-        EnableTabletPostureTaskbar();
-    }
-
-    init_apartment();
-
-    AutoRotateMain(NULL, NULL);
-
-    uninit_apartment();
 
     StartServiceCtrlDispatcher(ServiceTable);
 
@@ -50,11 +41,6 @@ ServiceMain(DWORD argc, LPTSTR *argv)
 {
     UNREFERENCED_PARAMETER(argc);
     UNREFERENCED_PARAMETER(argv);
-
-    DWORD oobeInProgress = 0;
-
-    HKEY key;
-    DWORD type = REG_DWORD, size = 8;
 
     g_StatusHandle = RegisterServiceCtrlHandlerEx(SERVICE_NAME, ServiceCtrlHandlerEx, NULL);
 
@@ -83,15 +69,10 @@ ServiceMain(DWORD argc, LPTSTR *argv)
     }
 
     ReportSvcStatus(SERVICE_START_PENDING, NO_ERROR, 3000);
-    SetCorrectDisplayConfiguration();
+    SetExtendedDisplayConfiguration();
     ReportSvcStatus(SERVICE_START_PENDING, NO_ERROR, 3000);
 
-    if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, L"SYSTEM\\Setup", NULL, KEY_WRITE, &key) == ERROR_SUCCESS)
-    {
-        RegQueryValueEx(key, L"OOBEInProgress", NULL, &type, (LPBYTE)&oobeInProgress, &size);
-    }
-
-    if (oobeInProgress == 0)
+    if (!IsOOBEInProgress())
     {
         EnableTabletPosture();
         ReportSvcStatus(SERVICE_START_PENDING, NO_ERROR, 3000);

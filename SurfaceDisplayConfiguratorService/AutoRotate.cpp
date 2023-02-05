@@ -20,12 +20,14 @@ BOOL AlreadySetup = FALSE;
 //
 // Is the event subscribed
 //
-BOOL Subscribed = FALSE;
+BOOL postureSubscribed = FALSE;
+BOOL flipSubscribed = FALSE;
 
 //
 // The event token for the orientation sensor on orientation changed event
 //
-event_token eventToken;
+event_token postureEventToken;
+event_token flipEventToken;
 
 //
 // The handle the power notify event registration
@@ -36,34 +38,29 @@ HPOWERNOTIFY m_hScreenStateNotify = NULL;
 //
 // Get the default simple orientation sensor on the system
 //
-TwoPanelHingedDevicePosture sensor = TwoPanelHingedDevicePosture::GetDefaultAsync().get();
-
-BOOLEAN ForTestingPurposesOnly = FALSE;
+TwoPanelHingedDevicePosture postureSensor = TwoPanelHingedDevicePosture::GetDefaultAsync().get();
+FlipSensor flipSensor = FlipSensor::GetDefaultAsync().get();
 
 VOID
 OnPostureChanged(
-    TwoPanelHingedDevicePosture const & /*sender*/,
-    TwoPanelHingedDevicePostureReadingChangedEventArgs const &args)
+    TwoPanelHingedDevicePosture const& /*sender*/,
+    TwoPanelHingedDevicePostureReadingChangedEventArgs const& args)
 {
     TwoPanelHingedDevicePostureReading reading = args.Reading();
+    SetPanelsOrientationState(args.Reading());
+}
 
-    SimpleOrientation Panel1SimpleOrientation = reading.Panel1Orientation();
-    SimpleOrientation Panel2SimpleOrientation = reading.Panel2Orientation();
+VOID
+OnFlipSensorReadingChanged(FlipSensor const& /*sender*/,
+    FlipSensorReadingChangedEventArgs const& args)
+{
+    FlipSensorReading reading = args.Reading();
 
-    guid guid = reading.ActivityId();
-
-    CONST WCHAR *panel1Id = reading.Panel1Id().c_str();
-    CONST WCHAR *panel2Id = reading.Panel2Id().c_str();
-
-    SetPanelsOrientationState(Panel1SimpleOrientation, Panel2SimpleOrientation);
-
-    ForTestingPurposesOnly = ~ForTestingPurposesOnly;
-
-    // Heat 1
-    SetHardwareEnabledStateForPanel(panel1Id, L"HID_DEVICE_UP:000D_U:000F", ForTestingPurposesOnly);
-
-    // Heat 2
-    SetHardwareEnabledStateForPanel(panel2Id, L"HID_DEVICE_UP:000D_U:000F", ~ForTestingPurposesOnly);
+    if (reading.GestureState() == GestureState::Completed)
+    {
+        ToggleFavoriteSingleScreenDisplay();
+        SetPanelsOrientationState(postureSensor.GetCurrentPostureAsync().get());
+    }
 }
 
 VOID
@@ -88,10 +85,16 @@ OnPowerEvent(_In_ GUID SettingGuid, _In_ PVOID Value, _In_ ULONG ValueLength, _I
             //
             // Unsubscribe to sensor events
             //
-            if (Subscribed)
+            if (postureSubscribed)
             {
-                sensor.PostureChanged(eventToken);
-                Subscribed = FALSE;
+                postureSensor.PostureChanged(postureEventToken);
+                postureSubscribed = FALSE;
+            }
+
+            if (flipSubscribed)
+            {
+                flipSensor.ReadingChanged(flipEventToken);
+                flipSubscribed = FALSE;
             }
             break;
         case 1:
@@ -100,10 +103,16 @@ OnPowerEvent(_In_ GUID SettingGuid, _In_ PVOID Value, _In_ ULONG ValueLength, _I
             //
             // Subscribe to sensor events
             //
-            if (!Subscribed)
+            if (!postureSubscribed)
             {
-                eventToken = sensor.PostureChanged(OnPostureChanged);
-                Subscribed = TRUE;
+                postureEventToken = postureSensor.PostureChanged(OnPostureChanged);
+                postureSubscribed = TRUE;
+            }
+
+            if (!flipSubscribed)
+            {
+                flipEventToken = flipSensor.ReadingChanged(OnFlipSensorReadingChanged);
+                flipSubscribed = TRUE;
             }
             break;
         case 2:
@@ -127,10 +136,16 @@ OnSystemSuspendStatusChanged(ULONG PowerEvent)
         //
         // Unsubscribe to sensor events
         //
-        if (Subscribed)
+        if (postureSubscribed)
         {
-            sensor.PostureChanged(eventToken);
-            Subscribed = FALSE;
+            postureSensor.PostureChanged(postureEventToken);
+            postureSubscribed = FALSE;
+        }
+
+        if (flipSubscribed)
+        {
+            flipSensor.ReadingChanged(flipEventToken);
+            flipSubscribed = FALSE;
         }
     }
     else if (PowerEvent == PBT_APMRESUMEAUTOMATIC || PowerEvent == PBT_APMRESUMESUSPEND)
@@ -141,10 +156,16 @@ OnSystemSuspendStatusChanged(ULONG PowerEvent)
         //
         // Subscribe to sensor events
         //
-        if (!Subscribed)
+        if (!postureSubscribed)
         {
-            eventToken = sensor.PostureChanged(OnPostureChanged);
-            Subscribed = TRUE;
+            postureEventToken = postureSensor.PostureChanged(OnPostureChanged);
+            postureSubscribed = TRUE;
+        }
+
+        if (!flipSubscribed)
+        {
+            flipEventToken = flipSensor.ReadingChanged(OnFlipSensorReadingChanged);
+            flipSubscribed = TRUE;
         }
     }
 }
@@ -177,10 +198,16 @@ UnregisterEverything()
     //
     // Unsubscribe to sensor events
     //
-    if (Subscribed)
+    if (postureSubscribed)
     {
-        sensor.PostureChanged(eventToken);
-        Subscribed = FALSE;
+        postureSensor.PostureChanged(postureEventToken);
+        postureSubscribed = FALSE;
+    }
+
+    if (flipSubscribed)
+    {
+        flipSensor.ReadingChanged(flipEventToken);
+        flipSubscribed = FALSE;
     }
 
     AlreadySetup = FALSE;
@@ -203,10 +230,16 @@ RegisterEverything(SERVICE_STATUS_HANDLE g_StatusHandle)
     //
     // Subscribe to sensor events
     //
-    if (!Subscribed)
+    if (!postureSubscribed)
     {
-        eventToken = sensor.PostureChanged(OnPostureChanged);
-        Subscribed = TRUE;
+        postureEventToken = postureSensor.PostureChanged(OnPostureChanged);
+        postureSubscribed = TRUE;
+    }
+
+    if (!flipSubscribed)
+    {
+        flipEventToken = flipSensor.ReadingChanged(OnFlipSensorReadingChanged);
+        flipSubscribed = TRUE;
     }
 
     AlreadySetup = TRUE;
@@ -236,15 +269,28 @@ SetupAutoRotation(SERVICE_STATUS_HANDLE g_StatusHandle)
 int
 AutoRotateMain(SERVICE_STATUS_HANDLE g_StatusHandle, HANDLE g_ServiceStopEvent)
 {
-    sensor = TwoPanelHingedDevicePosture::GetDefaultAsync().get();
+    postureSensor = TwoPanelHingedDevicePosture::GetDefaultAsync().get();
 
     //
     // If no sensor is found return 1
     //
-    if (sensor == NULL)
+    if (postureSensor == NULL)
     {
         return 1;
     }
+
+    flipSensor = FlipSensor::GetDefaultAsync().get();
+
+    //
+    // If no sensor is found return 1
+    //
+    if (flipSensor == NULL)
+    {
+        return 1;
+    }
+
+    // Set initial state
+    SetPanelsOrientationState(postureSensor.GetCurrentPostureAsync().get());
 
     //
     // Set sensor present for windows to show the auto rotation toggle in action center
@@ -268,10 +314,10 @@ AutoRotateMain(SERVICE_STATUS_HANDLE g_StatusHandle, HANDLE g_ServiceStopEvent)
 
         while (true)
         {
-            /*if (WaitForSingleObject(hEvent, INFINITE) == WAIT_FAILED)
+            if (WaitForSingleObject(hEvent, INFINITE) == WAIT_FAILED)
             {
                 break;
-            }*/
+            }
 
             SetupAutoRotation(g_StatusHandle);
 
@@ -292,8 +338,7 @@ AutoRotateMain(SERVICE_STATUS_HANDLE g_StatusHandle, HANDLE g_ServiceStopEvent)
         while (true)
         {
             // Check whether to stop the service.
-            // WaitForSingleObject(g_ServiceStopEvent, INFINITE);
-            Sleep(123456u);
+            WaitForSingleObject(g_ServiceStopEvent, INFINITE);
         }
     }
 
