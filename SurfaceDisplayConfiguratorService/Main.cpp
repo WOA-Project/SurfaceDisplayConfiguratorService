@@ -50,7 +50,7 @@ ServiceMain(DWORD argc, LPTSTR *argv)
     }
 
     // Tell the service controller we are starting
-    g_ServiceStatus.dwServiceType = SERVICE_USER_OWN_PROCESS;
+    g_ServiceStatus.dwServiceType = SERVICE_WIN32_OWN_PROCESS;
     g_ServiceStatus.dwServiceSpecificExitCode = 0;
 
     ReportSvcStatus(SERVICE_START_PENDING, NO_ERROR, 3000);
