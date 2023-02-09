@@ -1,7 +1,15 @@
 #include "pch.h"
 #include <SetupAPI.h>
 #include <Devpkey.h>
+#include "NtAlpc.h"
 #include "DisplayRotationManager.h"
+
+CRITICAL_SECTION g_AutoRotationCriticalSection;
+
+//
+// The handle to the auto rotation ALPC port
+//
+HANDLE PortHandle = NULL;
 
 #define DEFINE_DEVPROPKEY2(name, l, w1, w2, b1, b2, b3, b4, b5, b6, b7, b8, pid) \
     EXTERN_C \
@@ -56,12 +64,55 @@ typedef struct _ACPI_PLD_V2_BUFFER
     USHORT HorizontalOffset;
 } ACPI_PLD_V2_BUFFER, *PACPI_PLD_V2_BUFFER;
 
+//
+// Subject: Notify auto rotation with the following current auto rotation settings
+//			using ALPC port
+//
+// Parameters:
+//
+//			   Handle: the ALPC Port Handle
+//
+//             Orientation:
+//             - DMDO_270     (Portrait)
+//             - DMDO_90      (Portrait flipped)
+//             - DMDO_180     (Landscape)
+//             - DMDO_DEFAULT (Landscape flipped)
+//
+// Returns: NTSTATUS
+//
+NTSTATUS
+NotifyAutoRotationAlpcPortOfOrientationChange(INT Orientation)
+{
+    ROTATION_COMMAND_MESSAGE RotationCommandMessage;
+    NTSTATUS Status;
+
+    if (PortHandle == NULL)
+        return STATUS_INVALID_PARAMETER;
+
+    RtlZeroMemory(&RotationCommandMessage, sizeof(RotationCommandMessage));
+
+    RotationCommandMessage.PortMessage.u1.s1.DataLength = sizeof(RotationCommandMessage.RotationMessage);
+    RotationCommandMessage.PortMessage.u1.s1.TotalLength = sizeof(RotationCommandMessage);
+    RotationCommandMessage.PortMessage.u2.s2.Type = 1;
+
+    RotationCommandMessage.RotationMessage.Type = 2;
+    RotationCommandMessage.RotationMessage.Orientation = Orientation;
+
+    Status = NtAlpcSendWaitReceivePort(PortHandle, 0, (PVOID)&RotationCommandMessage, NULL, NULL, NULL, NULL, NULL);
+
+    return Status;
+}
+
 BOOLEAN IsDisplay1SingleScreenFavorite = FALSE;
 
 VOID WINAPI
 ToggleFavoriteSingleScreenDisplay()
 {
+    EnterCriticalSection(&g_AutoRotationCriticalSection);
+
     IsDisplay1SingleScreenFavorite = IsDisplay1SingleScreenFavorite ? FALSE : TRUE;
+
+    LeaveCriticalSection(&g_AutoRotationCriticalSection);
 }
 
 //
@@ -536,28 +587,30 @@ SetDisplayStates(
     DEVMODE DevMode2 = {0};
     DWORD error = ERROR_SUCCESS;
 
+    EnterCriticalSection(&g_AutoRotationCriticalSection);
+
     error = GetDisplayDeviceByPanelId(DisplayPanelId1, &DisplayDevice1);
     if (error != ERROR_SUCCESS)
     {
-        return error;
+        goto exit;
     }
 
     error = GetDisplayDeviceByPanelId(DisplayPanelId2, &DisplayDevice2);
     if (error != ERROR_SUCCESS)
     {
-        return error;
+        goto exit;
     }
 
     error = GetDisplayDeviceBestDisplayMode(&DisplayDevice1, &DevMode1);
     if (error != ERROR_SUCCESS)
     {
-        return error;
+        goto exit;
     }
 
     error = GetDisplayDeviceBestDisplayMode(&DisplayDevice2, &DevMode2);
     if (error != ERROR_SUCCESS)
     {
-        return error;
+        goto exit;
     }
 
     if (DisplayState1 == FALSE) //&& (DisplayDevice1.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP))
@@ -566,7 +619,7 @@ SetDisplayStates(
         error = SetHardwareEnabledStateForPanel(DisplayPanelId1, L"HID_DEVICE_UP:000D_U:000F", FALSE);
         if (error != ERROR_SUCCESS)
         {
-            return error;
+            goto exit;
         }
     }
 
@@ -576,7 +629,7 @@ SetDisplayStates(
         error = SetHardwareEnabledStateForPanel(DisplayPanelId2, L"HID_DEVICE_UP:000D_U:000F", FALSE);
         if (error != ERROR_SUCCESS)
         {
-            return error;
+            goto exit;
         }
     }
 
@@ -642,7 +695,8 @@ SetDisplayStates(
                 CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET | CDS_SET_PRIMARY,
                 NULL) != DISP_CHANGE_SUCCESSFUL)
         {
-            return GetLastError();
+            error = GetLastError();
+            goto exit;
         }
 
         if (ChangeDisplaySettingsEx(
@@ -653,7 +707,8 @@ SetDisplayStates(
                 NULL) !=
             DISP_CHANGE_SUCCESSFUL)
         {
-            return GetLastError();
+            error = GetLastError();
+            goto exit;
         }
     }
     // Left on, Right off
@@ -670,7 +725,8 @@ SetDisplayStates(
                 NULL) !=
             DISP_CHANGE_SUCCESSFUL)
         {
-            return GetLastError();
+            error = GetLastError();
+            goto exit;
         }
 
         if (ChangeDisplaySettingsEx(
@@ -681,7 +737,8 @@ SetDisplayStates(
                 NULL) !=
             DISP_CHANGE_SUCCESSFUL)
         {
-            return GetLastError();
+            error = GetLastError();
+            goto exit;
         }
     }
     // Left off, Right on
@@ -698,7 +755,8 @@ SetDisplayStates(
                 NULL) !=
             DISP_CHANGE_SUCCESSFUL)
         {
-            return GetLastError();
+            error = GetLastError();
+            goto exit;
         }
 
         if (ChangeDisplaySettingsEx(
@@ -709,14 +767,16 @@ SetDisplayStates(
                 NULL) !=
             DISP_CHANGE_SUCCESSFUL)
         {
-            return GetLastError();
+            error = GetLastError();
+            goto exit;
         }
     }
 
     // Commit changes now
     if (ChangeDisplaySettingsEx(NULL, NULL, NULL, 0, NULL) != DISP_CHANGE_SUCCESSFUL)
     {
-        return GetLastError();
+        error = GetLastError();
+        goto exit;
     }
 
     // Display needs to be turned on but was not currently attached
@@ -726,7 +786,7 @@ SetDisplayStates(
         error = SetHardwareEnabledStateForPanel(DisplayPanelId1, L"HID_DEVICE_UP:000D_U:000F", TRUE);
         if (error != ERROR_SUCCESS)
         {
-            return error;
+            goto exit;
         }
     }
 
@@ -737,11 +797,14 @@ SetDisplayStates(
         error = SetHardwareEnabledStateForPanel(DisplayPanelId2, L"HID_DEVICE_UP:000D_U:000F", TRUE);
         if (error != ERROR_SUCCESS)
         {
-            return error;
+            goto exit;
         }
     }
 
-    return ERROR_SUCCESS;
+exit:
+    LeaveCriticalSection(&g_AutoRotationCriticalSection);
+
+    return error;
 }
 
 DWORD WINAPI
@@ -798,4 +861,47 @@ SetExtendedDisplayConfiguration()
         return GetLastError();
     }
     return ERROR_SUCCESS;
+}
+
+VOID
+InitializeDisplayRotationManager()
+{
+    NTSTATUS Status;
+    UNICODE_STRING DestinationString;
+    OBJECT_ATTRIBUTES ObjectAttribs;
+    ALPC_PORT_ATTRIBUTES PortAttribs = {0};
+
+    //
+    // Initialize ALPC Port. This will decide the way we do screen flip
+    //
+    RtlZeroMemory(&ObjectAttribs, sizeof(ObjectAttribs));
+    ObjectAttribs.Length = sizeof(ObjectAttribs);
+
+    RtlZeroMemory(&PortAttribs, sizeof(PortAttribs));
+    PortAttribs.MaxMessageLength = 56;
+
+    RtlInitUnicodeString(&DestinationString, L"\\RPC Control\\AutoRotationApiPort");
+
+#pragma warning(disable : 6387)
+    Status = NtAlpcConnectPort(
+        &PortHandle,
+        &DestinationString,
+        &ObjectAttribs,
+        &PortAttribs,
+        ALPC_MSGFLG_SYNC_REQUEST,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL);
+#pragma warning(default : 6387)
+
+    if (!NT_SUCCESS(Status))
+    {
+        // Can't initialize critical section; skip Auto rotation API
+        PortHandle = NULL;
+    }
+
+    InitializeCriticalSectionAndSpinCount(&g_AutoRotationCriticalSection, 0x00000400);
 }

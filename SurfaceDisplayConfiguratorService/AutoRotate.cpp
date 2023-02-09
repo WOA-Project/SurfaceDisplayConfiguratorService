@@ -5,8 +5,6 @@
 
 #define WINDOWS_AUTO_ROTATION_KEY_PATH L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\AutoRotation"
 
-CRITICAL_SECTION g_AutoRotationCriticalSection;
-
 //
 // The system registry key for auto rotation
 //

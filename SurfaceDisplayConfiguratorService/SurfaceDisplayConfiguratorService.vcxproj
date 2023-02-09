@@ -120,6 +120,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="AutoRotate.h" />
+    <ClInclude Include="NtAlpc.h" />
     <ClInclude Include="TabletPostureManager.h" />
     <ClInclude Include="DisplayRotationManager.h" />
     <ClInclude Include="Main.h" />

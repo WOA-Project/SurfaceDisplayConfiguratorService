@@ -6,3 +6,5 @@ DWORD WINAPI
 SetPanelsOrientationState(TwoPanelHingedDevicePostureReading reading);
 VOID WINAPI
 ToggleFavoriteSingleScreenDisplay();
+VOID
+InitializeDisplayRotationManager();
