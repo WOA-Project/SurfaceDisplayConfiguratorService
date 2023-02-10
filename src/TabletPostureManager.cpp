@@ -1,3 +1,24 @@
+/*
+* Copyright (c) 2022-2023 The DuoWOA authors
+*
+* Permission is hereby granted, free of charge, to any person obtaining a copy
+* of this software and associated documentation files (the "Software"), to deal
+* in the Software without restriction, including without limitation the rights
+* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+* copies of the Software, and to permit persons to whom the Software is
+* furnished to do so, subject to the following conditions:
+* 
+* The above copyright notice and this permission notice shall be included in all
+* copies or substantial portions of the Software.
+*
+* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+* SOFTWARE.
+*/
 #include "pch.h"
 #include <string>
 #include <stdio.h>
@@ -54,13 +75,13 @@ EnableTabletPosture()
     NTSTATUS status = NtQueryWnfStateData(
         &WNF_TMCN_ISTABLETPOSTURE, nullptr, nullptr, &TabletPostureChangeStamp, TabletPosture, &TabletPostureSize);
 
-    if (status == ERROR_SUCCESS && TabletPosture[0] != 1)
+    if (SUCCEEDED(status) && TabletPosture[0] != 1)
     {
         TabletPosture[0] = 1;
         status = RtlPublishWnfStateData(WNF_TMCN_ISTABLETPOSTURE, nullptr, TabletPosture, 1, nullptr);
     }
 
-    return status == ERROR_SUCCESS;
+    return SUCCEEDED(status);
 }
 
 BOOL WINAPI
@@ -73,24 +94,24 @@ EnableTabletMode()
     NTSTATUS status = NtQueryWnfStateData(
         &WNF_TMCN_ISTABLETMODE, nullptr, nullptr, &TabletModeChangeStamp, TabletMode, &TabletModeSize);
 
-    if (status == ERROR_SUCCESS && TabletMode[0] != 1)
+    if (SUCCEEDED(status) && TabletMode[0] != 1)
     {
         TabletMode[0] = 1;
         status = RtlPublishWnfStateData(WNF_TMCN_ISTABLETMODE, nullptr, TabletMode, 1, nullptr);
     }
 
-    return status == ERROR_SUCCESS;
+    return SUCCEEDED(status);
 }
 
-NTSTATUS WINAPI
+HRESULT WINAPI
 _RegSetKeyValue(HKEY hKey, LPCWSTR lpSubKey, LPCWSTR lpValueName, DWORD dwType, BYTE *lpData, DWORD cbData)
 {
-    NTSTATUS status;
+    HRESULT status;
 
     if (lpSubKey && *lpSubKey)
     {
         status = RegCreateKeyEx(HKEY_CURRENT_USER, lpSubKey, NULL, NULL, NULL, 2, NULL, &hKey, NULL);
-        if (status)
+        if (SUCCEEDED(status))
             return status;
     }
     else
@@ -112,7 +133,7 @@ EnableTabletPostureTaskbar()
     DWORD pcbData = 4;
     int pvData = 0;
 
-    NTSTATUS status = RegGetValue(
+    HRESULT status = RegGetValue(
         HKEY_CURRENT_USER,
         L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer",
         L"TabletPostureTaskbar",
@@ -121,7 +142,7 @@ EnableTabletPostureTaskbar()
         &pvData,
         &pcbData);
 
-    if (status != ERROR_SUCCESS || pvData != 1)
+    if (FAILED(status) || pvData != 1)
     {
         pvData = 1;
         status = _RegSetKeyValue(
@@ -133,5 +154,5 @@ EnableTabletPostureTaskbar()
             pcbData);
     }
 
-    return status == ERROR_SUCCESS;
+    return SUCCEEDED(status);
 }

@@ -1,7 +1,29 @@
+/*
+* Copyright (c) 2022-2023 The DuoWOA authors
+*
+* Permission is hereby granted, free of charge, to any person obtaining a copy
+* of this software and associated documentation files (the "Software"), to deal
+* in the Software without restriction, including without limitation the rights
+* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+* copies of the Software, and to permit persons to whom the Software is
+* furnished to do so, subject to the following conditions:
+* 
+* The above copyright notice and this permission notice shall be included in all
+* copies or substantial portions of the Software.
+*
+* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+* SOFTWARE.
+*/
 #include "pch.h"
 #include <SetupAPI.h>
 #include <Devpkey.h>
 #include "NtAlpc.h"
+#include "DeviceProperties.h"
 #include "DisplayRotationManager.h"
 
 CRITICAL_SECTION g_AutoRotationCriticalSection;
@@ -10,59 +32,6 @@ CRITICAL_SECTION g_AutoRotationCriticalSection;
 // The handle to the auto rotation ALPC port
 //
 HANDLE PortHandle = NULL;
-
-#define DEFINE_DEVPROPKEY2(name, l, w1, w2, b1, b2, b3, b4, b5, b6, b7, b8, pid) \
-    EXTERN_C \
-    const DEVPROPKEY DECLSPEC_SELECTANY name = {{l, w1, w2, {b1, b2, b3, b4, b5, b6, b7, b8}}, pid}
-
-#ifndef DEVPKEY_Device_PanelId
-DEFINE_DEVPROPKEY2(
-    DEVPKEY_Device_PanelId,
-    0x8dbc9c86,
-    0x97a9,
-    0x4bff,
-    0x9b,
-    0xc6,
-    0xbf,
-    0xe9,
-    0x5d,
-    0x3e,
-    0x6d,
-    0xad,
-    2); // DEVPROP_TYPE_STRING
-#endif
-
-#ifndef DEVPKEY_Device_PhysicalDeviceLocation
-DEFINE_DEVPROPKEY2(
-    DEVPKEY_Device_PhysicalDeviceLocation,
-    0x540b947e,
-    0x8b40,
-    0x45bc,
-    0xa8,
-    0xa2,
-    0x6a,
-    0x0b,
-    0x89,
-    0x4c,
-    0xbd,
-    0xa2,
-    9); // DEVPROP_TYPE_BINARY
-#endif
-
-typedef struct _ACPI_PLD_V2_BUFFER
-{
-    UINT32 Revision : 7;
-    UINT32 IgnoreColor : 1;
-    UINT32 Color : 24;
-    UINT32 Panel : 3;
-    UINT32 CardCageNumber : 8;
-    UINT32 Reference : 1;
-    UINT32 Rotation : 4;
-    UINT32 Order : 5;
-    UINT32 Reserved : 4;
-    USHORT VerticalOffset;
-    USHORT HorizontalOffset;
-} ACPI_PLD_V2_BUFFER, *PACPI_PLD_V2_BUFFER;
 
 //
 // Subject: Notify auto rotation with the following current auto rotation settings
@@ -78,16 +47,18 @@ typedef struct _ACPI_PLD_V2_BUFFER
 //             - DMDO_180     (Landscape)
 //             - DMDO_DEFAULT (Landscape flipped)
 //
-// Returns: NTSTATUS
+// Returns: HRESULT
 //
-NTSTATUS
+HRESULT
 NotifyAutoRotationAlpcPortOfOrientationChange(INT Orientation)
 {
     ROTATION_COMMAND_MESSAGE RotationCommandMessage;
-    NTSTATUS Status;
+    HRESULT Status;
 
     if (PortHandle == NULL)
+    {
         return STATUS_INVALID_PARAMETER;
+    }
 
     RtlZeroMemory(&RotationCommandMessage, sizeof(RotationCommandMessage));
 
@@ -126,7 +97,7 @@ ToggleFavoriteSingleScreenDisplay()
 //
 // Returns: ERROR_SUCCESS if successful
 //
-DWORD WINAPI
+HRESULT WINAPI
 GetDisplayDeviceById(DWORD PanelId, PDISPLAY_DEVICE DisplayDevice, PDISPLAY_DEVICE DisplayDevice2)
 {
     RtlZeroMemory(DisplayDevice, sizeof(DISPLAY_DEVICE));
@@ -170,7 +141,7 @@ IsDeviceBoundToPanelId(CONST WCHAR *DeviceName, CONST WCHAR *DevicePanelId)
     while (TRUE)
     {
         SetupDiEnumDeviceInfo(devInfo, i++, &devData);
-        if (GetLastError() == ERROR_NO_MORE_ITEMS)
+        if (HRESULT_FROM_WIN32(GetLastError()) == ERROR_NO_MORE_ITEMS)
         {
             break;
         }
@@ -317,13 +288,13 @@ IsDeviceBoundToPanelId(CONST WCHAR *DeviceName, CONST WCHAR *DevicePanelId)
 //
 // Returns: ERROR_SUCCESS if successful
 //
-DWORD WINAPI
-GetDisplayDeviceByPanelId(CONST WCHAR* DevicePanelId, PDISPLAY_DEVICE DisplayDevice)
+HRESULT WINAPI
+GetDisplayDeviceByPanelId(CONST WCHAR *DevicePanelId, PDISPLAY_DEVICE DisplayDevice)
 {
     DWORD i = 0;
     DISPLAY_DEVICE DisplayDevice2 = {0};
 
-    while (GetDisplayDeviceById(i++, DisplayDevice, &DisplayDevice2) == ERROR_SUCCESS)
+    while (SUCCEEDED(GetDisplayDeviceById(i++, DisplayDevice, &DisplayDevice2)))
     {
         if (IsDeviceBoundToPanelId(DisplayDevice2.DeviceID, DevicePanelId))
         {
@@ -334,7 +305,7 @@ GetDisplayDeviceByPanelId(CONST WCHAR* DevicePanelId, PDISPLAY_DEVICE DisplayDev
     return ERROR_NOT_FOUND;
 }
 
-DWORD WINAPI
+HRESULT WINAPI
 GetDisplayDeviceBestDisplayMode(PDISPLAY_DEVICE DisplayDevice, PDEVMODE deviceMode)
 {
     DWORD i = 0;
@@ -358,7 +329,6 @@ GetDisplayDeviceBestDisplayMode(PDISPLAY_DEVICE DisplayDevice, PDEVMODE deviceMo
     }
     else
     {
-
         while (TRUE)
         {
             if (!EnumDisplaySettings(DisplayDevice->DeviceName, i, &deviceMode2))
@@ -384,7 +354,7 @@ GetDisplayDeviceBestDisplayMode(PDISPLAY_DEVICE DisplayDevice, PDEVMODE deviceMo
     }
 }
 
-DWORD WINAPI
+HRESULT WINAPI
 GetDisplayDevicePLD(CONST WCHAR *DeviceName, PACPI_PLD_V2_BUFFER Pld)
 {
     HDEVINFO DeviceInfo = INVALID_HANDLE_VALUE;
@@ -426,12 +396,12 @@ GetDisplayDevicePLD(CONST WCHAR *DeviceName, PACPI_PLD_V2_BUFFER Pld)
 //			   devicePanelId: The Panel Container Identifier
 //
 //             deviceHardwareId: The corresponding compatible hardware id to toggle
-// 
+//
 //             enabledState: The enablement state for such device, if found
 //
 // Returns: ERROR_SUCCESS if successful
 //
-DWORD WINAPI
+HRESULT WINAPI
 SetHardwareEnabledStateForPanel(CONST WCHAR *devicePanelId, CONST WCHAR *deviceHardwareId, BOOLEAN enabledState)
 {
     HDEVINFO devInfo;
@@ -445,7 +415,7 @@ SetHardwareEnabledStateForPanel(CONST WCHAR *devicePanelId, CONST WCHAR *deviceH
 
     if ((devInfo = SetupDiGetClassDevs(NULL, NULL, NULL, DIGCF_ALLCLASSES)) == NULL)
     {
-        return GetLastError();
+        return HRESULT_FROM_WIN32(GetLastError());
     }
 
     devData.cbSize = sizeof(SP_DEVINFO_DATA);
@@ -453,20 +423,21 @@ SetHardwareEnabledStateForPanel(CONST WCHAR *devicePanelId, CONST WCHAR *deviceH
     while (TRUE)
     {
         SetupDiEnumDeviceInfo(devInfo, i++, &devData);
-        if (GetLastError() == ERROR_NO_MORE_ITEMS)
+        if (HRESULT_FROM_WIN32(GetLastError()) == ERROR_NO_MORE_ITEMS)
         {
             break;
         }
 
-
-        SetupDiGetDeviceProperty(devInfo, &devData, &DEVPKEY_Device_HardwareIds, &devProptype, NULL, 0, &dwBuffersize, 0);
+        SetupDiGetDeviceProperty(
+            devInfo, &devData, &DEVPKEY_Device_HardwareIds, &devProptype, NULL, 0, &dwBuffersize, 0);
 
         if ((devBuffer = (LPWSTR)HeapAlloc(GetProcessHeap(), 0, dwBuffersize)) == NULL)
         {
             continue;
         }
 
-        if (!SetupDiGetDeviceProperty(devInfo, &devData, &DEVPKEY_Device_HardwareIds, &devProptype, (PBYTE)devBuffer, dwBuffersize, NULL, 0))
+        if (!SetupDiGetDeviceProperty(
+                devInfo, &devData, &DEVPKEY_Device_HardwareIds, &devProptype, (PBYTE)devBuffer, dwBuffersize, NULL, 0))
         {
             continue;
         }
@@ -504,7 +475,8 @@ SetHardwareEnabledStateForPanel(CONST WCHAR *devicePanelId, CONST WCHAR *deviceH
             continue;
         }
 
-        if (!SetupDiGetDeviceProperty(devInfo, &devData, &DEVPKEY_Device_PanelId, &devProptype, (PBYTE)devBuffer, dwBuffersize, NULL, 0))
+        if (!SetupDiGetDeviceProperty(
+                devInfo, &devData, &DEVPKEY_Device_PanelId, &devProptype, (PBYTE)devBuffer, dwBuffersize, NULL, 0))
         {
             continue;
         }
@@ -531,7 +503,8 @@ SetHardwareEnabledStateForPanel(CONST WCHAR *devicePanelId, CONST WCHAR *deviceH
         pcParams.Scope = DICS_FLAG_GLOBAL;
         pcParams.HwProfile = 0;
 
-        if (!SetupDiSetClassInstallParams(devInfo, &devData, (PSP_CLASSINSTALL_HEADER)&pcParams, sizeof(SP_PROPCHANGE_PARAMS)))
+        if (!SetupDiSetClassInstallParams(
+                devInfo, &devData, (PSP_CLASSINSTALL_HEADER)&pcParams, sizeof(SP_PROPCHANGE_PARAMS)))
         {
             continue;
         }
@@ -544,7 +517,7 @@ SetHardwareEnabledStateForPanel(CONST WCHAR *devicePanelId, CONST WCHAR *deviceH
 
     if (!SetupDiDestroyDeviceInfoList(devInfo))
     {
-        return GetLastError();
+        return HRESULT_FROM_WIN32(GetLastError());
     }
 
     return ERROR_SUCCESS;
@@ -572,7 +545,7 @@ ConvertSimpleOrientationToDMDO(SimpleOrientation orientation)
     return DMDO_DEFAULT;
 }
 
-DWORD WINAPI
+HRESULT WINAPI
 SetDisplayStates(
     CONST WCHAR *DisplayPanelId1,
     CONST WCHAR *DisplayPanelId2,
@@ -585,30 +558,30 @@ SetDisplayStates(
     DISPLAY_DEVICE DisplayDevice2 = {0};
     DEVMODE DevMode1 = {0};
     DEVMODE DevMode2 = {0};
-    DWORD error = ERROR_SUCCESS;
+    HRESULT Status = ERROR_SUCCESS;
 
     EnterCriticalSection(&g_AutoRotationCriticalSection);
 
-    error = GetDisplayDeviceByPanelId(DisplayPanelId1, &DisplayDevice1);
-    if (error != ERROR_SUCCESS)
+    Status = GetDisplayDeviceByPanelId(DisplayPanelId1, &DisplayDevice1);
+    if (FAILED(Status))
     {
         goto exit;
     }
 
-    error = GetDisplayDeviceByPanelId(DisplayPanelId2, &DisplayDevice2);
-    if (error != ERROR_SUCCESS)
+    Status = GetDisplayDeviceByPanelId(DisplayPanelId2, &DisplayDevice2);
+    if (FAILED(Status))
     {
         goto exit;
     }
 
-    error = GetDisplayDeviceBestDisplayMode(&DisplayDevice1, &DevMode1);
-    if (error != ERROR_SUCCESS)
+    Status = GetDisplayDeviceBestDisplayMode(&DisplayDevice1, &DevMode1);
+    if (FAILED(Status))
     {
         goto exit;
     }
 
-    error = GetDisplayDeviceBestDisplayMode(&DisplayDevice2, &DevMode2);
-    if (error != ERROR_SUCCESS)
+    Status = GetDisplayDeviceBestDisplayMode(&DisplayDevice2, &DevMode2);
+    if (FAILED(Status))
     {
         goto exit;
     }
@@ -616,8 +589,8 @@ SetDisplayStates(
     if (DisplayState1 == FALSE) //&& (DisplayDevice1.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP))
     {
         // First make sure matching sensors are off to avoid init issues
-        error = SetHardwareEnabledStateForPanel(DisplayPanelId1, L"HID_DEVICE_UP:000D_U:000F", FALSE);
-        if (error != ERROR_SUCCESS)
+        Status = SetHardwareEnabledStateForPanel(DisplayPanelId1, L"HID_DEVICE_UP:000D_U:000F", FALSE);
+        if (FAILED(Status))
         {
             goto exit;
         }
@@ -626,18 +599,18 @@ SetDisplayStates(
     if (DisplayState2 == FALSE) //&& (DisplayDevice2.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP))
     {
         // First make sure matching sensors are off to avoid init issues
-        error = SetHardwareEnabledStateForPanel(DisplayPanelId2, L"HID_DEVICE_UP:000D_U:000F", FALSE);
-        if (error != ERROR_SUCCESS)
+        Status = SetHardwareEnabledStateForPanel(DisplayPanelId2, L"HID_DEVICE_UP:000D_U:000F", FALSE);
+        if (FAILED(Status))
         {
             goto exit;
         }
     }
 
-    //DevMode1.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION | DM_DISPLAYORIENTATION;
+    // DevMode1.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION | DM_DISPLAYORIENTATION;
     DevMode1.dmPosition.x = 0;
     DevMode1.dmPosition.y = 0;
 
-    //DevMode2.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION | DM_DISPLAYORIENTATION;
+    // DevMode2.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION | DM_DISPLAYORIENTATION;
     DevMode2.dmPosition.x = 0;
     DevMode2.dmPosition.y = 0;
 
@@ -695,7 +668,7 @@ SetDisplayStates(
                 CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET | CDS_SET_PRIMARY,
                 NULL) != DISP_CHANGE_SUCCESSFUL)
         {
-            error = GetLastError();
+            Status = HRESULT_FROM_WIN32(GetLastError());
             goto exit;
         }
 
@@ -704,10 +677,9 @@ SetDisplayStates(
                 IsDisplay1Primary ? &DevMode2 : &DevMode1,
                 NULL,
                 CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET,
-                NULL) !=
-            DISP_CHANGE_SUCCESSFUL)
+                NULL) != DISP_CHANGE_SUCCESSFUL)
         {
-            error = GetLastError();
+            Status = HRESULT_FROM_WIN32(GetLastError());
             goto exit;
         }
     }
@@ -718,14 +690,10 @@ SetDisplayStates(
         DevMode2.dmPelsHeight = 0;
 
         if (ChangeDisplaySettingsEx(
-                DisplayDevice2.DeviceName,
-                &DevMode2,
-                NULL,
-                CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET,
-                NULL) !=
+                DisplayDevice2.DeviceName, &DevMode2, NULL, CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET, NULL) !=
             DISP_CHANGE_SUCCESSFUL)
         {
-            error = GetLastError();
+            Status = HRESULT_FROM_WIN32(GetLastError());
             goto exit;
         }
 
@@ -734,10 +702,9 @@ SetDisplayStates(
                 &DevMode1,
                 NULL,
                 CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET | CDS_SET_PRIMARY,
-                NULL) !=
-            DISP_CHANGE_SUCCESSFUL)
+                NULL) != DISP_CHANGE_SUCCESSFUL)
         {
-            error = GetLastError();
+            Status = HRESULT_FROM_WIN32(GetLastError());
             goto exit;
         }
     }
@@ -746,16 +713,12 @@ SetDisplayStates(
     {
         DevMode1.dmPelsWidth = 0;
         DevMode1.dmPelsHeight = 0;
-        
+
         if (ChangeDisplaySettingsEx(
-                DisplayDevice1.DeviceName,
-                &DevMode1,
-                NULL,
-                CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET,
-                NULL) !=
+                DisplayDevice1.DeviceName, &DevMode1, NULL, CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET, NULL) !=
             DISP_CHANGE_SUCCESSFUL)
         {
-            error = GetLastError();
+            Status = HRESULT_FROM_WIN32(GetLastError());
             goto exit;
         }
 
@@ -764,10 +727,9 @@ SetDisplayStates(
                 &DevMode2,
                 NULL,
                 CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET | CDS_SET_PRIMARY,
-                NULL) !=
-            DISP_CHANGE_SUCCESSFUL)
+                NULL) != DISP_CHANGE_SUCCESSFUL)
         {
-            error = GetLastError();
+            Status = HRESULT_FROM_WIN32(GetLastError());
             goto exit;
         }
     }
@@ -775,7 +737,7 @@ SetDisplayStates(
     // Commit changes now
     if (ChangeDisplaySettingsEx(NULL, NULL, NULL, 0, NULL) != DISP_CHANGE_SUCCESSFUL)
     {
-        error = GetLastError();
+        Status = HRESULT_FROM_WIN32(GetLastError());
         goto exit;
     }
 
@@ -783,8 +745,8 @@ SetDisplayStates(
     if (DisplayState1 == TRUE) //&& !(DisplayDevice1.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP))
     {
         // First make sure matching sensors are on to avoid init issues
-        error = SetHardwareEnabledStateForPanel(DisplayPanelId1, L"HID_DEVICE_UP:000D_U:000F", TRUE);
-        if (error != ERROR_SUCCESS)
+        Status = SetHardwareEnabledStateForPanel(DisplayPanelId1, L"HID_DEVICE_UP:000D_U:000F", TRUE);
+        if (FAILED(Status))
         {
             goto exit;
         }
@@ -794,8 +756,8 @@ SetDisplayStates(
     if (DisplayState2 == TRUE) //&& !(DisplayDevice2.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP))
     {
         // First make sure matching sensors are on to avoid init issues
-        error = SetHardwareEnabledStateForPanel(DisplayPanelId2, L"HID_DEVICE_UP:000D_U:000F", TRUE);
-        if (error != ERROR_SUCCESS)
+        Status = SetHardwareEnabledStateForPanel(DisplayPanelId2, L"HID_DEVICE_UP:000D_U:000F", TRUE);
+        if (FAILED(Status))
         {
             goto exit;
         }
@@ -804,10 +766,10 @@ SetDisplayStates(
 exit:
     LeaveCriticalSection(&g_AutoRotationCriticalSection);
 
-    return error;
+    return Status;
 }
 
-DWORD WINAPI
+HRESULT WINAPI
 SetPanelsOrientationState(TwoPanelHingedDevicePostureReading reading)
 {
     SimpleOrientation Panel1SimpleOrientation = reading.Panel1Orientation();
@@ -852,21 +814,16 @@ SetPanelsOrientationState(TwoPanelHingedDevicePostureReading reading)
     return ERROR_SUCCESS;
 }
 
-DWORD WINAPI
+HRESULT WINAPI
 SetExtendedDisplayConfiguration()
 {
-    if (SetDisplayConfig(0, NULL, 0, NULL, SDC_APPLY | SDC_TOPOLOGY_EXTEND | SDC_PATH_PERSIST_IF_REQUIRED) !=
-        ERROR_SUCCESS)
-    {
-        return GetLastError();
-    }
-    return ERROR_SUCCESS;
+    return SetDisplayConfig(0, NULL, 0, NULL, SDC_APPLY | SDC_TOPOLOGY_EXTEND | SDC_PATH_PERSIST_IF_REQUIRED);
 }
 
 VOID
 InitializeDisplayRotationManager()
 {
-    NTSTATUS Status;
+    HRESULT Status;
     UNICODE_STRING DestinationString;
     OBJECT_ATTRIBUTES ObjectAttribs;
     ALPC_PORT_ATTRIBUTES PortAttribs = {0};
@@ -897,7 +854,7 @@ InitializeDisplayRotationManager()
         NULL);
 #pragma warning(default : 6387)
 
-    if (!NT_SUCCESS(Status))
+    if (FAILED(Status))
     {
         // Can't initialize critical section; skip Auto rotation API
         PortHandle = NULL;

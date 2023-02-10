@@ -15,42 +15,42 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="AutoRotate.cpp">
+    <ClCompile Include="..\src\AutoRotate.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Main.cpp">
+    <ClCompile Include="..\src\TabletPostureManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TabletPostureManager.cpp">
+    <ClCompile Include="..\src\DisplayRotationManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="pch.cpp">
+    <ClCompile Include="..\src\Main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="DisplayRotationManager.cpp">
+    <ClCompile Include="..\src\pch.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Main.h">
+    <ClInclude Include="..\include\AutoRotate.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="AutoRotate.h">
+    <ClInclude Include="..\include\NtAlpc.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="TabletPostureManager.h">
+    <ClInclude Include="..\include\TabletPostureManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="resource.h">
+    <ClInclude Include="..\include\DisplayRotationManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="pch.h">
+    <ClInclude Include="..\include\Main.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="DisplayRotationManager.h">
+    <ClInclude Include="..\include\pch.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="NtAlpc.h">
+    <ClInclude Include="..\include\resource.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -59,7 +59,7 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="Resource.rc">
+    <ResourceCompile Include="..\src\Resource.rc">
       <Filter>Resource Files</Filter>
     </ResourceCompile>
   </ItemGroup>

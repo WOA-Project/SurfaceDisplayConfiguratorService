@@ -1,9 +1,28 @@
+/*
+* Copyright (c) 2022-2023 The DuoWOA authors
+*
+* Permission is hereby granted, free of charge, to any person obtaining a copy
+* of this software and associated documentation files (the "Software"), to deal
+* in the Software without restriction, including without limitation the rights
+* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+* copies of the Software, and to permit persons to whom the Software is
+* furnished to do so, subject to the following conditions:
+* 
+* The above copyright notice and this permission notice shall be included in all
+* copies or substantial portions of the Software.
+*
+* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+* SOFTWARE.
+*/
 #include "pch.h"
 #include "DisplayRotationManager.h"
 #include "AutoRotate.h"
 #include <powrprof.h>
-
-#define WINDOWS_AUTO_ROTATION_KEY_PATH L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\AutoRotation"
 
 //
 // The system registry key for auto rotation
@@ -14,18 +33,6 @@ HKEY autoRotationKey = NULL;
 // Are we already registered with the sensor?
 //
 BOOL AlreadySetup = FALSE;
-
-//
-// Is the event subscribed
-//
-BOOL postureSubscribed = FALSE;
-BOOL flipSubscribed = FALSE;
-
-//
-// The event token for the orientation sensor on orientation changed event
-//
-event_token postureEventToken;
-event_token flipEventToken;
 
 //
 // The handle the power notify event registration
@@ -39,18 +46,29 @@ HPOWERNOTIFY m_hScreenStateNotify = NULL;
 TwoPanelHingedDevicePosture postureSensor = TwoPanelHingedDevicePosture::GetDefaultAsync().get();
 FlipSensor flipSensor = FlipSensor::GetDefaultAsync().get();
 
+//
+// The event token for the orientation sensor on orientation changed event
+//
+event_token postureEventToken;
+event_token flipEventToken;
+
+//
+// Is the event subscribed
+//
+BOOL postureSubscribed = FALSE;
+BOOL flipSubscribed = FALSE;
+
 VOID
 OnPostureChanged(
-    TwoPanelHingedDevicePosture const& /*sender*/,
-    TwoPanelHingedDevicePostureReadingChangedEventArgs const& args)
+    TwoPanelHingedDevicePosture const & /*sender*/,
+    TwoPanelHingedDevicePostureReadingChangedEventArgs const &args)
 {
     TwoPanelHingedDevicePostureReading reading = args.Reading();
     SetPanelsOrientationState(args.Reading());
 }
 
 VOID
-OnFlipSensorReadingChanged(FlipSensor const& /*sender*/,
-    FlipSensorReadingChangedEventArgs const& args)
+OnFlipSensorReadingChanged(FlipSensor const & /*sender*/, FlipSensorReadingChangedEventArgs const &args)
 {
     FlipSensorReading reading = args.Reading();
 
@@ -174,7 +192,9 @@ SuspendResumeCallback(PVOID context, ULONG powerEvent, PVOID setting)
 {
     UNREFERENCED_PARAMETER(context);
     UNREFERENCED_PARAMETER(setting);
+
     OnSystemSuspendStatusChanged(powerEvent);
+
     return ERROR_SUCCESS;
 }
 
@@ -246,7 +266,7 @@ RegisterEverything(SERVICE_STATUS_HANDLE g_StatusHandle)
 VOID
 SetupAutoRotation(SERVICE_STATUS_HANDLE g_StatusHandle)
 {
-    DWORD type = REG_DWORD, size = 8;
+    DWORD type = REG_DWORD, size = sizeof(DWORD);
 
     //
     // Check if rotation is enabled
@@ -264,7 +284,7 @@ SetupAutoRotation(SERVICE_STATUS_HANDLE g_StatusHandle)
     }
 }
 
-int
+HRESULT
 AutoRotateMain(SERVICE_STATUS_HANDLE g_StatusHandle, HANDLE g_ServiceStopEvent)
 {
     postureSensor = TwoPanelHingedDevicePosture::GetDefaultAsync().get();
@@ -293,40 +313,33 @@ AutoRotateMain(SERVICE_STATUS_HANDLE g_StatusHandle, HANDLE g_ServiceStopEvent)
     //
     // Set sensor present for windows to show the auto rotation toggle in action center
     //
-    HKEY key;
-    if (RegOpenKeyEx(
-            HKEY_LOCAL_MACHINE, L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\AutoRotation", NULL, KEY_WRITE, &key) ==
-        ERROR_SUCCESS)
+    if (SUCCEEDED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, WINDOWS_AUTO_ROTATION_KEY_PATH, NULL, KEY_WRITE, &autoRotationKey)))
     {
-        RegSetValueEx(key, L"SensorPresent", NULL, REG_DWORD, (LPBYTE)1, 8);
+        DWORD Enabled = 1;
+        RegSetValueEx(autoRotationKey, L"SensorPresent", NULL, REG_DWORD, (LPBYTE)&Enabled, sizeof(DWORD));
+        RegCloseKey(autoRotationKey);
     }
 
-    if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, WINDOWS_AUTO_ROTATION_KEY_PATH, NULL, KEY_READ, &autoRotationKey) ==
-        ERROR_SUCCESS)
+    if (SUCCEEDED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, WINDOWS_AUTO_ROTATION_KEY_PATH, NULL, KEY_READ, &autoRotationKey)))
     {
-        SetupAutoRotation(g_StatusHandle);
-
         HANDLE hEvent = CreateEvent(NULL, true, false, NULL);
-
-        RegNotifyChangeKeyValue(autoRotationKey, true, REG_NOTIFY_CHANGE_LAST_SET, hEvent, true);
+        HANDLE hEvents[2] = {hEvent, g_ServiceStopEvent};
 
         while (true)
         {
-            if (WaitForSingleObject(hEvent, INFINITE) == WAIT_FAILED)
+            SetupAutoRotation(g_StatusHandle);
+
+            RegNotifyChangeKeyValue(autoRotationKey, false, REG_NOTIFY_CHANGE_LAST_SET, hEvent, true);
+
+            DWORD waitResult = WaitForMultipleObjects(2, hEvents, FALSE, INFINITE);
+
+            if (waitResult == WAIT_FAILED || waitResult == (WAIT_OBJECT_0 + 1))
             {
                 break;
             }
-
-            SetupAutoRotation(g_StatusHandle);
-
-            RegNotifyChangeKeyValue(
-                autoRotationKey,
-                false,
-                REG_NOTIFY_CHANGE_LAST_SET | REG_NOTIFY_CHANGE_NAME | REG_NOTIFY_CHANGE_ATTRIBUTES |
-                    REG_NOTIFY_CHANGE_SECURITY,
-                hEvent,
-                true);
         }
+
+        RegCloseKey(autoRotationKey);
     }
     else
     {
@@ -336,7 +349,10 @@ AutoRotateMain(SERVICE_STATUS_HANDLE g_StatusHandle, HANDLE g_ServiceStopEvent)
         while (true)
         {
             // Check whether to stop the service.
-            WaitForSingleObject(g_ServiceStopEvent, INFINITE);
+            if (WaitForSingleObject(g_ServiceStopEvent, INFINITE) == WAIT_FAILED)
+            {
+                break;
+            }
         }
     }
 
