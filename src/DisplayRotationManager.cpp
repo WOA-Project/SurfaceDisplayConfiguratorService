@@ -141,7 +141,7 @@ IsDeviceBoundToPanelId(CONST WCHAR *DeviceName, CONST WCHAR *DevicePanelId)
     while (TRUE)
     {
         SetupDiEnumDeviceInfo(devInfo, i++, &devData);
-        if (HRESULT_FROM_WIN32(GetLastError()) == ERROR_NO_MORE_ITEMS)
+        if (GetLastError() == ERROR_NO_MORE_ITEMS)
         {
             break;
         }
@@ -423,7 +423,7 @@ SetHardwareEnabledStateForPanel(CONST WCHAR *devicePanelId, CONST WCHAR *deviceH
     while (TRUE)
     {
         SetupDiEnumDeviceInfo(devInfo, i++, &devData);
-        if (HRESULT_FROM_WIN32(GetLastError()) == ERROR_NO_MORE_ITEMS)
+        if (GetLastError() == ERROR_NO_MORE_ITEMS)
         {
             break;
         }
