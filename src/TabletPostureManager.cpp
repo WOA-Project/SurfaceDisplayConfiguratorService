@@ -68,17 +68,17 @@ RtlPublishWnfStateData(
 BOOL WINAPI
 EnableTabletPosture()
 {
-    BYTE TabletPosture[4];
+    BYTE TabletPosture = 0;
     DWORD TabletPostureSize = 1;
     WNF_CHANGE_STAMP TabletPostureChangeStamp;
 
     NTSTATUS status = NtQueryWnfStateData(
-        &WNF_TMCN_ISTABLETPOSTURE, nullptr, nullptr, &TabletPostureChangeStamp, TabletPosture, &TabletPostureSize);
+        &WNF_TMCN_ISTABLETPOSTURE, nullptr, nullptr, &TabletPostureChangeStamp, &TabletPosture, &TabletPostureSize);
 
-    if (SUCCEEDED(status) && TabletPosture[0] != 1)
+    if (SUCCEEDED(status) && TabletPosture != 1)
     {
-        TabletPosture[0] = 1;
-        status = RtlPublishWnfStateData(WNF_TMCN_ISTABLETPOSTURE, nullptr, TabletPosture, 1, nullptr);
+        TabletPosture = 1;
+        status = RtlPublishWnfStateData(WNF_TMCN_ISTABLETPOSTURE, nullptr, &TabletPosture, 1, nullptr);
     }
 
     return SUCCEEDED(status);
@@ -87,17 +87,17 @@ EnableTabletPosture()
 BOOL WINAPI
 EnableTabletMode()
 {
-    BYTE TabletMode[4];
+    BYTE TabletMode = 0;
     DWORD TabletModeSize = 1;
     WNF_CHANGE_STAMP TabletModeChangeStamp;
 
     NTSTATUS status = NtQueryWnfStateData(
-        &WNF_TMCN_ISTABLETMODE, nullptr, nullptr, &TabletModeChangeStamp, TabletMode, &TabletModeSize);
+        &WNF_TMCN_ISTABLETMODE, nullptr, nullptr, &TabletModeChangeStamp, &TabletMode, &TabletModeSize);
 
-    if (SUCCEEDED(status) && TabletMode[0] != 1)
+    if (SUCCEEDED(status) && TabletMode != 1)
     {
-        TabletMode[0] = 1;
-        status = RtlPublishWnfStateData(WNF_TMCN_ISTABLETMODE, nullptr, TabletMode, 1, nullptr);
+        TabletMode = 1;
+        status = RtlPublishWnfStateData(WNF_TMCN_ISTABLETMODE, nullptr, &TabletMode, 1, nullptr);
     }
 
     return SUCCEEDED(status);

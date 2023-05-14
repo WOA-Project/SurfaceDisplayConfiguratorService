@@ -43,8 +43,8 @@ HPOWERNOTIFY m_hScreenStateNotify = NULL;
 //
 // Get the default simple orientation sensor on the system
 //
-TwoPanelHingedDevicePosture* postureSensor = NULL;
-FlipSensor* flipSensor = NULL;
+TwoPanelHingedDevicePosture postureSensor = TwoPanelHingedDevicePosture(nullptr);
+FlipSensor flipSensor = FlipSensor(nullptr);
 
 //
 // The event token for the orientation sensor on orientation changed event
@@ -75,7 +75,7 @@ OnFlipSensorReadingChanged(FlipSensor const & /*sender*/, FlipSensorReadingChang
     if (reading.GestureState() == GestureState::Completed)
     {
         ToggleFavoriteSingleScreenDisplay();
-        SetPanelsOrientationState(postureSensor->GetCurrentPostureAsync().get());
+        SetPanelsOrientationState(postureSensor.GetCurrentPostureAsync().get());
     }
 }
 
@@ -103,13 +103,13 @@ OnPowerEvent(_In_ GUID SettingGuid, _In_ PVOID Value, _In_ ULONG ValueLength, _I
             //
             if (postureSubscribed)
             {
-                postureSensor->PostureChanged(postureEventToken);
+                postureSensor.PostureChanged(postureEventToken);
                 postureSubscribed = FALSE;
             }
 
             if (flipSubscribed)
             {
-                flipSensor->ReadingChanged(flipEventToken);
+                flipSensor.ReadingChanged(flipEventToken);
                 flipSubscribed = FALSE;
             }
             break;
@@ -121,13 +121,13 @@ OnPowerEvent(_In_ GUID SettingGuid, _In_ PVOID Value, _In_ ULONG ValueLength, _I
             //
             if (!postureSubscribed)
             {
-                postureEventToken = postureSensor->PostureChanged(OnPostureChanged);
+                postureEventToken = postureSensor.PostureChanged(OnPostureChanged);
                 postureSubscribed = TRUE;
             }
 
             if (!flipSubscribed)
             {
-                flipEventToken = flipSensor->ReadingChanged(OnFlipSensorReadingChanged);
+                flipEventToken = flipSensor.ReadingChanged(OnFlipSensorReadingChanged);
                 flipSubscribed = TRUE;
             }
             break;
@@ -154,13 +154,13 @@ OnSystemSuspendStatusChanged(ULONG PowerEvent)
         //
         if (postureSubscribed)
         {
-            postureSensor->PostureChanged(postureEventToken);
+            postureSensor.PostureChanged(postureEventToken);
             postureSubscribed = FALSE;
         }
 
         if (flipSubscribed)
         {
-            flipSensor->ReadingChanged(flipEventToken);
+            flipSensor.ReadingChanged(flipEventToken);
             flipSubscribed = FALSE;
         }
     }
@@ -174,13 +174,13 @@ OnSystemSuspendStatusChanged(ULONG PowerEvent)
         //
         if (!postureSubscribed)
         {
-            postureEventToken = postureSensor->PostureChanged(OnPostureChanged);
+            postureEventToken = postureSensor.PostureChanged(OnPostureChanged);
             postureSubscribed = TRUE;
         }
 
         if (!flipSubscribed)
         {
-            flipEventToken = flipSensor->ReadingChanged(OnFlipSensorReadingChanged);
+            flipEventToken = flipSensor.ReadingChanged(OnFlipSensorReadingChanged);
             flipSubscribed = TRUE;
         }
     }
@@ -218,13 +218,13 @@ UnregisterEverything()
     //
     if (postureSubscribed)
     {
-        postureSensor->PostureChanged(postureEventToken);
+        postureSensor.PostureChanged(postureEventToken);
         postureSubscribed = FALSE;
     }
 
     if (flipSubscribed)
     {
-        flipSensor->ReadingChanged(flipEventToken);
+        flipSensor.ReadingChanged(flipEventToken);
         flipSubscribed = FALSE;
     }
 
@@ -250,13 +250,13 @@ RegisterEverything(SERVICE_STATUS_HANDLE g_StatusHandle)
     //
     if (!postureSubscribed)
     {
-        postureEventToken = postureSensor->PostureChanged(OnPostureChanged);
+        postureEventToken = postureSensor.PostureChanged(OnPostureChanged);
         postureSubscribed = TRUE;
     }
 
     if (!flipSubscribed)
     {
-        flipEventToken = flipSensor->ReadingChanged(OnFlipSensorReadingChanged);
+        flipEventToken = flipSensor.ReadingChanged(OnFlipSensorReadingChanged);
         flipSubscribed = TRUE;
     }
 
@@ -289,34 +289,30 @@ AutoRotateMain(SERVICE_STATUS_HANDLE g_StatusHandle, HANDLE g_ServiceStopEvent)
 {
     try
     {
-        postureSensor = &(TwoPanelHingedDevicePosture::GetDefaultAsync().get());
+        postureSensor = TwoPanelHingedDevicePosture::GetDefaultAsync().get();
     }
-    catch (...) {}
-
-    //
-    // If no sensor is found return 1
-    //
-    if (postureSensor == NULL)
+    catch (...)
     {
+        //
+        // If no sensor is found return 1
+        //
         return 1;
     }
 
     try
     {
-        flipSensor = &(FlipSensor::GetDefaultAsync().get());
+        flipSensor = FlipSensor::GetDefaultAsync().get();
     }
-    catch (...) {}
-
-    //
-    // If no sensor is found return 1
-    //
-    if (flipSensor == NULL)
+    catch (...)
     {
+        //
+        // If no sensor is found return 1
+        //
         return 1;
     }
 
     // Set initial state
-    SetPanelsOrientationState(postureSensor->GetCurrentPostureAsync().get());
+    SetPanelsOrientationState(postureSensor.GetCurrentPostureAsync().get());
 
     //
     // Set sensor present for windows to show the auto rotation toggle in action center

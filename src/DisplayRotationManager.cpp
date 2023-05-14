@@ -160,9 +160,9 @@ IsDeviceBoundToPanelId(CONST WCHAR *DeviceName, CONST WCHAR *DevicePanelId)
             continue;
         }
 
-        DWORD index = 0;
-        DWORD length = wcslen(devBuffer);
-        DWORD lengthDeviceName = wcslen(DeviceName);
+        SIZE_T index = 0;
+        SIZE_T length = wcslen(devBuffer);
+        SIZE_T lengthDeviceName = wcslen(DeviceName);
         BOOLEAN match = FALSE;
 
         while (length > 0)
@@ -188,7 +188,7 @@ IsDeviceBoundToPanelId(CONST WCHAR *DeviceName, CONST WCHAR *DevicePanelId)
             continue;
         }
 
-        DWORD DeviceNameOffset = length + 1;
+        SIZE_T DeviceNameOffset = length + 1;
 
         SetupDiGetDeviceProperty(devInfo, &devData, &DEVPKEY_Device_Driver, &devProptype, NULL, 0, &dwBuffersize, 0);
 
@@ -442,8 +442,8 @@ SetHardwareEnabledStateForPanel(CONST WCHAR *devicePanelId, CONST WCHAR *deviceH
             continue;
         }
 
-        DWORD index = 0;
-        DWORD length = wcslen(devBuffer);
+        SIZE_T index = 0;
+        SIZE_T length = wcslen(devBuffer);
         BOOLEAN match = FALSE;
 
         while (length > 0)
@@ -642,19 +642,19 @@ SetDisplayStates(
         switch (DisplayOrientation1)
         {
         case DMDO_DEFAULT: {
-            DevMode1.dmPosition.x = -DevMode2.dmPelsWidth;
+            DevMode1.dmPosition.x = -1 * DevMode2.dmPelsWidth;
             break;
         }
         case DMDO_180: {
-            DevMode2.dmPosition.x = -DevMode1.dmPelsWidth;
+            DevMode2.dmPosition.x = -1 * DevMode1.dmPelsWidth;
             break;
         }
         case DMDO_90: {
-            DevMode1.dmPosition.y = -DevMode2.dmPelsHeight;
+            DevMode1.dmPosition.y = -1 * DevMode2.dmPelsHeight;
             break;
         }
         case DMDO_270: {
-            DevMode2.dmPosition.y = -DevMode1.dmPelsHeight;
+            DevMode2.dmPosition.y = -1 * DevMode1.dmPelsHeight;
             break;
         }
         }
