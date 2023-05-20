@@ -175,6 +175,12 @@ IsDeviceBoundToPanelId(CONST WCHAR *DeviceName, CONST WCHAR *DevicePanelId)
             }
 
             index += length + 1;
+
+            if (index >= dwBuffersize)
+            {
+                break;
+            }
+
             length = wcslen(devBuffer + index);
         }
 
@@ -220,6 +226,12 @@ IsDeviceBoundToPanelId(CONST WCHAR *DeviceName, CONST WCHAR *DevicePanelId)
             }
 
             index += length + 1;
+
+            if (index >= dwBuffersize)
+            {
+                break;
+            }
+
             length = wcslen(devBuffer + index);
         }
 
