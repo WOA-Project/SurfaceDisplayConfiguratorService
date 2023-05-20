@@ -1,24 +1,24 @@
 /*
-* Copyright (c) 2022-2023 The DuoWOA authors
-*
-* Permission is hereby granted, free of charge, to any person obtaining a copy
-* of this software and associated documentation files (the "Software"), to deal
-* in the Software without restriction, including without limitation the rights
-* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-* copies of the Software, and to permit persons to whom the Software is
-* furnished to do so, subject to the following conditions:
-* 
-* The above copyright notice and this permission notice shall be included in all
-* copies or substantial portions of the Software.
-*
-* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-* SOFTWARE.
-*/
+ * Copyright (c) 2022-2023 The DuoWOA authors
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
 #include "pch.h"
 #include "DisplayRotationManager.h"
 #include "AutoRotate.h"
@@ -43,8 +43,8 @@ HPOWERNOTIFY m_hScreenStateNotify = NULL;
 //
 // Get the default simple orientation sensor on the system
 //
-TwoPanelHingedDevicePosture postureSensor = TwoPanelHingedDevicePosture(nullptr);
-FlipSensor flipSensor = FlipSensor(nullptr);
+TwoPanelHingedDevicePosture g_PostureSensor{nullptr};
+FlipSensor g_FlipSensor{nullptr};
 
 //
 // The event token for the orientation sensor on orientation changed event
@@ -58,6 +58,8 @@ event_token flipEventToken;
 BOOL postureSubscribed = FALSE;
 BOOL flipSubscribed = FALSE;
 
+BOOL FoundAllSensors = FALSE;
+
 VOID
 OnPostureChanged(
     TwoPanelHingedDevicePosture const & /*sender*/,
@@ -70,80 +72,26 @@ OnPostureChanged(
 VOID
 OnFlipSensorReadingChanged(FlipSensor const & /*sender*/, FlipSensorReadingChangedEventArgs const &args)
 {
+    if (!FoundAllSensors)
+    {
+        return;
+    }
+
     FlipSensorReading reading = args.Reading();
+    TwoPanelHingedDevicePostureReading postureReading = g_PostureSensor.GetCurrentPostureAsync().get();
 
     if (reading.GestureState() == GestureState::Completed)
     {
         ToggleFavoriteSingleScreenDisplay();
-        SetPanelsOrientationState(postureSensor.GetCurrentPostureAsync().get());
+        SetPanelsOrientationState(postureReading);
     }
 }
 
 VOID
-OnPowerEvent(_In_ GUID SettingGuid, _In_ PVOID Value, _In_ ULONG ValueLength, _Inout_opt_ PVOID Context)
-{
-    UNREFERENCED_PARAMETER(Context);
-
-    if (IsEqualGUID(GUID_CONSOLE_DISPLAY_STATE, SettingGuid))
-    {
-        if (ValueLength != sizeof(DWORD))
-        {
-            return;
-        }
-
-        DWORD DisplayState = *(DWORD *)Value;
-
-        switch (DisplayState)
-        {
-        case 0:
-            // Display Off
-
-            //
-            // Unsubscribe to sensor events
-            //
-            if (postureSubscribed)
-            {
-                postureSensor.PostureChanged(postureEventToken);
-                postureSubscribed = FALSE;
-            }
-
-            if (flipSubscribed)
-            {
-                flipSensor.ReadingChanged(flipEventToken);
-                flipSubscribed = FALSE;
-            }
-            break;
-        case 1:
-            // Display On
-
-            //
-            // Subscribe to sensor events
-            //
-            if (!postureSubscribed)
-            {
-                postureEventToken = postureSensor.PostureChanged(OnPostureChanged);
-                postureSubscribed = TRUE;
-            }
-
-            if (!flipSubscribed)
-            {
-                flipEventToken = flipSensor.ReadingChanged(OnFlipSensorReadingChanged);
-                flipSubscribed = TRUE;
-            }
-            break;
-        case 2:
-            // Display Dimmed
-
-            break;
-        default:
-            // Unknown
-            break;
-        }
-    }
-}
-
-VOID
-OnSystemSuspendStatusChanged(ULONG PowerEvent)
+OnSystemSuspendStatusChanged(
+    ULONG PowerEvent,
+    TwoPanelHingedDevicePosture const &postureSensor,
+    FlipSensor const &flipSensor)
 {
     if (PowerEvent == PBT_APMSUSPEND)
     {
@@ -186,6 +134,74 @@ OnSystemSuspendStatusChanged(ULONG PowerEvent)
     }
 }
 
+VOID
+OnPowerEvent(_In_ GUID SettingGuid, _In_ PVOID Value, _In_ ULONG ValueLength, _Inout_opt_ PVOID Context)
+{
+    UNREFERENCED_PARAMETER(Context);
+
+    if (!FoundAllSensors)
+    {
+        return;
+    }
+
+    if (IsEqualGUID(GUID_CONSOLE_DISPLAY_STATE, SettingGuid))
+    {
+        if (ValueLength != sizeof(DWORD))
+        {
+            return;
+        }
+
+        DWORD DisplayState = *(DWORD *)Value;
+
+        switch (DisplayState)
+        {
+        case 0:
+            // Display Off
+
+            //
+            // Unsubscribe to sensor events
+            //
+            if (postureSubscribed)
+            {
+                g_PostureSensor.PostureChanged(postureEventToken);
+                postureSubscribed = FALSE;
+            }
+
+            if (flipSubscribed)
+            {
+                g_FlipSensor.ReadingChanged(flipEventToken);
+                flipSubscribed = FALSE;
+            }
+            break;
+        case 1:
+            // Display On
+
+            //
+            // Subscribe to sensor events
+            //
+            if (!postureSubscribed)
+            {
+                postureEventToken = g_PostureSensor.PostureChanged(OnPostureChanged);
+                postureSubscribed = TRUE;
+            }
+
+            if (!flipSubscribed)
+            {
+                flipEventToken = g_FlipSensor.ReadingChanged(OnFlipSensorReadingChanged);
+                flipSubscribed = TRUE;
+            }
+            break;
+        case 2:
+            // Display Dimmed
+
+            break;
+        default:
+            // Unknown
+            break;
+        }
+    }
+}
+
 // Using PVOID as per the actual typedef
 ULONG CALLBACK
 SuspendResumeCallback(PVOID context, ULONG powerEvent, PVOID setting)
@@ -193,13 +209,51 @@ SuspendResumeCallback(PVOID context, ULONG powerEvent, PVOID setting)
     UNREFERENCED_PARAMETER(context);
     UNREFERENCED_PARAMETER(setting);
 
-    OnSystemSuspendStatusChanged(powerEvent);
+    if (FoundAllSensors)
+    {
+        OnSystemSuspendStatusChanged(powerEvent, g_PostureSensor, g_FlipSensor);
+    }
 
     return ERROR_SUCCESS;
 }
 
 VOID
-UnregisterEverything()
+RegisterEverything(
+    SERVICE_STATUS_HANDLE g_StatusHandle,
+    TwoPanelHingedDevicePosture const &postureSensor,
+    FlipSensor const &flipSensor)
+{
+    DEVICE_NOTIFY_SUBSCRIBE_PARAMETERS powerParams{};
+    powerParams.Callback = SuspendResumeCallback;
+
+    PowerRegisterSuspendResumeNotification(DEVICE_NOTIFY_CALLBACK, &powerParams, &m_systemSuspendHandle);
+
+    if (g_StatusHandle != NULL)
+    {
+        m_hScreenStateNotify =
+            RegisterPowerSettingNotification(g_StatusHandle, &GUID_CONSOLE_DISPLAY_STATE, DEVICE_NOTIFY_SERVICE_HANDLE);
+    }
+
+    //
+    // Subscribe to sensor events
+    //
+    if (!postureSubscribed)
+    {
+        postureEventToken = postureSensor.PostureChanged(OnPostureChanged);
+        postureSubscribed = TRUE;
+    }
+
+    if (!flipSubscribed)
+    {
+        flipEventToken = flipSensor.ReadingChanged(OnFlipSensorReadingChanged);
+        flipSubscribed = TRUE;
+    }
+
+    AlreadySetup = TRUE;
+}
+
+VOID
+UnregisterEverything(TwoPanelHingedDevicePosture const &postureSensor, FlipSensor const &flipSensor)
 {
     if (m_systemSuspendHandle != NULL)
     {
@@ -232,39 +286,10 @@ UnregisterEverything()
 }
 
 VOID
-RegisterEverything(SERVICE_STATUS_HANDLE g_StatusHandle)
-{
-    DEVICE_NOTIFY_SUBSCRIBE_PARAMETERS powerParams{};
-    powerParams.Callback = SuspendResumeCallback;
-
-    PowerRegisterSuspendResumeNotification(DEVICE_NOTIFY_CALLBACK, &powerParams, &m_systemSuspendHandle);
-
-    if (g_StatusHandle != NULL)
-    {
-        m_hScreenStateNotify =
-            RegisterPowerSettingNotification(g_StatusHandle, &GUID_CONSOLE_DISPLAY_STATE, DEVICE_NOTIFY_SERVICE_HANDLE);
-    }
-
-    //
-    // Subscribe to sensor events
-    //
-    if (!postureSubscribed)
-    {
-        postureEventToken = postureSensor.PostureChanged(OnPostureChanged);
-        postureSubscribed = TRUE;
-    }
-
-    if (!flipSubscribed)
-    {
-        flipEventToken = flipSensor.ReadingChanged(OnFlipSensorReadingChanged);
-        flipSubscribed = TRUE;
-    }
-
-    AlreadySetup = TRUE;
-}
-
-VOID
-SetupAutoRotation(SERVICE_STATUS_HANDLE g_StatusHandle)
+SetupAutoRotation(
+    SERVICE_STATUS_HANDLE g_StatusHandle,
+    TwoPanelHingedDevicePosture const &postureSensor,
+    FlipSensor const &flipSensor)
 {
     DWORD type = REG_DWORD, size = sizeof(DWORD);
 
@@ -276,11 +301,11 @@ SetupAutoRotation(SERVICE_STATUS_HANDLE g_StatusHandle)
 
     if (enabled == 1 && AlreadySetup == FALSE)
     {
-        RegisterEverything(g_StatusHandle);
+        RegisterEverything(g_StatusHandle, postureSensor, flipSensor);
     }
     else if (enabled == 0 && AlreadySetup == TRUE)
     {
-        UnregisterEverything();
+        UnregisterEverything(postureSensor, flipSensor);
     }
 }
 
@@ -289,7 +314,7 @@ AutoRotateMain(SERVICE_STATUS_HANDLE g_StatusHandle, HANDLE g_ServiceStopEvent)
 {
     try
     {
-        postureSensor = TwoPanelHingedDevicePosture::GetDefaultAsync().get();
+        g_PostureSensor = TwoPanelHingedDevicePosture::GetDefaultAsync().get();
     }
     catch (...)
     {
@@ -301,7 +326,7 @@ AutoRotateMain(SERVICE_STATUS_HANDLE g_StatusHandle, HANDLE g_ServiceStopEvent)
 
     try
     {
-        flipSensor = FlipSensor::GetDefaultAsync().get();
+        g_FlipSensor = FlipSensor::GetDefaultAsync().get();
     }
     catch (...)
     {
@@ -311,8 +336,10 @@ AutoRotateMain(SERVICE_STATUS_HANDLE g_StatusHandle, HANDLE g_ServiceStopEvent)
         return 1;
     }
 
+    FoundAllSensors = TRUE;
+
     // Set initial state
-    SetPanelsOrientationState(postureSensor.GetCurrentPostureAsync().get());
+    SetPanelsOrientationState(g_PostureSensor.GetCurrentPostureAsync().get());
 
     //
     // Set sensor present for windows to show the auto rotation toggle in action center
@@ -331,7 +358,7 @@ AutoRotateMain(SERVICE_STATUS_HANDLE g_StatusHandle, HANDLE g_ServiceStopEvent)
 
         while (true)
         {
-            SetupAutoRotation(g_StatusHandle);
+            SetupAutoRotation(g_StatusHandle, g_PostureSensor, g_FlipSensor);
 
             RegNotifyChangeKeyValue(autoRotationKey, false, REG_NOTIFY_CHANGE_LAST_SET, hEvent, true);
 
@@ -347,9 +374,9 @@ AutoRotateMain(SERVICE_STATUS_HANDLE g_StatusHandle, HANDLE g_ServiceStopEvent)
     }
     else
     {
-        RegisterEverything(g_StatusHandle);
+        RegisterEverything(g_StatusHandle, g_PostureSensor, g_FlipSensor);
 
-        // Wait indefinetly
+        // Wait indefinitely
         while (true)
         {
             // Check whether to stop the service.
@@ -360,7 +387,7 @@ AutoRotateMain(SERVICE_STATUS_HANDLE g_StatusHandle, HANDLE g_ServiceStopEvent)
         }
     }
 
-    UnregisterEverything();
+    UnregisterEverything(g_PostureSensor, g_FlipSensor);
 
     return 0;
 }

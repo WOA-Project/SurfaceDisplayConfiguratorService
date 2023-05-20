@@ -1,24 +1,24 @@
 /*
-* Copyright (c) 2022-2023 The DuoWOA authors
-*
-* Permission is hereby granted, free of charge, to any person obtaining a copy
-* of this software and associated documentation files (the "Software"), to deal
-* in the Software without restriction, including without limitation the rights
-* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-* copies of the Software, and to permit persons to whom the Software is
-* furnished to do so, subject to the following conditions:
-* 
-* The above copyright notice and this permission notice shall be included in all
-* copies or substantial portions of the Software.
-*
-* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-* SOFTWARE.
-*/
+ * Copyright (c) 2022-2023 The DuoWOA authors
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
 #include "pch.h"
 #include <SetupAPI.h>
 #include <Devpkey.h>
@@ -167,6 +167,11 @@ IsDeviceBoundToPanelId(CONST WCHAR *DeviceName, CONST WCHAR *DevicePanelId)
 
         while (length > 0)
         {
+            if (index >= dwBuffersize)
+            {
+                break;
+            }
+
             match = memcmp(DeviceName, devBuffer + index, min(lengthDeviceName, length) * sizeof(WCHAR)) == 0;
 
             if (match)
@@ -215,6 +220,11 @@ IsDeviceBoundToPanelId(CONST WCHAR *DeviceName, CONST WCHAR *DevicePanelId)
 
         while (length > 0)
         {
+            if (index >= dwBuffersize)
+            {
+                break;
+            }
+
             match = memcmp(
                         DeviceName + DeviceNameOffset,
                         devBuffer + index,
@@ -401,7 +411,7 @@ GetDisplayDevicePLD(CONST WCHAR *DeviceName, PACPI_PLD_V2_BUFFER Pld)
 }
 
 //
-// Subject: Sets a device enablement state based on its panel id attachement
+// Subject: Sets a device enablement state based on its panel id attachment
 //
 // Parameters:
 //
@@ -872,5 +882,7 @@ InitializeDisplayRotationManager()
         PortHandle = NULL;
     }
 
-    InitializeCriticalSectionAndSpinCount(&g_AutoRotationCriticalSection, 0x00000400);
+    Status = InitializeCriticalSectionAndSpinCount(&g_AutoRotationCriticalSection, 0x00000400)
+                 ? ERROR_SUCCESS
+                 : ERROR_UNIDENTIFIED_ERROR;
 }
