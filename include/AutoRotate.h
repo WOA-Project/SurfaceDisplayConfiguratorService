@@ -21,11 +21,7 @@
  */
 #pragma once
 
-#include <tchar.h>
-
-#define WINDOWS_AUTO_ROTATION_KEY_PATH _T("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\AutoRotation")
-
 VOID
 OnPowerEvent(_In_ GUID SettingGuid, _In_ PVOID Value, _In_ ULONG ValueLength, _Inout_opt_ PVOID Context);
-HRESULT
-AutoRotateMain(SERVICE_STATUS_HANDLE g_StatusHandle, HANDLE g_ServiceStopEvent);
+VOID
+AutoRotateMain();

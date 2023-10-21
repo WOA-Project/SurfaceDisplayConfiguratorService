@@ -24,7 +24,7 @@
     <ClCompile Include="..\src\DisplayRotationManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\Main.cpp">
+    <ClCompile Include="..\src\Svc.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\src\pch.cpp">
@@ -51,9 +51,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\include\DisplayRotationManager.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\include\Main.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\include\pch.h">

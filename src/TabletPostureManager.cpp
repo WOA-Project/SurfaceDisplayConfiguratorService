@@ -65,44 +65,6 @@ RtlPublishWnfStateData(
     _In_opt_ const PVOID ExplicitScope);
 }
 
-BOOL WINAPI
-EnableTabletPosture()
-{
-    BYTE TabletPosture = 0;
-    DWORD TabletPostureSize = 1;
-    WNF_CHANGE_STAMP TabletPostureChangeStamp;
-
-    NTSTATUS status = NtQueryWnfStateData(
-        &WNF_TMCN_ISTABLETPOSTURE, nullptr, nullptr, &TabletPostureChangeStamp, &TabletPosture, &TabletPostureSize);
-
-    if (SUCCEEDED(status) && TabletPosture != 1)
-    {
-        TabletPosture = 1;
-        status = RtlPublishWnfStateData(WNF_TMCN_ISTABLETPOSTURE, nullptr, &TabletPosture, 1, nullptr);
-    }
-
-    return SUCCEEDED(status);
-}
-
-BOOL WINAPI
-EnableTabletMode()
-{
-    BYTE TabletMode = 0;
-    DWORD TabletModeSize = 1;
-    WNF_CHANGE_STAMP TabletModeChangeStamp;
-
-    NTSTATUS status = NtQueryWnfStateData(
-        &WNF_TMCN_ISTABLETMODE, nullptr, nullptr, &TabletModeChangeStamp, &TabletMode, &TabletModeSize);
-
-    if (SUCCEEDED(status) && TabletMode != 1)
-    {
-        TabletMode = 1;
-        status = RtlPublishWnfStateData(WNF_TMCN_ISTABLETMODE, nullptr, &TabletMode, 1, nullptr);
-    }
-
-    return SUCCEEDED(status);
-}
-
 HRESULT WINAPI
 _RegSetKeyValue(HKEY hKey, LPCWSTR lpSubKey, LPCWSTR lpValueName, DWORD dwType, BYTE *lpData, DWORD cbData)
 {
@@ -128,10 +90,48 @@ _RegSetKeyValue(HKEY hKey, LPCWSTR lpSubKey, LPCWSTR lpValueName, DWORD dwType, 
 }
 
 BOOL WINAPI
-EnableTabletPostureTaskbar()
+SetTabletPostureState(BOOLEAN state)
 {
-    DWORD pcbData = 4;
-    int pvData = 0;
+    BYTE TabletPosture = (BYTE)state;
+    DWORD TabletPostureSize = sizeof(BYTE);
+    WNF_CHANGE_STAMP TabletPostureChangeStamp;
+
+    NTSTATUS status = NtQueryWnfStateData(
+        &WNF_TMCN_ISTABLETPOSTURE, nullptr, nullptr, &TabletPostureChangeStamp, &TabletPosture, &TabletPostureSize);
+
+    if (FAILED(status) || TabletPosture != (BYTE)state)
+    {
+        TabletPosture = (BYTE)state;
+        status = RtlPublishWnfStateData(WNF_TMCN_ISTABLETPOSTURE, nullptr, &TabletPosture, sizeof(BYTE), nullptr);
+    }
+
+    return SUCCEEDED(status);
+}
+
+BOOL WINAPI
+SetTabletModeState(BOOLEAN state)
+{
+    BYTE TabletMode = (BYTE)state;
+    DWORD TabletModeSize = sizeof(BYTE);
+    WNF_CHANGE_STAMP TabletModeChangeStamp;
+
+    NTSTATUS status = NtQueryWnfStateData(
+        &WNF_TMCN_ISTABLETMODE, nullptr, nullptr, &TabletModeChangeStamp, &TabletMode, &TabletModeSize);
+
+    if (FAILED(status) || TabletMode != (BYTE)state)
+    {
+        TabletMode = (BYTE)state;
+        status = RtlPublishWnfStateData(WNF_TMCN_ISTABLETMODE, nullptr, &TabletMode, sizeof(BYTE), nullptr);
+    }
+
+    return SUCCEEDED(status);
+}
+
+BOOL WINAPI
+SetTabletPostureTaskbarState(BOOLEAN state)
+{
+    DWORD pcbData = sizeof(DWORD);
+    DWORD pvData = (BYTE)state;
 
     HRESULT status = RegGetValue(
         HKEY_CURRENT_USER,
@@ -142,9 +142,9 @@ EnableTabletPostureTaskbar()
         &pvData,
         &pcbData);
 
-    if (FAILED(status) || pvData != 1)
+    if (FAILED(status) || pvData != (BYTE)state)
     {
-        pvData = 1;
+        pvData = (BYTE)state;
         status = _RegSetKeyValue(
             HKEY_CURRENT_USER,
             _T("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer"),

@@ -21,8 +21,12 @@
  */
 #include "pch.h"
 #include "DisplayRotationManager.h"
+#include "TabletPostureManager.h"
 #include "AutoRotate.h"
 #include <powrprof.h>
+#include <tchar.h>
+
+#define WINDOWS_AUTO_ROTATION_KEY_PATH _T("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\AutoRotation")
 
 //
 // The system registry key for auto rotation
@@ -38,7 +42,6 @@ BOOL AlreadySetup = FALSE;
 // The handle the power notify event registration
 //
 HPOWERNOTIFY m_systemSuspendHandle = NULL;
-HPOWERNOTIFY m_hScreenStateNotify = NULL;
 
 //
 // Get the default simple orientation sensor on the system
@@ -219,7 +222,6 @@ SuspendResumeCallback(PVOID context, ULONG powerEvent, PVOID setting)
 
 VOID
 RegisterEverything(
-    SERVICE_STATUS_HANDLE g_StatusHandle,
     TwoPanelHingedDevicePosture const &postureSensor,
     FlipSensor const &flipSensor)
 {
@@ -227,12 +229,6 @@ RegisterEverything(
     powerParams.Callback = SuspendResumeCallback;
 
     PowerRegisterSuspendResumeNotification(DEVICE_NOTIFY_CALLBACK, &powerParams, &m_systemSuspendHandle);
-
-    if (g_StatusHandle != NULL)
-    {
-        m_hScreenStateNotify =
-            RegisterPowerSettingNotification(g_StatusHandle, &GUID_CONSOLE_DISPLAY_STATE, DEVICE_NOTIFY_SERVICE_HANDLE);
-    }
 
     //
     // Subscribe to sensor events
@@ -261,12 +257,6 @@ UnregisterEverything(TwoPanelHingedDevicePosture const &postureSensor, FlipSenso
         m_systemSuspendHandle = NULL;
     }
 
-    if (m_hScreenStateNotify != NULL)
-    {
-        UnregisterPowerSettingNotification(m_hScreenStateNotify);
-        m_hScreenStateNotify = NULL;
-    }
-
     //
     // Unsubscribe to sensor events
     //
@@ -287,7 +277,6 @@ UnregisterEverything(TwoPanelHingedDevicePosture const &postureSensor, FlipSenso
 
 VOID
 SetupAutoRotation(
-    SERVICE_STATUS_HANDLE g_StatusHandle,
     TwoPanelHingedDevicePosture const &postureSensor,
     FlipSensor const &flipSensor)
 {
@@ -301,7 +290,7 @@ SetupAutoRotation(
 
     if (enabled == 1 && AlreadySetup == FALSE)
     {
-        RegisterEverything(g_StatusHandle, postureSensor, flipSensor);
+        RegisterEverything(postureSensor, flipSensor);
     }
     else if (enabled == 0 && AlreadySetup == TRUE)
     {
@@ -309,19 +298,42 @@ SetupAutoRotation(
     }
 }
 
-HRESULT
-AutoRotateMain(SERVICE_STATUS_HANDLE g_StatusHandle, HANDLE g_ServiceStopEvent)
+BOOLEAN WINAPI
+IsOOBEInProgress()
 {
+    DWORD oobeInProgress = 0;
+
+    HKEY key;
+    DWORD type = REG_DWORD, size = 8;
+
+    if (SUCCEEDED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, _T("SYSTEM\\Setup"), NULL, KEY_WRITE, &key)))
+    {
+        RegQueryValueEx(key, _T("OOBEInProgress"), NULL, &type, (LPBYTE)&oobeInProgress, &size);
+        RegCloseKey(key);
+    }
+
+    return oobeInProgress == 1;
+}
+
+VOID
+AutoRotateMain()
+{
+    init_apartment();
+
     try
     {
         g_PostureSensor = TwoPanelHingedDevicePosture::GetDefaultAsync().get();
     }
     catch (...)
     {
-        //
-        // If no sensor is found return 1
-        //
-        return 1;
+        uninit_apartment();
+        return;
+    }
+
+    if (g_PostureSensor == NULL)
+    {
+        uninit_apartment();
+        return;
     }
 
     try
@@ -330,13 +342,26 @@ AutoRotateMain(SERVICE_STATUS_HANDLE g_StatusHandle, HANDLE g_ServiceStopEvent)
     }
     catch (...)
     {
-        //
-        // If no sensor is found return 1
-        //
-        return 1;
+        uninit_apartment();
+        return;
+    }
+
+    if (g_FlipSensor == NULL)
+    {
+        uninit_apartment();
+        return;
     }
 
     FoundAllSensors = TRUE;
+
+    InitializeDisplayRotationManager();
+    SetExtendedDisplayConfiguration();
+
+    if (!IsOOBEInProgress())
+    {
+        SetTabletPostureState(TRUE);
+        SetTabletPostureTaskbarState(TRUE);
+    }
 
     // Set initial state
     SetPanelsOrientationState(g_PostureSensor.GetCurrentPostureAsync().get());
@@ -353,18 +378,16 @@ AutoRotateMain(SERVICE_STATUS_HANDLE g_StatusHandle, HANDLE g_ServiceStopEvent)
 
     if (SUCCEEDED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, WINDOWS_AUTO_ROTATION_KEY_PATH, NULL, KEY_READ, &autoRotationKey)))
     {
-        HANDLE hEvent = CreateEvent(NULL, true, false, NULL);
-        HANDLE hEvents[2] = {hEvent, g_ServiceStopEvent};
+        HANDLE hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 
         while (true)
         {
-            SetupAutoRotation(g_StatusHandle, g_PostureSensor, g_FlipSensor);
+            SetupAutoRotation(g_PostureSensor, g_FlipSensor);
 
             RegNotifyChangeKeyValue(autoRotationKey, false, REG_NOTIFY_CHANGE_LAST_SET, hEvent, true);
 
-            DWORD waitResult = WaitForMultipleObjects(2, hEvents, FALSE, INFINITE);
-
-            if (waitResult == WAIT_FAILED || waitResult == (WAIT_OBJECT_0 + 1))
+            // Check whether to stop the service.
+            if (WaitForSingleObject(hEvent, INFINITE) == WAIT_FAILED)
             {
                 break;
             }
@@ -374,20 +397,28 @@ AutoRotateMain(SERVICE_STATUS_HANDLE g_StatusHandle, HANDLE g_ServiceStopEvent)
     }
     else
     {
-        RegisterEverything(g_StatusHandle, g_PostureSensor, g_FlipSensor);
+        RegisterEverything(g_PostureSensor, g_FlipSensor);
 
         // Wait indefinitely
         while (true)
         {
-            // Check whether to stop the service.
-            if (WaitForSingleObject(g_ServiceStopEvent, INFINITE) == WAIT_FAILED)
-            {
-                break;
-            }
+            Sleep(4294967295ull);
         }
     }
 
     UnregisterEverything(g_PostureSensor, g_FlipSensor);
 
-    return 0;
+    FoundAllSensors = FALSE;
+    g_PostureSensor = NULL;
+    g_FlipSensor = FALSE;
+
+    if (!IsOOBEInProgress())
+    {
+        SetTabletPostureTaskbarState(FALSE);
+        SetTabletPostureState(FALSE);
+    }
+
+    uninit_apartment();
+
+    return;
 }

@@ -212,7 +212,7 @@
     <ClCompile Include="..\src\DisplayRotationManager.cpp" />
     <ClCompile Include="..\src\OnThreadExecutor.cpp" />
     <ClCompile Include="..\src\TabletPostureManager.cpp" />
-    <ClCompile Include="..\src\Main.cpp" />
+    <ClCompile Include="..\src\Svc.cpp" />
     <ClCompile Include="..\src\pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
@@ -238,7 +238,6 @@
     <ClInclude Include="..\include\on_thread_executor.h" />
     <ClInclude Include="..\include\TabletPostureManager.h" />
     <ClInclude Include="..\include\NtAlpc.h" />
-    <ClInclude Include="..\include\Main.h" />
     <ClInclude Include="..\include\pch.h" />
     <ClInclude Include="..\include\resource.h" />
     <ClInclude Include="..\include\VirtualDesktop.h" />

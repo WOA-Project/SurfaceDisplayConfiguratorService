@@ -27,9 +27,6 @@ THE SOFTWARE.
 
 */
 #pragma once
-class ActiveMonitorWindowHandler
-{
-public:
-    ActiveMonitorWindowHandler();
-    ~ActiveMonitorWindowHandler();
-};
+
+VOID
+ActiveMonitorWindowHandlerMain();

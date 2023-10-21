@@ -688,9 +688,12 @@ WinHookProc(
     }
 }
 
-ActiveMonitorWindowHandler::ActiveMonitorWindowHandler()
+VOID
+ActiveMonitorWindowHandlerMain()
 {
     CoInitialize(NULL);
+
+    SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
 
     std::array<DWORD, 6> events_to_subscribe = {
         EVENT_OBJECT_NAMECHANGE,
@@ -706,15 +709,24 @@ ActiveMonitorWindowHandler::ActiveMonitorWindowHandler()
             m_staticWinEventHooks.emplace_back(hook);
         }
     }
-}
 
-ActiveMonitorWindowHandler::~ActiveMonitorWindowHandler()
-{
+    MSG msg;
+    while (GetMessage(&msg, NULL, 0, 0))
+    {
+        if (msg.message == WM_QUIT)
+        {
+            break;
+        }
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+
     m_staticWinEventHooks.erase(
         std::remove_if(
             begin(m_staticWinEventHooks),
             end(m_staticWinEventHooks),
             [](const HWINEVENTHOOK hook) { return UnhookWinEvent(hook); }),
         end(m_staticWinEventHooks));
+
     CoUninitialize();
 }

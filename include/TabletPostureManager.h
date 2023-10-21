@@ -24,8 +24,8 @@
 #include <Windows.h>
 
 BOOL WINAPI
-EnableTabletPosture();
+SetTabletPostureState(BOOLEAN state);
 BOOL WINAPI
-EnableTabletMode();
+SetTabletModeState(BOOLEAN state);
 BOOL WINAPI
-EnableTabletPostureTaskbar();
+SetTabletPostureTaskbarState(BOOLEAN state);
