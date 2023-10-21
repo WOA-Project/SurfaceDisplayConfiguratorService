@@ -238,7 +238,7 @@ FitOnScreen(const RECT &windowRect, const RECT &originMonitorRect, const RECT &d
         H = min(H, RectHeight(destMonitorRect) - CUSTOM_POSITIONING_LEFT_TOP_PADDING);
     }
 
-    return {.left = left, .top = top, .right = left + W, .bottom = top + H};
+    return {left, top, left + W, top + H};
 }
 
 static void
