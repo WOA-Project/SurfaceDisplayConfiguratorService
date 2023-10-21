@@ -56,12 +56,6 @@ HPOWERNOTIFY m_hScreenStateNotify = NULL;
 int APIENTRY
 _tWinMain(HINSTANCE, HINSTANCE, LPTSTR, int)
 {
-    std::thread t1(AutoRotateMain);
-    std::thread t2(ActiveMonitorWindowHandlerMain);
-
-    t1.join();
-    t2.join();
-
     // TO_DO: Add any additional services for the process to this table.
     SERVICE_TABLE_ENTRY DispatchTable[] = {{SVCNAME, (LPSERVICE_MAIN_FUNCTION)SvcMain}, {NULL, NULL}};
 

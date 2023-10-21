@@ -27,8 +27,6 @@
 #include "DisplayRotationManager.h"
 #include <tchar.h>
 
-CRITICAL_SECTION g_AutoRotationCriticalSection;
-
 //
 // The handle to the auto rotation ALPC port
 //
@@ -73,18 +71,6 @@ NotifyAutoRotationAlpcPortOfOrientationChange(INT Orientation)
     Status = NtAlpcSendWaitReceivePort(PortHandle, 0, (PVOID)&RotationCommandMessage, NULL, NULL, NULL, NULL, NULL);
 
     return Status;
-}
-
-BOOLEAN IsDisplay1SingleScreenFavorite = FALSE;
-
-VOID WINAPI
-ToggleFavoriteSingleScreenDisplay()
-{
-    EnterCriticalSection(&g_AutoRotationCriticalSection);
-
-    IsDisplay1SingleScreenFavorite = IsDisplay1SingleScreenFavorite ? FALSE : TRUE;
-
-    LeaveCriticalSection(&g_AutoRotationCriticalSection);
 }
 
 //
@@ -546,28 +532,6 @@ SetHardwareEnabledStateForPanel(CONST WCHAR *devicePanelId, CONST WCHAR *deviceH
     return ERROR_SUCCESS;
 }
 
-INT WINAPI
-ConvertSimpleOrientationToDMDO(SimpleOrientation orientation)
-{
-    switch (orientation)
-    {
-    case SimpleOrientation::NotRotated: {
-        return DMDO_DEFAULT;
-    }
-    case SimpleOrientation::Rotated90DegreesCounterclockwise: {
-        return DMDO_270;
-    }
-    case SimpleOrientation::Rotated180DegreesCounterclockwise: {
-        return DMDO_180;
-    }
-    case SimpleOrientation::Rotated270DegreesCounterclockwise: {
-        return DMDO_90;
-    }
-    }
-
-    return DMDO_DEFAULT;
-}
-
 constexpr inline int DEFAULT_DPI = 96;
 
 BOOL WINAPI
@@ -619,7 +583,7 @@ EnumDisplayMonitorCallback(HMONITOR monitor, HDC dc, LPRECT rect, LPARAM param)
         RECT workArea = monitorInfo.rcWork;
 
         // Fix the wrong bottom offset on this monitor
-        workArea.bottom -= (LONG)(bottomOffsetDifference * monitorScaling);
+        workArea.bottom += (LONG)(bottomOffsetDifference * monitorScaling);
 
         // Apply new work area
         result = SystemParametersInfo(SPI_SETWORKAREA, 0, &workArea, 0);
@@ -663,6 +627,9 @@ UpdateMonitorWorkAreas()
     return EnumDisplayMonitors(NULL, NULL, EnumDisplayMonitorCallback, reinterpret_cast<LPARAM>(&mainBottomOffset));
 }
 
+BOOLEAN lastDisplayState1 = TRUE;
+BOOLEAN lastDisplayState2 = TRUE;
+
 HRESULT WINAPI
 SetDisplayStates(
     CONST WCHAR *DisplayPanelId1,
@@ -678,7 +645,15 @@ SetDisplayStates(
     DEVMODE DevMode2 = {0};
     HRESULT Status = ERROR_SUCCESS;
 
-    EnterCriticalSection(&g_AutoRotationCriticalSection);
+    BOOLEAN IsSingleScreen = (!DisplayState1 && DisplayState2) || (!DisplayState2 && DisplayState1);
+
+    if (IsSingleScreen && (lastDisplayState1 == DisplayState1) && (lastDisplayState2 == DisplayState2))
+    {
+        goto exit;
+    }
+
+    lastDisplayState1 = DisplayState1;
+    lastDisplayState2 = DisplayState2;
 
     Status = GetDisplayDeviceByPanelId(DisplayPanelId1, &DisplayDevice1);
     if (FAILED(Status))
@@ -707,21 +682,21 @@ SetDisplayStates(
     if (DisplayState1 == FALSE) //&& (DisplayDevice1.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP))
     {
         // First make sure matching sensors are off to avoid init issues
-        Status = SetHardwareEnabledStateForPanel(DisplayPanelId1, _T("HID_DEVICE_UP:000D_U:000F"), FALSE);
-        if (FAILED(Status))
+        /*Status =*/ SetHardwareEnabledStateForPanel(DisplayPanelId1, _T("HID_DEVICE_UP:000D_U:000F"), FALSE);
+        /*if (FAILED(Status))
         {
             goto exit;
-        }
+        }*/
     }
 
     if (DisplayState2 == FALSE) //&& (DisplayDevice2.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP))
     {
         // First make sure matching sensors are off to avoid init issues
-        Status = SetHardwareEnabledStateForPanel(DisplayPanelId2, _T("HID_DEVICE_UP:000D_U:000F"), FALSE);
-        if (FAILED(Status))
+        /*Status =*/ SetHardwareEnabledStateForPanel(DisplayPanelId2, _T("HID_DEVICE_UP:000D_U:000F"), FALSE);
+        /*if (FAILED(Status))
         {
             goto exit;
-        }
+        }*/
     }
 
     // DevMode1.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION | DM_DISPLAYORIENTATION;
@@ -859,6 +834,9 @@ SetDisplayStates(
         goto exit;
     }
 
+    // Wait a second to make sure the display configuration is switched
+    Sleep(1000);
+
     // Need to fix work areas if multiple displays due to windows shytaskbar bugs...
     if (DisplayState1 && DisplayState2)
     {
@@ -873,73 +851,26 @@ SetDisplayStates(
     if (DisplayState1 == TRUE) //&& !(DisplayDevice1.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP))
     {
         // First make sure matching sensors are on to avoid init issues
-        Status = SetHardwareEnabledStateForPanel(DisplayPanelId1, _T("HID_DEVICE_UP:000D_U:000F"), TRUE);
-        if (FAILED(Status))
+        /*Status =*/ SetHardwareEnabledStateForPanel(DisplayPanelId1, _T("HID_DEVICE_UP:000D_U:000F"), TRUE);
+        /*if (FAILED(Status))
         {
             goto exit;
-        }
+        }*/
     }
 
     // Display needs to be turned on but was not currently attached
     if (DisplayState2 == TRUE) //&& !(DisplayDevice2.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP))
     {
         // First make sure matching sensors are on to avoid init issues
-        Status = SetHardwareEnabledStateForPanel(DisplayPanelId2, _T("HID_DEVICE_UP:000D_U:000F"), TRUE);
-        if (FAILED(Status))
+        /*Status =*/ SetHardwareEnabledStateForPanel(DisplayPanelId2, _T("HID_DEVICE_UP:000D_U:000F"), TRUE);
+        /*if (FAILED(Status))
         {
             goto exit;
-        }
+        }*/
     }
 
 exit:
-    LeaveCriticalSection(&g_AutoRotationCriticalSection);
-
     return Status;
-}
-
-HRESULT WINAPI
-SetPanelsOrientationState(TwoPanelHingedDevicePostureReading reading)
-{
-    SimpleOrientation Panel1SimpleOrientation = reading.Panel1Orientation();
-    SimpleOrientation Panel2SimpleOrientation = reading.Panel2Orientation();
-
-    CONST WCHAR *panel1Id = reading.Panel1Id().c_str();
-    CONST WCHAR *panel2Id = reading.Panel2Id().c_str();
-
-    BOOLEAN Panel1UnknownOrientation =
-        Panel1SimpleOrientation == SimpleOrientation::Faceup || Panel1SimpleOrientation == SimpleOrientation::Facedown;
-    BOOLEAN Panel2UnknownOrientation =
-        Panel2SimpleOrientation == SimpleOrientation::Faceup || Panel2SimpleOrientation == SimpleOrientation::Facedown;
-
-    if (Panel1UnknownOrientation && !Panel2UnknownOrientation)
-    {
-        Panel1SimpleOrientation = Panel2SimpleOrientation;
-    }
-    else if (Panel2UnknownOrientation && !Panel1UnknownOrientation)
-    {
-        Panel2SimpleOrientation = Panel1SimpleOrientation;
-    }
-
-    INT Panel1Orientation = ConvertSimpleOrientationToDMDO(Panel1SimpleOrientation);
-    INT Panel2Orientation = ConvertSimpleOrientationToDMDO(Panel2SimpleOrientation);
-
-    if (reading.HingeState() == Windows::Internal::System::HingeState::Full)
-    {
-        return SetDisplayStates(
-            panel1Id,
-            panel2Id,
-            Panel1Orientation,
-            Panel2Orientation,
-            IsDisplay1SingleScreenFavorite ? TRUE : FALSE,
-            IsDisplay1SingleScreenFavorite ? FALSE : TRUE);
-    }
-    // All displays must be enabled
-    else
-    {
-        return SetDisplayStates(panel1Id, panel2Id, Panel1Orientation, Panel2Orientation, TRUE, TRUE);
-    }
-
-    return ERROR_SUCCESS;
 }
 
 HRESULT WINAPI
@@ -987,8 +918,4 @@ InitializeDisplayRotationManager()
         // Can't initialize critical section; skip Auto rotation API
         PortHandle = NULL;
     }
-
-    Status = InitializeCriticalSectionAndSpinCount(&g_AutoRotationCriticalSection, 0x00000400)
-                 ? ERROR_SUCCESS
-                 : ERROR_UNIDENTIFIED_ERROR;
 }

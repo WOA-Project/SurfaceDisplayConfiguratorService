@@ -24,8 +24,12 @@
 HRESULT WINAPI
 SetExtendedDisplayConfiguration();
 HRESULT WINAPI
-SetPanelsOrientationState(TwoPanelHingedDevicePostureReading reading);
-VOID WINAPI
-ToggleFavoriteSingleScreenDisplay();
+SetDisplayStates(
+    CONST WCHAR *DisplayPanelId1,
+    CONST WCHAR *DisplayPanelId2,
+    INT DisplayOrientation1,
+    INT DisplayOrientation2,
+    BOOLEAN DisplayState1,
+    BOOLEAN DisplayState2);
 VOID
 InitializeDisplayRotationManager();

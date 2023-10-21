@@ -63,13 +63,100 @@ BOOL flipSubscribed = FALSE;
 
 BOOL FoundAllSensors = FALSE;
 
+BOOLEAN IsDisplay1SingleScreenFavorite = FALSE;
+
+CRITICAL_SECTION g_AutoRotationCriticalSection;
+
+INT WINAPI
+ConvertSimpleOrientationToDMDO(SimpleOrientation orientation)
+{
+    switch (orientation)
+    {
+    case SimpleOrientation::NotRotated: {
+        return DMDO_DEFAULT;
+    }
+    case SimpleOrientation::Rotated90DegreesCounterclockwise: {
+        return DMDO_270;
+    }
+    case SimpleOrientation::Rotated180DegreesCounterclockwise: {
+        return DMDO_180;
+    }
+    case SimpleOrientation::Rotated270DegreesCounterclockwise: {
+        return DMDO_90;
+    }
+    }
+
+    return DMDO_DEFAULT;
+}
+
+HRESULT WINAPI
+SetPanelsOrientationState(TwoPanelHingedDevicePostureReading reading)
+{
+    SimpleOrientation Panel1SimpleOrientation = reading.Panel1Orientation();
+    SimpleOrientation Panel2SimpleOrientation = reading.Panel2Orientation();
+
+    CONST WCHAR *panel1Id = reading.Panel1Id().c_str();
+    CONST WCHAR *panel2Id = reading.Panel2Id().c_str();
+
+    BOOLEAN Panel1UnknownOrientation =
+        Panel1SimpleOrientation == SimpleOrientation::Faceup || Panel1SimpleOrientation == SimpleOrientation::Facedown;
+    BOOLEAN Panel2UnknownOrientation =
+        Panel2SimpleOrientation == SimpleOrientation::Faceup || Panel2SimpleOrientation == SimpleOrientation::Facedown;
+
+    if (Panel1UnknownOrientation && !Panel2UnknownOrientation)
+    {
+        Panel1SimpleOrientation = Panel2SimpleOrientation;
+    }
+    else if (Panel2UnknownOrientation && !Panel1UnknownOrientation)
+    {
+        Panel2SimpleOrientation = Panel1SimpleOrientation;
+    }
+
+    INT Panel1Orientation = ConvertSimpleOrientationToDMDO(Panel1SimpleOrientation);
+    INT Panel2Orientation = ConvertSimpleOrientationToDMDO(Panel2SimpleOrientation);
+
+    if (reading.HingeState() == Windows::Internal::System::HingeState::Full)
+    {
+        return SetDisplayStates(
+            panel1Id,
+            panel2Id,
+            Panel1Orientation,
+            Panel2Orientation,
+            IsDisplay1SingleScreenFavorite ? TRUE : FALSE,
+            IsDisplay1SingleScreenFavorite ? FALSE : TRUE);
+    }
+    // All displays must be enabled
+    else
+    {
+        return SetDisplayStates(panel1Id, panel2Id, Panel1Orientation, Panel2Orientation, TRUE, TRUE);
+    }
+
+    return ERROR_SUCCESS;
+}
+
+VOID WINAPI
+ToggleFavoriteSingleScreenDisplay()
+{
+    EnterCriticalSection(&g_AutoRotationCriticalSection);
+    IsDisplay1SingleScreenFavorite = IsDisplay1SingleScreenFavorite ? FALSE : TRUE;
+    SetPanelsOrientationState(g_PostureSensor.GetCurrentPostureAsync().get());
+    LeaveCriticalSection(&g_AutoRotationCriticalSection);
+}
+
+VOID WINAPI
+TogglePostureScreenOrientationState()
+{
+    EnterCriticalSection(&g_AutoRotationCriticalSection);
+    SetPanelsOrientationState(g_PostureSensor.GetCurrentPostureAsync().get());
+    LeaveCriticalSection(&g_AutoRotationCriticalSection);
+}
+
 VOID
 OnPostureChanged(
     TwoPanelHingedDevicePosture const & /*sender*/,
-    TwoPanelHingedDevicePostureReadingChangedEventArgs const &args)
+    TwoPanelHingedDevicePostureReadingChangedEventArgs const & /*args*/)
 {
-    TwoPanelHingedDevicePostureReading reading = args.Reading();
-    SetPanelsOrientationState(args.Reading());
+    TogglePostureScreenOrientationState();
 }
 
 VOID
@@ -81,12 +168,9 @@ OnFlipSensorReadingChanged(FlipSensor const & /*sender*/, FlipSensorReadingChang
     }
 
     FlipSensorReading reading = args.Reading();
-    TwoPanelHingedDevicePostureReading postureReading = g_PostureSensor.GetCurrentPostureAsync().get();
-
     if (reading.GestureState() == GestureState::Completed)
     {
         ToggleFavoriteSingleScreenDisplay();
-        SetPanelsOrientationState(postureReading);
     }
 }
 
@@ -354,6 +438,8 @@ AutoRotateMain()
 
     FoundAllSensors = TRUE;
 
+    InitializeCriticalSectionAndSpinCount(&g_AutoRotationCriticalSection, 0x00000400);
+
     InitializeDisplayRotationManager();
     SetExtendedDisplayConfiguration();
 
@@ -364,7 +450,7 @@ AutoRotateMain()
     }
 
     // Set initial state
-    SetPanelsOrientationState(g_PostureSensor.GetCurrentPostureAsync().get());
+    TogglePostureScreenOrientationState();
 
     //
     // Set sensor present for windows to show the auto rotation toggle in action center
@@ -410,7 +496,7 @@ AutoRotateMain()
 
     FoundAllSensors = FALSE;
     g_PostureSensor = NULL;
-    g_FlipSensor = FALSE;
+    g_FlipSensor = NULL;
 
     if (!IsOOBEInProgress())
     {
