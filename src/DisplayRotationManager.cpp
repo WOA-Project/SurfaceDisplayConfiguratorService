@@ -595,15 +595,17 @@ EnumDisplayMonitorCallback(HMONITOR monitor, HDC dc, LPRECT rect, LPARAM param)
     // with no error when shytaskbar is enabled on the primary monitor
     LONG bottomOffset = monitorInfo.rcWork.bottom - monitorInfo.rcMonitor.bottom;
 
+    LONG bottomOffsetDifference = bottomOffset - mainBottomOffset;
+
     // When shytaskbar is active, the real offset is meant to be smaller than the
     // active one due to a bug in the shell, making the are active bigger than
     // it actually is (matching the expanded taskbar)
-    if (mainBottomOffset < bottomOffset)
+    if (bottomOffsetDifference > 0)
     {
         RECT workArea = monitorInfo.rcWork;
 
         // Fix the wrong bottom offset on this monitor
-        workArea.bottom -= (mainBottomOffset - bottomOffset);
+        workArea.bottom -= bottomOffsetDifference;
 
         // Apply new work area
         result = SystemParametersInfo(SPI_SETWORKAREA, 0, &workArea, 0);
