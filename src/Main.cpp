@@ -28,6 +28,8 @@
 
 using namespace winrt;
 
+ActiveMonitorWindowHandler* activeMonitorWindowHandler = NULL;
+
 BOOLEAN WINAPI
 IsOOBEInProgress()
 {
@@ -52,8 +54,6 @@ _tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLine, int nC
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
     UNREFERENCED_PARAMETER(nCmdShow);
-
-    new ActiveMonitorWindowHandler();
 
     SERVICE_TABLE_ENTRY ServiceTable[] = {{SERVICE_NAME, (LPSERVICE_MAIN_FUNCTION)ServiceMain}, {NULL, NULL}};
 
@@ -106,6 +106,7 @@ ServiceMain(DWORD argc, LPTSTR *argv)
     }
 
     ReportSvcStatus(SERVICE_START_PENDING, NO_ERROR, 3000);
+    activeMonitorWindowHandler = new ActiveMonitorWindowHandler();
     InitializeDisplayRotationManager();
     SetExtendedDisplayConfiguration();
     ReportSvcStatus(SERVICE_START_PENDING, NO_ERROR, 3000);
@@ -182,6 +183,9 @@ ServiceCtrlHandlerEx(DWORD dwControl, DWORD dwEventType, LPVOID lpEventData, LPV
          */
 
         ReportSvcStatus(SERVICE_STOP_PENDING, NO_ERROR, 0);
+
+        delete activeMonitorWindowHandler;
+        activeMonitorWindowHandler = NULL;
 
         // This will signal the worker thread to start shutting down
         SetEvent(g_ServiceStopEvent);

@@ -567,6 +567,74 @@ ConvertSimpleOrientationToDMDO(SimpleOrientation orientation)
     return DMDO_DEFAULT;
 }
 
+BOOL WINAPI
+EnumDisplayMonitorCallback(HMONITOR monitor, HDC dc, LPRECT rect, LPARAM param)
+{
+    UNREFERENCED_PARAMETER(dc);
+    UNREFERENCED_PARAMETER(rect);
+
+    if (monitor == NULL)
+    {
+        return FALSE;
+    }
+
+    if (param == NULL)
+    {
+        return FALSE;
+    }
+
+    LONG mainBottomOffset = *reinterpret_cast<LONG *>(param);
+    MONITORINFOEX monitorInfo{sizeof(MONITORINFOEX)};
+    BOOL result = GetMonitorInfo(monitor, &monitorInfo);
+    if (!result)
+    {
+        return TRUE;
+    }
+
+    // The bottom offset represents the area taken by the taskbar,
+    // with no error when shytaskbar is enabled on the primary monitor
+    LONG bottomOffset = monitorInfo.rcWork.bottom - monitorInfo.rcMonitor.bottom;
+
+    // When shytaskbar is active, the real offset is meant to be smaller than the
+    // active one due to a bug in the shell, making the are active bigger than
+    // it actually is (matching the expanded taskbar)
+    if (mainBottomOffset < bottomOffset)
+    {
+        RECT workArea = monitorInfo.rcWork;
+
+        // Fix the wrong bottom offset on this monitor
+        workArea.bottom -= (mainBottomOffset - bottomOffset);
+
+        // Apply new work area
+        result = SystemParametersInfo(SPI_SETWORKAREA, 0, &workArea, 0);
+        if (!result)
+        {
+            return TRUE;
+        }
+    }
+
+    return TRUE;
+}
+
+BOOL WINAPI
+UpdateMonitorWorkAreas()
+{
+    POINT point = {0, 0};
+    HMONITOR monitor = MonitorFromPoint(point, MONITOR_DEFAULTTOPRIMARY);
+    MONITORINFOEX monitorInfo{sizeof(MONITORINFOEX)};
+    BOOL result = GetMonitorInfo(monitor, &monitorInfo);
+    if (!result)
+    {
+        return FALSE;
+    }
+
+    // The bottom offset represents the area taken by the taskbar,
+    // with no error when shytaskbar is enabled on the primary monitor
+    LONG bottomOffset = monitorInfo.rcWork.bottom - monitorInfo.rcMonitor.bottom;
+
+    return EnumDisplayMonitors(nullptr, nullptr, EnumDisplayMonitorCallback, (LPARAM)&bottomOffset);
+}
+
 HRESULT WINAPI
 SetDisplayStates(
     CONST WCHAR *DisplayPanelId1,
@@ -761,6 +829,16 @@ SetDisplayStates(
     {
         Status = HRESULT_FROM_WIN32(GetLastError());
         goto exit;
+    }
+
+    // Need to fix work areas if multiple displays due to windows shytaskbar bugs...
+    if (DisplayState1 && DisplayState2)
+    {
+        if (!UpdateMonitorWorkAreas())
+        {
+            Status = HRESULT_FROM_WIN32(GetLastError());
+            goto exit;
+        }
     }
 
     // Display needs to be turned on but was not currently attached
