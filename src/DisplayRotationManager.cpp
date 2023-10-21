@@ -568,6 +568,8 @@ ConvertSimpleOrientationToDMDO(SimpleOrientation orientation)
     return DMDO_DEFAULT;
 }
 
+constexpr inline int DEFAULT_DPI = 96;
+
 BOOL WINAPI
 EnumDisplayMonitorCallback(HMONITOR monitor, HDC dc, LPRECT rect, LPARAM param)
 {
@@ -584,7 +586,7 @@ EnumDisplayMonitorCallback(HMONITOR monitor, HDC dc, LPRECT rect, LPARAM param)
         return FALSE;
     }
 
-    LONG mainBottomOffset = *reinterpret_cast<LONG *>(param);
+    DOUBLE mainBottomOffset = *reinterpret_cast<DOUBLE *>(param);
     MONITORINFOEX monitorInfo{sizeof(MONITORINFOEX)};
     BOOL result = GetMonitorInfo(monitor, &monitorInfo);
     if (!result)
@@ -594,9 +596,20 @@ EnumDisplayMonitorCallback(HMONITOR monitor, HDC dc, LPRECT rect, LPARAM param)
 
     // The bottom offset represents the area taken by the taskbar,
     // with no error when shytaskbar is enabled on the primary monitor
-    LONG bottomOffset = monitorInfo.rcWork.bottom - monitorInfo.rcMonitor.bottom;
+    DOUBLE bottomOffset = monitorInfo.rcMonitor.bottom - monitorInfo.rcWork.bottom;
 
-    LONG bottomOffsetDifference = bottomOffset - mainBottomOffset;
+    UINT monitorDpiX;
+    UINT monitorDpiY;
+
+    if (S_OK != GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &monitorDpiX, &monitorDpiY))
+    {
+        return TRUE;
+    }
+
+    DOUBLE monitorScaling = ((DOUBLE)monitorDpiY / (DOUBLE)DEFAULT_DPI);
+    bottomOffset /= monitorScaling;
+
+    DOUBLE bottomOffsetDifference = bottomOffset - mainBottomOffset;
 
     // When shytaskbar is active, the real offset is meant to be smaller than the
     // active one due to a bug in the shell, making the are active bigger than
@@ -606,7 +619,7 @@ EnumDisplayMonitorCallback(HMONITOR monitor, HDC dc, LPRECT rect, LPARAM param)
         RECT workArea = monitorInfo.rcWork;
 
         // Fix the wrong bottom offset on this monitor
-        workArea.bottom -= bottomOffsetDifference;
+        workArea.bottom -= (LONG)(bottomOffsetDifference * monitorScaling);
 
         // Apply new work area
         result = SystemParametersInfo(SPI_SETWORKAREA, 0, &workArea, 0);
@@ -623,9 +636,9 @@ BOOL WINAPI
 UpdateMonitorWorkAreas()
 {
     POINT point = {0, 0};
-    HMONITOR monitor = MonitorFromPoint(point, MONITOR_DEFAULTTOPRIMARY);
-    MONITORINFOEX monitorInfo{sizeof(MONITORINFOEX)};
-    BOOL result = GetMonitorInfo(monitor, &monitorInfo);
+    HMONITOR mainMonitor = MonitorFromPoint(point, MONITOR_DEFAULTTOPRIMARY);
+    MONITORINFOEX mainMonitorInfo{sizeof(MONITORINFOEX)};
+    BOOL result = GetMonitorInfo(mainMonitor, &mainMonitorInfo);
     if (!result)
     {
         return FALSE;
@@ -633,9 +646,21 @@ UpdateMonitorWorkAreas()
 
     // The bottom offset represents the area taken by the taskbar,
     // with no error when shytaskbar is enabled on the primary monitor
-    LONG bottomOffset = monitorInfo.rcWork.bottom - monitorInfo.rcMonitor.bottom;
+    DOUBLE mainBottomOffset = mainMonitorInfo.rcMonitor.bottom - mainMonitorInfo.rcWork.bottom;
 
-    return EnumDisplayMonitors(nullptr, nullptr, EnumDisplayMonitorCallback, (LPARAM)&bottomOffset);
+    UINT mainMonitorDpiX;
+    UINT mainMonitorDpiY;
+
+    if (S_OK != GetDpiForMonitor(mainMonitor, MDT_EFFECTIVE_DPI, &mainMonitorDpiX, &mainMonitorDpiY))
+    {
+        return FALSE;
+    }
+
+    // Divide by the DPI Y value to compare with other displays
+    DOUBLE mainMonitorScaling = ((DOUBLE)mainMonitorDpiY / (DOUBLE)DEFAULT_DPI);
+    mainBottomOffset /= mainMonitorScaling;
+
+    return EnumDisplayMonitors(NULL, NULL, EnumDisplayMonitorCallback, reinterpret_cast<LPARAM>(&mainBottomOffset));
 }
 
 HRESULT WINAPI
