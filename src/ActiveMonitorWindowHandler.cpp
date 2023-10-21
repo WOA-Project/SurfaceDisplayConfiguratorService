@@ -31,10 +31,7 @@ THE SOFTWARE.
 #include "VirtualDesktop.h"
 #include <on_thread_executor.h>
 
-constexpr int CUSTOM_POSITIONING_LEFT_TOP_PADDING = 16;
-constexpr inline int DEFAULT_DPI = 96;
-
-typedef BOOL(WINAPI *GetDpiForMonitorInternalFunc)(HMONITOR, UINT, UINT *, UINT *);
+#define MAX_TITLE_LENGTH 255
 
 enum AwarenessLevel
 {
@@ -45,38 +42,24 @@ enum AwarenessLevel
     UNAWARE_GDISCALED
 };
 
-BOOL CALLBACK
+constexpr int CUSTOM_POSITIONING_LEFT_TOP_PADDING = 16;
+constexpr inline int DEFAULT_DPI = 96;
+const wchar_t SplashClassName[] = L"MsoSplash";
+const wchar_t SystemAppsFolder[] = L"SYSTEMAPPS";
+const wchar_t CoreWindow[] = L"Windows.UI.Core.CoreWindow";
+const wchar_t SearchUI[] = L"SearchUI.exe";
+const wchar_t PropertyMovedOnOpening[] = L"FancyZones_MovedOnOpening";
+OnThreadExecutor m_dpiUnawareThread;
+std::vector<HWINEVENTHOOK> m_staticWinEventHooks;
+
+static BOOL CALLBACK
 saveDisplayToVector(HMONITOR monitor, HDC /*hdc*/, LPRECT /*rect*/, LPARAM data)
 {
     reinterpret_cast<std::vector<HMONITOR> *>(data)->emplace_back(monitor);
     return true;
 }
 
-UINT
-GetDpiForMonitor(HMONITOR monitor) noexcept
-{
-    UINT dpi{};
-    if (HMODULE user32{LoadLibrary(L"user32.dll")})
-    {
-        if (auto func =
-                reinterpret_cast<GetDpiForMonitorInternalFunc>(GetProcAddress(user32, "GetDpiForMonitorInternal")))
-        {
-            func(monitor, 0, &dpi, &dpi);
-        }
-    }
-
-    if (dpi == 0)
-    {
-        if (HDC hdc{GetDC(nullptr)})
-        {
-            dpi = GetDeviceCaps(hdc, LOGPIXELSX);
-        }
-    }
-
-    return (dpi == 0) ? DEFAULT_DPI : dpi;
-}
-
-bool
+static bool
 allMonitorsHaveSameDpiScaling()
 {
     std::vector<HMONITOR> monitors;
@@ -91,7 +74,7 @@ allMonitorsHaveSameDpiScaling()
     UINT firstMonitorDpiY;
 
     if (S_OK !=
-        GetDpiForMonitor(monitors[0], MONITOR_DPI_TYPE::MDT_EFFECTIVE_DPI, &firstMonitorDpiX, &firstMonitorDpiY))
+        GetDpiForMonitor(monitors[0], MDT_EFFECTIVE_DPI, &firstMonitorDpiX, &firstMonitorDpiY))
     {
         return false;
     }
@@ -102,7 +85,7 @@ allMonitorsHaveSameDpiScaling()
         UINT iteratedMonitorDpiY;
 
         if (S_OK != GetDpiForMonitor(
-                        monitors[i], MONITOR_DPI_TYPE::MDT_EFFECTIVE_DPI, &iteratedMonitorDpiX, &iteratedMonitorDpiY) ||
+                        monitors[i], MDT_EFFECTIVE_DPI, &iteratedMonitorDpiX, &iteratedMonitorDpiY) ||
             iteratedMonitorDpiX != firstMonitorDpiX)
         {
             return false;
@@ -112,7 +95,7 @@ allMonitorsHaveSameDpiScaling()
     return true;
 }
 
-AwarenessLevel
+static AwarenessLevel
 GetAwarenessLevel(DPI_AWARENESS_CONTEXT system_returned_value)
 {
     const std::array levels{
@@ -131,7 +114,7 @@ GetAwarenessLevel(DPI_AWARENESS_CONTEXT system_returned_value)
     return AwarenessLevel::UNAWARE;
 }
 
-void
+static void
 ScreenToWorkAreaCoords(HWND window, RECT &rect)
 {
     // First, find the correct monitor. The monitor cannot be found using the given rect itself, we must first
@@ -175,7 +158,7 @@ ScreenToWorkAreaCoords(HWND window, RECT &rect)
     }
 }
 
-void
+static void
 SizeWindowToRect(HWND window, RECT rect) noexcept
 {
     WINDOWPLACEMENT placement{};
@@ -213,34 +196,26 @@ SizeWindowToRect(HWND window, RECT rect) noexcept
     placement.rcNormalPosition = rect;
     placement.flags |= WPF_ASYNCWINDOWPLACEMENT;
 
-    auto result = ::SetWindowPlacement(window, &placement);
-    if (!result)
-    {
-        // Logger::error(L"SetWindowPlacement failed, {}", get_last_error_or_default(GetLastError()));
-    }
+    ::SetWindowPlacement(window, &placement);
 
     // Do it again, allowing Windows to resize the window and set correct scaling
     // This fixes Issue #365
-    result = ::SetWindowPlacement(window, &placement);
-    if (!result)
-    {
-        // Logger::error(L"SetWindowPlacement failed, {}", get_last_error_or_default(GetLastError()));
-    }
+    ::SetWindowPlacement(window, &placement);
 }
 
-inline int
+inline static int
 RectWidth(const RECT &rect)
 {
     return rect.right - rect.left;
 }
 
-inline int
+inline static int
 RectHeight(const RECT &rect)
 {
     return rect.bottom - rect.top;
 }
 
-RECT
+static RECT
 FitOnScreen(const RECT &windowRect, const RECT &originMonitorRect, const RECT &destMonitorRect)
 {
     // New window position on active monitor. If window fits the screen, this will be final position.
@@ -265,7 +240,7 @@ FitOnScreen(const RECT &windowRect, const RECT &originMonitorRect, const RECT &d
     return {.left = left, .top = top, .right = left + W, .bottom = top + H};
 }
 
-void
+static void
 OpenWindowOnActiveMonitor(HWND window, HMONITOR monitor) noexcept
 {
     // By default Windows opens new window on primary monitor.
@@ -296,9 +271,7 @@ OpenWindowOnActiveMonitor(HWND window, HMONITOR monitor) noexcept
     }
 }
 
-const wchar_t SplashClassName[] = L"MsoSplash";
-
-bool
+static bool
 IsSplashScreen(HWND window)
 {
     wchar_t className[MAX_PATH];
@@ -310,7 +283,7 @@ IsSplashScreen(HWND window)
     return wcscmp(SplashClassName, className) == 0;
 }
 
-bool
+static bool
 IsStandardWindow(HWND window)
 {
     // True if from the styles the window looks like a standard window
@@ -333,21 +306,21 @@ IsStandardWindow(HWND window)
     return true;
 }
 
-bool
+static bool
 IsPopupWindow(HWND window) noexcept
 {
     auto style = GetWindowLong(window, GWL_STYLE);
     return ((style & WS_POPUP) == WS_POPUP);
 }
 
-bool
+static bool
 HasThickFrame(HWND window) noexcept
 {
     auto style = GetWindowLong(window, GWL_STYLE);
     return ((style & WS_THICKFRAME) == WS_THICKFRAME);
 }
 
-bool
+static bool
 HasVisibleOwner(HWND window) noexcept
 {
     auto owner = GetWindow(window, GW_OWNER);
@@ -368,11 +341,7 @@ HasVisibleOwner(HWND window) noexcept
     return rect.top != rect.bottom && rect.left != rect.right;
 }
 
-const wchar_t SystemAppsFolder[] = L"SYSTEMAPPS";
-const wchar_t CoreWindow[] = L"Windows.UI.Core.CoreWindow";
-const wchar_t SearchUI[] = L"SearchUI.exe";
-
-inline bool
+inline static bool
 find_folder_in_path(const std::wstring &where, const std::vector<std::wstring> &what)
 {
     for (const auto &row : what)
@@ -387,7 +356,7 @@ find_folder_in_path(const std::wstring &where, const std::vector<std::wstring> &
 }
 
 // Check if window is part of the shell or the taskbar.
-inline bool
+inline static bool
 is_system_window(HWND hwnd, const char *class_name)
 {
     // We compare the HWND against HWND of the desktop and shell windows,
@@ -413,7 +382,7 @@ is_system_window(HWND hwnd, const char *class_name)
 }
 
 // Checks if a process path is included in a list of strings.
-inline bool
+inline static bool
 find_app_name_in_path(const std::wstring &where, const std::vector<std::wstring> &what)
 {
     for (const auto &row : what)
@@ -430,8 +399,7 @@ find_app_name_in_path(const std::wstring &where, const std::vector<std::wstring>
     return false;
 }
 
-#define MAX_TITLE_LENGTH 255
-inline bool
+inline static bool
 check_excluded_app_with_title(
     const HWND &hwnd,
     std::wstring &processPath,
@@ -455,7 +423,7 @@ check_excluded_app_with_title(
     return find_app_name_in_path(processPath, excludedApps);
 }
 
-inline bool
+inline static bool
 check_excluded_app(const HWND &hwnd, std::wstring &processPath, const std::vector<std::wstring> &excludedApps)
 {
     bool res = find_app_name_in_path(processPath, excludedApps);
@@ -468,7 +436,7 @@ check_excluded_app(const HWND &hwnd, std::wstring &processPath, const std::vecto
     return res;
 }
 
-bool
+static bool
 IsExcludedByDefault(const HWND &hwnd, std::wstring &processPath) noexcept
 {
     static std::vector<std::wstring> defaultExcludedFolders = {SystemAppsFolder};
@@ -489,7 +457,7 @@ IsExcludedByDefault(const HWND &hwnd, std::wstring &processPath) noexcept
 }
 
 // Get the executable path or module name for modern apps
-inline std::wstring
+inline static std::wstring
 get_process_path(DWORD pid) noexcept
 {
     auto process = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, TRUE, pid);
@@ -509,7 +477,7 @@ get_process_path(DWORD pid) noexcept
 }
 
 // Get the executable path or module name for modern apps
-inline std::wstring
+inline static std::wstring
 get_process_path(HWND window) noexcept
 {
     const static std::wstring app_frame_host = L"ApplicationFrameHost.exe";
@@ -553,7 +521,7 @@ get_process_path(HWND window) noexcept
     return name;
 }
 
-inline std::wstring
+inline static std::wstring
 get_process_path_waiting_uwp(HWND window)
 {
     const static std::wstring appFrameHost = L"ApplicationFrameHost.exe";
@@ -571,7 +539,7 @@ get_process_path_waiting_uwp(HWND window)
     return processPath;
 }
 
-bool
+static bool
 IsExcluded(HWND window)
 {
     std::wstring processPath = get_process_path_waiting_uwp(window);
@@ -585,7 +553,7 @@ IsExcluded(HWND window)
     return false;
 }
 
-bool
+static bool
 IsProcessable(HWND window) noexcept
 {
     const bool isSplashScreen = IsSplashScreen(window);
@@ -637,24 +605,20 @@ IsProcessable(HWND window) noexcept
     return true;
 }
 
-const wchar_t PropertyMovedOnOpening[] = L"FancyZones_MovedOnOpening";
-
-void
+static void
 StampMovedOnOpeningProperty(HWND window)
 {
     ::SetPropW(window, PropertyMovedOnOpening, reinterpret_cast<HANDLE>(1));
 }
 
-bool
+static bool
 RetrieveMovedOnOpeningProperty(HWND window)
 {
     HANDLE handle = ::GetProp(window, PropertyMovedOnOpening);
     return handle != nullptr;
 }
 
-OnThreadExecutor m_dpiUnawareThread;
-
-void
+static void
 WindowCreated(HWND window) noexcept
 {
     if (!IsProcessable(window))
@@ -681,46 +645,6 @@ WindowCreated(HWND window) noexcept
     }
 }
 
-struct WinHookEvent
-{
-    DWORD event;
-    HWND hwnd;
-    LONG idObject;
-    LONG idChild;
-    DWORD idEventThread;
-    DWORD dwmsEventTime;
-};
-
-void
-HandleWinHookEvent(WinHookEvent *data) noexcept
-{
-    POINT ptScreen;
-    GetPhysicalCursorPos(&ptScreen);
-
-    switch (data->event)
-    {
-    case EVENT_OBJECT_NAMECHANGE:
-        // The accessibility name of the desktop window changes whenever the user
-        // switches virtual desktops.
-        if (data->hwnd == GetDesktopWindow())
-        {
-            VirtualDesktop::instance().UpdateVirtualDesktopId();
-        }
-        break;
-
-    case EVENT_OBJECT_UNCLOAKED:
-    case EVENT_OBJECT_SHOW:
-    case EVENT_OBJECT_CREATE:
-        if (data->idObject == OBJID_WINDOW)
-        {
-            const auto wparam = reinterpret_cast<WPARAM>(data->hwnd);
-            auto hwnd = reinterpret_cast<HWND>(wparam);
-            WindowCreated(hwnd);
-        }
-        break;
-    }
-}
-
 static void CALLBACK
 WinHookProc(
     HWINEVENTHOOK winEventHook,
@@ -731,18 +655,43 @@ WinHookProc(
     DWORD eventThread,
     DWORD eventTime)
 {
-    WinHookEvent data{event, window, object, child, eventThread, eventTime};
-    HandleWinHookEvent(&data);
-}
+    UNREFERENCED_PARAMETER(winEventHook);
+    UNREFERENCED_PARAMETER(child);
+    UNREFERENCED_PARAMETER(eventThread);
+    UNREFERENCED_PARAMETER(eventTime);
 
-std::vector<HWINEVENTHOOK> m_staticWinEventHooks;
+    POINT ptScreen;
+    GetPhysicalCursorPos(&ptScreen);
+
+    switch (event)
+    {
+    case EVENT_OBJECT_NAMECHANGE:
+        // The accessibility name of the desktop window changes whenever the user
+        // switches virtual desktops.
+        if (window == GetDesktopWindow())
+        {
+            VirtualDesktop::instance().UpdateVirtualDesktopId();
+        }
+        break;
+
+    case EVENT_OBJECT_UNCLOAKED:
+    case EVENT_OBJECT_SHOW:
+    case EVENT_OBJECT_CREATE:
+        if (object == OBJID_WINDOW)
+        {
+            const auto wparam = reinterpret_cast<WPARAM>(window);
+            auto hwnd = reinterpret_cast<HWND>(wparam);
+            WindowCreated(hwnd);
+        }
+        break;
+    }
+}
 
 ActiveMonitorWindowHandler::ActiveMonitorWindowHandler()
 {
     CoInitialize(NULL);
+
     std::array<DWORD, 6> events_to_subscribe = {
-        EVENT_SYSTEM_MOVESIZESTART,
-        EVENT_SYSTEM_MOVESIZEEND,
         EVENT_OBJECT_NAMECHANGE,
         EVENT_OBJECT_UNCLOAKED,
         EVENT_OBJECT_SHOW,

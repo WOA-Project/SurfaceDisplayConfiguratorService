@@ -100,11 +100,7 @@ HKEY GetVirtualDesktopsRegKey()
 
 VirtualDesktop::VirtualDesktop()
 {
-    auto res = CoCreateInstance(CLSID_VirtualDesktopManager, nullptr, CLSCTX_ALL, IID_PPV_ARGS(&m_vdManager));
-    if (FAILED(res))
-    {
-        //Logger::error("Failed to create VirtualDesktopManager instance");
-    }
+    CoCreateInstance(CLSID_VirtualDesktopManager, nullptr, CLSCTX_ALL, IID_PPV_ARGS(&m_vdManager));
 }
 
 VirtualDesktop::~VirtualDesktop()
@@ -306,8 +302,6 @@ void VirtualDesktop::UpdateVirtualDesktopId() noexcept
     {
         m_currentVirtualDesktopId = GUID_NULL;
     }
-
-    //Trace::VirtualDesktopChanged();
 }
 
 std::optional<GUID> VirtualDesktop::GetDesktopIdByTopLevelWindows() const
