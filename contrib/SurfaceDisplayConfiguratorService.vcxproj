@@ -150,9 +150,12 @@
       <RuntimeLibrary Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">MultiThreadedDebug</RuntimeLibrary>
       <RuntimeLibrary Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">MultiThreadedDebug</RuntimeLibrary>
       <RuntimeLibrary Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">MultiThreadedDebug</RuntimeLibrary>
+      <LanguageStandard Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">stdcpp20</LanguageStandard>
+      <LanguageStandard Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">stdcpp20</LanguageStandard>
+      <LanguageStandard Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
-      <SubSystem>Console</SubSystem>
+      <SubSystem>Windows</SubSystem>
       <GenerateWindowsMetadata>false</GenerateWindowsMetadata>
       <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">onecoreuap.lib;setupapi.lib;mincore.lib;mincore_downlevel.lib;ntdll.lib;ntdll.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">onecoreuap.lib;setupapi.lib;mincore.lib;mincore_downlevel.lib;ntdll.lib;ntdll.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -165,6 +168,7 @@
     <ClCompile>
       <PreprocessorDefinitions>WIN32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">MultiThreadedDebug</RuntimeLibrary>
+      <LanguageStandard Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">ntdll.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -180,9 +184,13 @@
       <RuntimeLibrary Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">MultiThreaded</RuntimeLibrary>
       <RuntimeLibrary Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">MultiThreaded</RuntimeLibrary>
       <RuntimeLibrary Condition="'$(Configuration)|$(Platform)'=='Release|x64'">MultiThreaded</RuntimeLibrary>
+      <LanguageStandard Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">stdcpp20</LanguageStandard>
+      <LanguageStandard Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">stdcpp20</LanguageStandard>
+      <LanguageStandard Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">stdcpp20</LanguageStandard>
+      <LanguageStandard Condition="'$(Configuration)|$(Platform)'=='Release|x64'">stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
-      <SubSystem>Console</SubSystem>
+      <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateWindowsMetadata>false</GenerateWindowsMetadata>
@@ -199,13 +207,16 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\src\ActiveMonitorWindowHandler.cpp" />
     <ClCompile Include="..\src\AutoRotate.cpp" />
-    <ClCompile Include="..\src\TabletPostureManager.cpp" />
     <ClCompile Include="..\src\DisplayRotationManager.cpp" />
+    <ClCompile Include="..\src\OnThreadExecutor.cpp" />
+    <ClCompile Include="..\src\TabletPostureManager.cpp" />
     <ClCompile Include="..\src\Main.cpp" />
     <ClCompile Include="..\src\pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="..\src\VirtualDesktop.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
@@ -221,13 +232,16 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\include\ActiveMonitorWindowHandler.h" />
     <ClInclude Include="..\include\AutoRotate.h" />
-    <ClInclude Include="..\include\NtAlpc.h" />
-    <ClInclude Include="..\include\TabletPostureManager.h" />
     <ClInclude Include="..\include\DisplayRotationManager.h" />
+    <ClInclude Include="..\include\on_thread_executor.h" />
+    <ClInclude Include="..\include\TabletPostureManager.h" />
+    <ClInclude Include="..\include\NtAlpc.h" />
     <ClInclude Include="..\include\Main.h" />
     <ClInclude Include="..\include\pch.h" />
     <ClInclude Include="..\include\resource.h" />
+    <ClInclude Include="..\include\VirtualDesktop.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

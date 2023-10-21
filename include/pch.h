@@ -21,6 +21,7 @@
  */
 #pragma once
 #include <iostream>
+#define WIN32_LEAN_AND_MEAN // Exclude rarely-used stuff from Windows headers
 #include <windows.h>
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Foundation.Collections.h>
@@ -29,6 +30,21 @@
 #include <winrt/Windows.System.Preview.h>
 #include <winrt/Windows.Internal.Devices.Sensors.h>
 #include <winrt/Windows.Internal.System.h>
+
+#include <Unknwn.h>
+#include <windows.h>
+#include <windowsx.h>
+#include <dwmapi.h>
+#include <shellapi.h>
+#include <ShellScalingApi.h>
+#include <strsafe.h>
+#include <TraceLoggingActivity.h>
+#include <psapi.h>
+#include <shared_mutex>
+#include <functional>
+#include <unordered_set>
+#include <ShObjIdl.h>
+#include <optional>
 
 using namespace winrt;
 using namespace Windows::System;

@@ -24,6 +24,7 @@
 #include "TabletPostureManager.h"
 #include "DisplayRotationManager.h"
 #include "AutoRotate.h"
+#include "ActiveMonitorWindowHandler.h"
 
 using namespace winrt;
 
@@ -44,17 +45,27 @@ IsOOBEInProgress()
     return oobeInProgress == 1;
 }
 
-int
-main(int argc, TCHAR *argv[])
+int APIENTRY
+_tWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpCmdLine, int nCmdShow)
 {
-    UNREFERENCED_PARAMETER(argc);
-    UNREFERENCED_PARAMETER(argv);
+    new ActiveMonitorWindowHandler();
 
     SERVICE_TABLE_ENTRY ServiceTable[] = {{SERVICE_NAME, (LPSERVICE_MAIN_FUNCTION)ServiceMain}, {NULL, NULL}};
 
     StartServiceCtrlDispatcher(ServiceTable);
 
-    return 0;
+    MSG msg;
+    while (GetMessage(&msg, NULL, 0, 0))
+    {
+        if (msg.message == WM_QUIT)
+        {
+            break;
+        }
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+
+    return (int)msg.wParam;
 }
 
 VOID WINAPI
