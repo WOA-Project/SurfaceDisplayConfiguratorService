@@ -25,6 +25,7 @@
 #include "NtAlpc.h"
 #include "DeviceProperties.h"
 #include "DisplayRotationManager.h"
+#include <tchar.h>
 
 CRITICAL_SECTION g_AutoRotationCriticalSection;
 
@@ -681,7 +682,7 @@ SetDisplayStates(
     if (DisplayState1 == FALSE) //&& (DisplayDevice1.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP))
     {
         // First make sure matching sensors are off to avoid init issues
-        Status = SetHardwareEnabledStateForPanel(DisplayPanelId1, L"HID_DEVICE_UP:000D_U:000F", FALSE);
+        Status = SetHardwareEnabledStateForPanel(DisplayPanelId1, _T("HID_DEVICE_UP:000D_U:000F"), FALSE);
         if (FAILED(Status))
         {
             goto exit;
@@ -691,7 +692,7 @@ SetDisplayStates(
     if (DisplayState2 == FALSE) //&& (DisplayDevice2.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP))
     {
         // First make sure matching sensors are off to avoid init issues
-        Status = SetHardwareEnabledStateForPanel(DisplayPanelId2, L"HID_DEVICE_UP:000D_U:000F", FALSE);
+        Status = SetHardwareEnabledStateForPanel(DisplayPanelId2, _T("HID_DEVICE_UP:000D_U:000F"), FALSE);
         if (FAILED(Status))
         {
             goto exit;
@@ -847,7 +848,7 @@ SetDisplayStates(
     if (DisplayState1 == TRUE) //&& !(DisplayDevice1.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP))
     {
         // First make sure matching sensors are on to avoid init issues
-        Status = SetHardwareEnabledStateForPanel(DisplayPanelId1, L"HID_DEVICE_UP:000D_U:000F", TRUE);
+        Status = SetHardwareEnabledStateForPanel(DisplayPanelId1, _T("HID_DEVICE_UP:000D_U:000F"), TRUE);
         if (FAILED(Status))
         {
             goto exit;
@@ -858,7 +859,7 @@ SetDisplayStates(
     if (DisplayState2 == TRUE) //&& !(DisplayDevice2.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP))
     {
         // First make sure matching sensors are on to avoid init issues
-        Status = SetHardwareEnabledStateForPanel(DisplayPanelId2, L"HID_DEVICE_UP:000D_U:000F", TRUE);
+        Status = SetHardwareEnabledStateForPanel(DisplayPanelId2, _T("HID_DEVICE_UP:000D_U:000F"), TRUE);
         if (FAILED(Status))
         {
             goto exit;
@@ -939,7 +940,7 @@ InitializeDisplayRotationManager()
     RtlZeroMemory(&PortAttribs, sizeof(PortAttribs));
     PortAttribs.MaxMessageLength = 56;
 
-    RtlInitUnicodeString(&DestinationString, L"\\RPC Control\\AutoRotationApiPort");
+    RtlInitUnicodeString(&DestinationString, _T("\\RPC Control\\AutoRotationApiPort"));
 
 #pragma warning(disable : 6387)
     Status = NtAlpcConnectPort(

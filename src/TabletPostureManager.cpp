@@ -135,8 +135,8 @@ EnableTabletPostureTaskbar()
 
     HRESULT status = RegGetValue(
         HKEY_CURRENT_USER,
-        L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer",
-        L"TabletPostureTaskbar",
+        _T("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer"),
+        _T("TabletPostureTaskbar"),
         REG_DWORD,
         NULL,
         &pvData,
@@ -147,8 +147,8 @@ EnableTabletPostureTaskbar()
         pvData = 1;
         status = _RegSetKeyValue(
             HKEY_CURRENT_USER,
-            L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer",
-            L"TabletPostureTaskbar",
+            _T("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer"),
+            _T("TabletPostureTaskbar"),
             REG_DWORD,
             (PBYTE)&pvData,
             pcbData);

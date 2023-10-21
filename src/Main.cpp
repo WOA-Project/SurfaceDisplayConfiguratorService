@@ -38,9 +38,9 @@ IsOOBEInProgress()
     HKEY key;
     DWORD type = REG_DWORD, size = 8;
 
-    if (SUCCEEDED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, L"SYSTEM\\Setup", NULL, KEY_WRITE, &key)))
+    if (SUCCEEDED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, _T("SYSTEM\\Setup"), NULL, KEY_WRITE, &key)))
     {
-        RegQueryValueEx(key, L"OOBEInProgress", NULL, &type, (LPBYTE)&oobeInProgress, &size);
+        RegQueryValueEx(key, _T("OOBEInProgress"), NULL, &type, (LPBYTE)&oobeInProgress, &size);
         RegCloseKey(key);
     }
 

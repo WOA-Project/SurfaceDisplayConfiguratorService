@@ -28,24 +28,25 @@ THE SOFTWARE.
 */
 #include "pch.h"
 #include "VirtualDesktop.h"
+#include <tchar.h>
 
 // Non-Localizable strings
 namespace NonLocalizable
 {
-    const wchar_t RegCurrentVirtualDesktop[] = L"CurrentVirtualDesktop";
-    const wchar_t RegVirtualDesktopIds[] = L"VirtualDesktopIDs";
-    const wchar_t RegKeyVirtualDesktops[] = L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VirtualDesktops";
-    const wchar_t RegKeyVirtualDesktopsFromSession[] = L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\SessionInfo\\%d\\VirtualDesktops";
-}
+    const wchar_t RegCurrentVirtualDesktop[] = _T("CurrentVirtualDesktop");
+    const wchar_t RegVirtualDesktopIds[] = _T("VirtualDesktopIDs");
+    const wchar_t RegKeyVirtualDesktops[] = _T("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VirtualDesktops");
+    const wchar_t RegKeyVirtualDesktopsFromSession[] = _T("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\SessionInfo\\%d\\VirtualDesktops");
+    }
 
 std::optional<GUID> NewGetCurrentDesktopId()
 {
     HKEY key{};
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, NonLocalizable::RegKeyVirtualDesktops, 0, KEY_ALL_ACCESS, &key) == ERROR_SUCCESS)
+    if (RegOpenKeyEx(HKEY_CURRENT_USER, NonLocalizable::RegKeyVirtualDesktops, 0, KEY_ALL_ACCESS, &key) == ERROR_SUCCESS)
     {
         GUID value{};
         DWORD size = sizeof(GUID);
-        if (RegQueryValueExW(key, NonLocalizable::RegCurrentVirtualDesktop, 0, nullptr, reinterpret_cast<BYTE*>(&value), &size) == ERROR_SUCCESS)
+        if (RegQueryValueEx(key, NonLocalizable::RegCurrentVirtualDesktop, 0, nullptr, reinterpret_cast<BYTE*>(&value), &size) == ERROR_SUCCESS)
         {
             return value;
         }
@@ -63,17 +64,17 @@ std::optional<GUID> GetDesktopIdFromCurrentSession()
     }
 
     wchar_t sessionKeyPath[256]{};
-    if (FAILED(StringCchPrintfW(sessionKeyPath, ARRAYSIZE(sessionKeyPath), NonLocalizable::RegKeyVirtualDesktopsFromSession, sessionId)))
+    if (FAILED(StringCchPrintf(sessionKeyPath, ARRAYSIZE(sessionKeyPath), NonLocalizable::RegKeyVirtualDesktopsFromSession, sessionId)))
     {
         return std::nullopt;
     }
 
     HKEY key{};
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, sessionKeyPath, 0, KEY_ALL_ACCESS, &key) == ERROR_SUCCESS)
+    if (RegOpenKeyEx(HKEY_CURRENT_USER, sessionKeyPath, 0, KEY_ALL_ACCESS, &key) == ERROR_SUCCESS)
     {
         GUID value{};
         DWORD size = sizeof(GUID);
-        if (RegQueryValueExW(key, NonLocalizable::RegCurrentVirtualDesktop, 0, nullptr, reinterpret_cast<BYTE*>(&value), &size) == ERROR_SUCCESS)
+        if (RegQueryValueEx(key, NonLocalizable::RegCurrentVirtualDesktop, 0, nullptr, reinterpret_cast<BYTE*>(&value), &size) == ERROR_SUCCESS)
         {
             return value;
         }
@@ -161,14 +162,14 @@ std::optional<std::vector<GUID>> VirtualDesktop::GetVirtualDesktopIdsFromRegistr
 
     DWORD bufferCapacity;
     // request regkey binary buffer capacity only
-    if (RegQueryValueExW(hKey, NonLocalizable::RegVirtualDesktopIds, 0, nullptr, nullptr, &bufferCapacity) != ERROR_SUCCESS)
+    if (RegQueryValueEx(hKey, NonLocalizable::RegVirtualDesktopIds, 0, nullptr, nullptr, &bufferCapacity) != ERROR_SUCCESS)
     {
         return std::nullopt;
     }
 
     std::unique_ptr<BYTE[]> buffer = std::make_unique<BYTE[]>(bufferCapacity);
     // request regkey binary content
-    if (RegQueryValueExW(hKey, NonLocalizable::RegVirtualDesktopIds, 0, nullptr, buffer.get(), &bufferCapacity) != ERROR_SUCCESS)
+    if (RegQueryValueEx(hKey, NonLocalizable::RegVirtualDesktopIds, 0, nullptr, buffer.get(), &bufferCapacity) != ERROR_SUCCESS)
     {
         return std::nullopt;
     }

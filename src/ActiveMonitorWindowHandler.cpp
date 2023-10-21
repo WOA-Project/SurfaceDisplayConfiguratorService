@@ -30,6 +30,7 @@ THE SOFTWARE.
 #include "ActiveMonitorWindowHandler.h"
 #include "VirtualDesktop.h"
 #include <on_thread_executor.h>
+#include <tchar.h>
 
 #define MAX_TITLE_LENGTH 255
 
@@ -44,11 +45,11 @@ enum AwarenessLevel
 
 constexpr int CUSTOM_POSITIONING_LEFT_TOP_PADDING = 16;
 constexpr inline int DEFAULT_DPI = 96;
-const wchar_t SplashClassName[] = L"MsoSplash";
-const wchar_t SystemAppsFolder[] = L"SYSTEMAPPS";
-const wchar_t CoreWindow[] = L"Windows.UI.Core.CoreWindow";
-const wchar_t SearchUI[] = L"SearchUI.exe";
-const wchar_t PropertyMovedOnOpening[] = L"FancyZones_MovedOnOpening";
+const wchar_t SplashClassName[] = _T("MsoSplash");
+const wchar_t SystemAppsFolder[] = _T("SYSTEMAPPS");
+const wchar_t CoreWindow[] = _T("Windows.UI.Core.CoreWindow");
+const wchar_t SearchUI[] = _T("SearchUI.exe");
+const wchar_t PropertyMovedOnOpening[] = _T("FancyZones_MovedOnOpening");
 OnThreadExecutor m_dpiUnawareThread;
 std::vector<HWINEVENTHOOK> m_staticWinEventHooks;
 
@@ -120,8 +121,8 @@ ScreenToWorkAreaCoords(HWND window, RECT &rect)
     // First, find the correct monitor. The monitor cannot be found using the given rect itself, we must first
     // translate it to relative workspace coordinates.
     HMONITOR monitor = MonitorFromRect(&rect, MONITOR_DEFAULTTOPRIMARY);
-    MONITORINFOEXW monitorInfo{sizeof(MONITORINFOEXW)};
-    GetMonitorInfoW(monitor, &monitorInfo);
+    MONITORINFOEX monitorInfo{sizeof(MONITORINFOEX)};
+    GetMonitorInfo(monitor, &monitorInfo);
 
     auto xOffset = monitorInfo.rcWork.left - monitorInfo.rcMonitor.left;
     auto yOffset = monitorInfo.rcWork.top - monitorInfo.rcMonitor.top;
@@ -136,7 +137,7 @@ ScreenToWorkAreaCoords(HWND window, RECT &rect)
     // Now, this rect should be used to determine the monitor and thus taskbar size. This fixes
     // scenarios where the zone lies approximately between two monitors, and the taskbar is on the left.
     monitor = MonitorFromRect(&referenceRect, MONITOR_DEFAULTTOPRIMARY);
-    GetMonitorInfoW(monitor, &monitorInfo);
+    GetMonitorInfo(monitor, &monitorInfo);
 
     xOffset = monitorInfo.rcWork.left - monitorInfo.rcMonitor.left;
     yOffset = monitorInfo.rcWork.top - monitorInfo.rcMonitor.top;
@@ -162,13 +163,13 @@ static void
 SizeWindowToRect(HWND window, RECT rect) noexcept
 {
     WINDOWPLACEMENT placement{};
-    ::GetWindowPlacement(window, &placement);
+    GetWindowPlacement(window, &placement);
 
     // Wait if SW_SHOWMINIMIZED would be removed from window (Issue #1685)
     for (int i = 0; i < 5 && (placement.showCmd == SW_SHOWMINIMIZED); ++i)
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        ::GetWindowPlacement(window, &placement);
+        GetWindowPlacement(window, &placement);
     }
 
     if (!IsWindowVisible(window))
@@ -196,11 +197,11 @@ SizeWindowToRect(HWND window, RECT rect) noexcept
     placement.rcNormalPosition = rect;
     placement.flags |= WPF_ASYNCWINDOWPLACEMENT;
 
-    ::SetWindowPlacement(window, &placement);
+    SetWindowPlacement(window, &placement);
 
     // Do it again, allowing Windows to resize the window and set correct scaling
     // This fixes Issue #365
-    ::SetWindowPlacement(window, &placement);
+    SetWindowPlacement(window, &placement);
 }
 
 inline static int
@@ -406,7 +407,7 @@ check_excluded_app_with_title(
     const std::vector<std::wstring> &excludedApps)
 {
     WCHAR title[MAX_TITLE_LENGTH];
-    int len = GetWindowTextW(hwnd, title, MAX_TITLE_LENGTH);
+    int len = GetWindowText(hwnd, title, MAX_TITLE_LENGTH);
     if (len <= 0)
     {
         return false;
@@ -419,7 +420,7 @@ check_excluded_app_with_title(
         processPath = processPath.substr(0, lastBackslashPos + 1); // retain up to the last backslash
         processPath.append(titleStr);                              // append the title
     }
-    CharUpperBuffW(processPath.data(), static_cast<DWORD>(processPath.length()));
+    CharUpperBuff(processPath.data(), static_cast<DWORD>(processPath.length()));
     return find_app_name_in_path(processPath, excludedApps);
 }
 
@@ -466,7 +467,7 @@ get_process_path(DWORD pid) noexcept
     {
         name.resize(MAX_PATH);
         DWORD name_length = static_cast<DWORD>(name.length());
-        if (QueryFullProcessImageNameW(process, 0, name.data(), &name_length) == 0)
+        if (QueryFullProcessImageName(process, 0, name.data(), &name_length) == 0)
         {
             name_length = 0;
         }
@@ -480,7 +481,7 @@ get_process_path(DWORD pid) noexcept
 inline static std::wstring
 get_process_path(HWND window) noexcept
 {
-    const static std::wstring app_frame_host = L"ApplicationFrameHost.exe";
+    const static std::wstring app_frame_host = _T("ApplicationFrameHost.exe");
 
     DWORD pid{};
     GetWindowThreadProcessId(window, &pid);
@@ -524,7 +525,7 @@ get_process_path(HWND window) noexcept
 inline static std::wstring
 get_process_path_waiting_uwp(HWND window)
 {
-    const static std::wstring appFrameHost = L"ApplicationFrameHost.exe";
+    const static std::wstring appFrameHost = _T("ApplicationFrameHost.exe");
 
     int attempt = 0;
     auto processPath = get_process_path(window);
@@ -543,7 +544,7 @@ static bool
 IsExcluded(HWND window)
 {
     std::wstring processPath = get_process_path_waiting_uwp(window);
-    CharUpperBuffW(const_cast<std::wstring &>(processPath).data(), static_cast<DWORD>(processPath.length()));
+    CharUpperBuff(const_cast<std::wstring &>(processPath).data(), static_cast<DWORD>(processPath.length()));
 
     if (IsExcludedByDefault(window, processPath))
     {
@@ -608,13 +609,13 @@ IsProcessable(HWND window) noexcept
 static void
 StampMovedOnOpeningProperty(HWND window)
 {
-    ::SetPropW(window, PropertyMovedOnOpening, reinterpret_cast<HANDLE>(1));
+    SetProp(window, PropertyMovedOnOpening, reinterpret_cast<HANDLE>(1));
 }
 
 static bool
 RetrieveMovedOnOpeningProperty(HWND window)
 {
-    HANDLE handle = ::GetProp(window, PropertyMovedOnOpening);
+    HANDLE handle = GetProp(window, PropertyMovedOnOpening);
     return handle != nullptr;
 }
 

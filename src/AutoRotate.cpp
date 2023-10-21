@@ -297,7 +297,7 @@ SetupAutoRotation(
     // Check if rotation is enabled
     //
     DWORD enabled = 0;
-    RegQueryValueEx(autoRotationKey, L"Enable", NULL, &type, (LPBYTE)&enabled, &size);
+    RegQueryValueEx(autoRotationKey, _T("Enable"), NULL, &type, (LPBYTE)&enabled, &size);
 
     if (enabled == 1 && AlreadySetup == FALSE)
     {
@@ -347,7 +347,7 @@ AutoRotateMain(SERVICE_STATUS_HANDLE g_StatusHandle, HANDLE g_ServiceStopEvent)
     if (SUCCEEDED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, WINDOWS_AUTO_ROTATION_KEY_PATH, NULL, KEY_WRITE, &autoRotationKey)))
     {
         DWORD Enabled = 1;
-        RegSetValueEx(autoRotationKey, L"SensorPresent", NULL, REG_DWORD, (LPBYTE)&Enabled, sizeof(DWORD));
+        RegSetValueEx(autoRotationKey, _T("SensorPresent"), NULL, REG_DWORD, (LPBYTE)&Enabled, sizeof(DWORD));
         RegCloseKey(autoRotationKey);
     }
 
