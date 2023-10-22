@@ -29,6 +29,7 @@ THE SOFTWARE.
 #include "pch.h"
 #include "ActiveMonitorWindowHandler.h"
 #include "VirtualDesktop.h"
+#include "WorkAreas.h"
 #include <on_thread_executor.h>
 #include <tchar.h>
 
@@ -74,8 +75,7 @@ allMonitorsHaveSameDpiScaling()
     UINT firstMonitorDpiX;
     UINT firstMonitorDpiY;
 
-    if (S_OK !=
-        GetDpiForMonitor(monitors[0], MDT_EFFECTIVE_DPI, &firstMonitorDpiX, &firstMonitorDpiY))
+    if (S_OK != GetDpiForMonitor(monitors[0], MDT_EFFECTIVE_DPI, &firstMonitorDpiX, &firstMonitorDpiY))
     {
         return false;
     }
@@ -85,8 +85,7 @@ allMonitorsHaveSameDpiScaling()
         UINT iteratedMonitorDpiX;
         UINT iteratedMonitorDpiY;
 
-        if (S_OK != GetDpiForMonitor(
-                        monitors[i], MDT_EFFECTIVE_DPI, &iteratedMonitorDpiX, &iteratedMonitorDpiY) ||
+        if (S_OK != GetDpiForMonitor(monitors[i], MDT_EFFECTIVE_DPI, &iteratedMonitorDpiX, &iteratedMonitorDpiY) ||
             iteratedMonitorDpiX != firstMonitorDpiX)
         {
             return false;
@@ -696,10 +695,7 @@ ActiveMonitorWindowHandlerMain()
     SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
 
     std::array<DWORD, 6> events_to_subscribe = {
-        EVENT_OBJECT_NAMECHANGE,
-        EVENT_OBJECT_UNCLOAKED,
-        EVENT_OBJECT_SHOW,
-        EVENT_OBJECT_CREATE};
+        EVENT_OBJECT_NAMECHANGE, EVENT_OBJECT_UNCLOAKED, EVENT_OBJECT_SHOW, EVENT_OBJECT_CREATE};
     for (const auto event : events_to_subscribe)
     {
         auto hook =
@@ -717,6 +713,12 @@ ActiveMonitorWindowHandlerMain()
         {
             break;
         }
+
+        if (msg.message == WM_SETTINGCHANGE && msg.wParam == SPI_SETWORKAREA)
+        {
+            UpdateMonitorWorkAreas();
+        }
+        
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }

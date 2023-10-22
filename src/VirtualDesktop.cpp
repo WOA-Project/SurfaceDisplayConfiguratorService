@@ -31,22 +31,26 @@ THE SOFTWARE.
 #include <tchar.h>
 
 // Non-Localizable strings
-namespace NonLocalizable
-{
-    const wchar_t RegCurrentVirtualDesktop[] = _T("CurrentVirtualDesktop");
-    const wchar_t RegVirtualDesktopIds[] = _T("VirtualDesktopIDs");
-    const wchar_t RegKeyVirtualDesktops[] = _T("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VirtualDesktops");
-    const wchar_t RegKeyVirtualDesktopsFromSession[] = _T("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\SessionInfo\\%d\\VirtualDesktops");
-    }
+namespace NonLocalizable {
+const wchar_t RegCurrentVirtualDesktop[] = _T("CurrentVirtualDesktop");
+const wchar_t RegVirtualDesktopIds[] = _T("VirtualDesktopIDs");
+const wchar_t RegKeyVirtualDesktops[] = _T("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VirtualDesktops");
+const wchar_t RegKeyVirtualDesktopsFromSession[] =
+    _T("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\SessionInfo\\%d\\VirtualDesktops");
+} // namespace NonLocalizable
 
-std::optional<GUID> NewGetCurrentDesktopId()
+std::optional<GUID>
+NewGetCurrentDesktopId()
 {
     HKEY key{};
-    if (RegOpenKeyEx(HKEY_CURRENT_USER, NonLocalizable::RegKeyVirtualDesktops, 0, KEY_ALL_ACCESS, &key) == ERROR_SUCCESS)
+    if (RegOpenKeyEx(HKEY_CURRENT_USER, NonLocalizable::RegKeyVirtualDesktops, 0, KEY_ALL_ACCESS, &key) ==
+        ERROR_SUCCESS)
     {
         GUID value{};
         DWORD size = sizeof(GUID);
-        if (RegQueryValueEx(key, NonLocalizable::RegCurrentVirtualDesktop, 0, nullptr, reinterpret_cast<BYTE*>(&value), &size) == ERROR_SUCCESS)
+        if (RegQueryValueEx(
+                key, NonLocalizable::RegCurrentVirtualDesktop, 0, nullptr, reinterpret_cast<BYTE *>(&value), &size) ==
+            ERROR_SUCCESS)
         {
             return value;
         }
@@ -55,7 +59,8 @@ std::optional<GUID> NewGetCurrentDesktopId()
     return std::nullopt;
 }
 
-std::optional<GUID> GetDesktopIdFromCurrentSession()
+std::optional<GUID>
+GetDesktopIdFromCurrentSession()
 {
     DWORD sessionId;
     if (!ProcessIdToSessionId(GetCurrentProcessId(), &sessionId))
@@ -64,7 +69,8 @@ std::optional<GUID> GetDesktopIdFromCurrentSession()
     }
 
     wchar_t sessionKeyPath[256]{};
-    if (FAILED(StringCchPrintf(sessionKeyPath, ARRAYSIZE(sessionKeyPath), NonLocalizable::RegKeyVirtualDesktopsFromSession, sessionId)))
+    if (FAILED(StringCchPrintf(
+            sessionKeyPath, ARRAYSIZE(sessionKeyPath), NonLocalizable::RegKeyVirtualDesktopsFromSession, sessionId)))
     {
         return std::nullopt;
     }
@@ -74,7 +80,9 @@ std::optional<GUID> GetDesktopIdFromCurrentSession()
     {
         GUID value{};
         DWORD size = sizeof(GUID);
-        if (RegQueryValueEx(key, NonLocalizable::RegCurrentVirtualDesktop, 0, nullptr, reinterpret_cast<BYTE*>(&value), &size) == ERROR_SUCCESS)
+        if (RegQueryValueEx(
+                key, NonLocalizable::RegCurrentVirtualDesktop, 0, nullptr, reinterpret_cast<BYTE *>(&value), &size) ==
+            ERROR_SUCCESS)
         {
             return value;
         }
@@ -83,19 +91,22 @@ std::optional<GUID> GetDesktopIdFromCurrentSession()
     return std::nullopt;
 }
 
-HKEY OpenVirtualDesktopsRegKey()
+HKEY
+OpenVirtualDesktopsRegKey()
 {
-    HKEY hKey{ nullptr };
-    if (RegOpenKeyEx(HKEY_CURRENT_USER, NonLocalizable::RegKeyVirtualDesktops, 0, KEY_ALL_ACCESS, &hKey) == ERROR_SUCCESS)
+    HKEY hKey{nullptr};
+    if (RegOpenKeyEx(HKEY_CURRENT_USER, NonLocalizable::RegKeyVirtualDesktops, 0, KEY_ALL_ACCESS, &hKey) ==
+        ERROR_SUCCESS)
     {
         return hKey;
     }
     return nullptr;
 }
 
-HKEY GetVirtualDesktopsRegKey()
+HKEY
+GetVirtualDesktopsRegKey()
 {
-    static HKEY virtualDesktopsKey{ OpenVirtualDesktopsRegKey() };
+    static HKEY virtualDesktopsKey{OpenVirtualDesktopsRegKey()};
     return virtualDesktopsKey;
 }
 
@@ -112,13 +123,15 @@ VirtualDesktop::~VirtualDesktop()
     }
 }
 
-VirtualDesktop& VirtualDesktop::instance()
+VirtualDesktop &
+VirtualDesktop::instance()
 {
     static VirtualDesktop self;
     return self;
 }
 
-std::optional<GUID> VirtualDesktop::GetCurrentVirtualDesktopIdFromRegistry() const
+std::optional<GUID>
+VirtualDesktop::GetCurrentVirtualDesktopIdFromRegistry() const
 {
     // On newer Windows builds, the current virtual desktop is persisted to
     // a totally different reg key. Look there first.
@@ -153,7 +166,8 @@ std::optional<GUID> VirtualDesktop::GetCurrentVirtualDesktopIdFromRegistry() con
     return std::nullopt;
 }
 
-std::optional<std::vector<GUID>> VirtualDesktop::GetVirtualDesktopIdsFromRegistry(HKEY hKey) const
+std::optional<std::vector<GUID>>
+VirtualDesktop::GetVirtualDesktopIdsFromRegistry(HKEY hKey) const
 {
     if (!hKey)
     {
@@ -162,14 +176,16 @@ std::optional<std::vector<GUID>> VirtualDesktop::GetVirtualDesktopIdsFromRegistr
 
     DWORD bufferCapacity;
     // request regkey binary buffer capacity only
-    if (RegQueryValueEx(hKey, NonLocalizable::RegVirtualDesktopIds, 0, nullptr, nullptr, &bufferCapacity) != ERROR_SUCCESS)
+    if (RegQueryValueEx(hKey, NonLocalizable::RegVirtualDesktopIds, 0, nullptr, nullptr, &bufferCapacity) !=
+        ERROR_SUCCESS)
     {
         return std::nullopt;
     }
 
     std::unique_ptr<BYTE[]> buffer = std::make_unique<BYTE[]>(bufferCapacity);
     // request regkey binary content
-    if (RegQueryValueEx(hKey, NonLocalizable::RegVirtualDesktopIds, 0, nullptr, buffer.get(), &bufferCapacity) != ERROR_SUCCESS)
+    if (RegQueryValueEx(hKey, NonLocalizable::RegVirtualDesktopIds, 0, nullptr, buffer.get(), &bufferCapacity) !=
+        ERROR_SUCCESS)
     {
         return std::nullopt;
     }
@@ -179,19 +195,21 @@ std::optional<std::vector<GUID>> VirtualDesktop::GetVirtualDesktopIdsFromRegistr
     temp.reserve(bufferCapacity / guidSize);
     for (size_t i = 0; i < bufferCapacity; i += guidSize)
     {
-        GUID* guid = reinterpret_cast<GUID*>(buffer.get() + i);
+        GUID *guid = reinterpret_cast<GUID *>(buffer.get() + i);
         temp.push_back(*guid);
     }
 
     return temp;
 }
 
-std::optional<std::vector<GUID>> VirtualDesktop::GetVirtualDesktopIdsFromRegistry() const
+std::optional<std::vector<GUID>>
+VirtualDesktop::GetVirtualDesktopIdsFromRegistry() const
 {
     return GetVirtualDesktopIdsFromRegistry(GetVirtualDesktopsRegKey());
 }
 
-bool VirtualDesktop::IsVirtualDesktopIdSavedInRegistry(GUID id) const
+bool
+VirtualDesktop::IsVirtualDesktopIdSavedInRegistry(GUID id) const
 {
     auto ids = GetVirtualDesktopIdsFromRegistry();
     if (!ids.has_value())
@@ -199,7 +217,7 @@ bool VirtualDesktop::IsVirtualDesktopIdSavedInRegistry(GUID id) const
         return false;
     }
 
-    for (const auto& regId : *ids)
+    for (const auto &regId : *ids)
     {
         if (regId == id)
         {
@@ -210,7 +228,8 @@ bool VirtualDesktop::IsVirtualDesktopIdSavedInRegistry(GUID id) const
     return false;
 }
 
-bool VirtualDesktop::IsWindowOnCurrentDesktop(HWND window) const
+bool
+VirtualDesktop::IsWindowOnCurrentDesktop(HWND window) const
 {
     BOOL isWindowOnCurrentDesktop = false;
     if (m_vdManager)
@@ -221,11 +240,13 @@ bool VirtualDesktop::IsWindowOnCurrentDesktop(HWND window) const
     return isWindowOnCurrentDesktop;
 }
 
-std::optional<GUID> VirtualDesktop::GetDesktopId(HWND window) const
+std::optional<GUID>
+VirtualDesktop::GetDesktopId(HWND window) const
 {
     GUID id;
     BOOL isWindowOnCurrentDesktop = false;
-    if (m_vdManager && m_vdManager->IsWindowOnCurrentVirtualDesktop(window, &isWindowOnCurrentDesktop) == S_OK && isWindowOnCurrentDesktop)
+    if (m_vdManager && m_vdManager->IsWindowOnCurrentVirtualDesktop(window, &isWindowOnCurrentDesktop) == S_OK &&
+        isWindowOnCurrentDesktop)
     {
         // Filter windows such as Windows Start Menu, Task Switcher, etc.
         if (m_vdManager->GetWindowDesktopId(window, &id) == S_OK)
@@ -237,13 +258,14 @@ std::optional<GUID> VirtualDesktop::GetDesktopId(HWND window) const
     return std::nullopt;
 }
 
-std::vector<std::pair<HWND, GUID>> VirtualDesktop::GetWindowsRelatedToDesktops() const
+std::vector<std::pair<HWND, GUID>>
+VirtualDesktop::GetWindowsRelatedToDesktops() const
 {
     using result_t = std::vector<HWND>;
     result_t windows;
 
     auto callback = [](HWND window, LPARAM data) -> BOOL {
-        result_t& result = *reinterpret_cast<result_t*>(data);
+        result_t &result = *reinterpret_cast<result_t *>(data);
         result.push_back(window);
         return TRUE;
     };
@@ -255,20 +277,21 @@ std::vector<std::pair<HWND, GUID>> VirtualDesktop::GetWindowsRelatedToDesktops()
         auto desktop = GetDesktopId(window);
         if (desktop.has_value())
         {
-            result.push_back({ window, *desktop });
+            result.push_back({window, *desktop});
         }
     }
 
     return result;
 }
 
-std::vector<HWND> VirtualDesktop::GetWindowsFromCurrentDesktop() const
+std::vector<HWND>
+VirtualDesktop::GetWindowsFromCurrentDesktop() const
 {
     using result_t = std::vector<HWND>;
     result_t windows;
 
     auto callback = [](HWND window, LPARAM data) -> BOOL {
-        result_t& result = *reinterpret_cast<result_t*>(data);
+        result_t &result = *reinterpret_cast<result_t *>(data);
         result.push_back(window);
         return TRUE;
     };
@@ -287,12 +310,14 @@ std::vector<HWND> VirtualDesktop::GetWindowsFromCurrentDesktop() const
     return result;
 }
 
-GUID VirtualDesktop::GetCurrentVirtualDesktopId() const noexcept
+GUID
+VirtualDesktop::GetCurrentVirtualDesktopId() const noexcept
 {
     return m_currentVirtualDesktopId;
 }
 
-void VirtualDesktop::UpdateVirtualDesktopId() noexcept
+void
+VirtualDesktop::UpdateVirtualDesktopId() noexcept
 {
     auto currentVirtualDesktopId = GetCurrentVirtualDesktopIdFromRegistry();
     if (currentVirtualDesktopId.has_value())
@@ -305,13 +330,14 @@ void VirtualDesktop::UpdateVirtualDesktopId() noexcept
     }
 }
 
-std::optional<GUID> VirtualDesktop::GetDesktopIdByTopLevelWindows() const
+std::optional<GUID>
+VirtualDesktop::GetDesktopIdByTopLevelWindows() const
 {
     using result_t = std::vector<HWND>;
     result_t windows;
 
     auto callback = [](HWND window, LPARAM data) -> BOOL {
-        result_t& result = *reinterpret_cast<result_t*>(data);
+        result_t &result = *reinterpret_cast<result_t *>(data);
         result.push_back(window);
         return TRUE;
     };

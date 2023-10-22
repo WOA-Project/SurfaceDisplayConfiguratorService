@@ -305,9 +305,7 @@ SuspendResumeCallback(PVOID context, ULONG powerEvent, PVOID setting)
 }
 
 VOID
-RegisterEverything(
-    TwoPanelHingedDevicePosture const &postureSensor,
-    FlipSensor const &flipSensor)
+RegisterEverything(TwoPanelHingedDevicePosture const &postureSensor, FlipSensor const &flipSensor)
 {
     DEVICE_NOTIFY_SUBSCRIBE_PARAMETERS powerParams{};
     powerParams.Callback = SuspendResumeCallback;
@@ -360,9 +358,7 @@ UnregisterEverything(TwoPanelHingedDevicePosture const &postureSensor, FlipSenso
 }
 
 VOID
-SetupAutoRotation(
-    TwoPanelHingedDevicePosture const &postureSensor,
-    FlipSensor const &flipSensor)
+SetupAutoRotation(TwoPanelHingedDevicePosture const &postureSensor, FlipSensor const &flipSensor)
 {
     DWORD type = REG_DWORD, size = sizeof(DWORD);
 
@@ -439,9 +435,6 @@ AutoRotateMain()
     FoundAllSensors = TRUE;
 
     InitializeCriticalSectionAndSpinCount(&g_AutoRotationCriticalSection, 0x00000400);
-
-    InitializeDisplayRotationManager();
-    SetExtendedDisplayConfiguration();
 
     if (!IsOOBEInProgress())
     {

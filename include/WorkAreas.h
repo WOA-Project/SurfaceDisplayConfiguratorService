@@ -21,11 +21,5 @@
  */
 #pragma once
 
-HRESULT WINAPI
-SetDisplayStates(
-    CONST WCHAR *DisplayPanelId1,
-    CONST WCHAR *DisplayPanelId2,
-    INT DisplayOrientation1,
-    INT DisplayOrientation2,
-    BOOLEAN DisplayState1,
-    BOOLEAN DisplayState2);
+BOOL WINAPI
+UpdateMonitorWorkAreas();

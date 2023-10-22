@@ -22,56 +22,11 @@
 #include "pch.h"
 #include <SetupAPI.h>
 #include <Devpkey.h>
-#include "NtAlpc.h"
 #include "DeviceProperties.h"
+#include "AutoRotationApiPort.h"
+#include "WorkAreas.h"
 #include "DisplayRotationManager.h"
 #include <tchar.h>
-
-//
-// The handle to the auto rotation ALPC port
-//
-HANDLE PortHandle = NULL;
-
-//
-// Subject: Notify auto rotation with the following current auto rotation settings
-//			using ALPC port
-//
-// Parameters:
-//
-//			   Handle: the ALPC Port Handle
-//
-//             Orientation:
-//             - DMDO_270     (Portrait)
-//             - DMDO_90      (Portrait flipped)
-//             - DMDO_180     (Landscape)
-//             - DMDO_DEFAULT (Landscape flipped)
-//
-// Returns: HRESULT
-//
-HRESULT
-NotifyAutoRotationAlpcPortOfOrientationChange(INT Orientation)
-{
-    ROTATION_COMMAND_MESSAGE RotationCommandMessage;
-    HRESULT Status;
-
-    if (PortHandle == NULL)
-    {
-        return STATUS_INVALID_PARAMETER;
-    }
-
-    RtlZeroMemory(&RotationCommandMessage, sizeof(RotationCommandMessage));
-
-    RotationCommandMessage.PortMessage.u1.s1.DataLength = sizeof(RotationCommandMessage.RotationMessage);
-    RotationCommandMessage.PortMessage.u1.s1.TotalLength = sizeof(RotationCommandMessage);
-    RotationCommandMessage.PortMessage.u2.s2.Type = 1;
-
-    RotationCommandMessage.RotationMessage.Type = 2;
-    RotationCommandMessage.RotationMessage.Orientation = Orientation;
-
-    Status = NtAlpcSendWaitReceivePort(PortHandle, 0, (PVOID)&RotationCommandMessage, NULL, NULL, NULL, NULL, NULL);
-
-    return Status;
-}
 
 //
 // Subject: Gets a display device
@@ -532,104 +487,6 @@ SetHardwareEnabledStateForPanel(CONST WCHAR *devicePanelId, CONST WCHAR *deviceH
     return ERROR_SUCCESS;
 }
 
-constexpr inline int DEFAULT_DPI = 96;
-
-BOOL WINAPI
-EnumDisplayMonitorCallback(HMONITOR monitor, HDC dc, LPRECT rect, LPARAM param)
-{
-    UNREFERENCED_PARAMETER(dc);
-    UNREFERENCED_PARAMETER(rect);
-
-    if (monitor == NULL)
-    {
-        return FALSE;
-    }
-
-    if (param == NULL)
-    {
-        return FALSE;
-    }
-
-    DOUBLE mainBottomOffset = *reinterpret_cast<DOUBLE *>(param);
-    MONITORINFOEX monitorInfo{sizeof(MONITORINFOEX)};
-    BOOL result = GetMonitorInfo(monitor, &monitorInfo);
-    if (!result)
-    {
-        return TRUE;
-    }
-
-    // The bottom offset represents the area taken by the taskbar,
-    // with no error when shytaskbar is enabled on the primary monitor
-    DOUBLE bottomOffset = monitorInfo.rcMonitor.bottom - monitorInfo.rcWork.bottom;
-
-    UINT monitorDpiX;
-    UINT monitorDpiY;
-
-    if (S_OK != GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &monitorDpiX, &monitorDpiY))
-    {
-        return TRUE;
-    }
-
-    DOUBLE monitorScaling = ((DOUBLE)monitorDpiY / (DOUBLE)DEFAULT_DPI);
-    bottomOffset /= monitorScaling;
-
-    DOUBLE bottomOffsetDifference = bottomOffset - mainBottomOffset;
-
-    // When shytaskbar is active, the real offset is meant to be smaller than the
-    // active one due to a bug in the shell, making the are active bigger than
-    // it actually is (matching the expanded taskbar)
-    if (bottomOffsetDifference > 0)
-    {
-        RECT workArea = monitorInfo.rcWork;
-
-        // Fix the wrong bottom offset on this monitor
-        workArea.bottom += (LONG)(bottomOffsetDifference * monitorScaling);
-
-        // Apply new work area
-        result = SystemParametersInfo(SPI_SETWORKAREA, 0, &workArea, 0);
-        if (!result)
-        {
-            return TRUE;
-        }
-    }
-
-    return TRUE;
-}
-
-BOOL WINAPI
-UpdateMonitorWorkAreas()
-{
-    POINT point = {0, 0};
-    HMONITOR mainMonitor = MonitorFromPoint(point, MONITOR_DEFAULTTOPRIMARY);
-    MONITORINFOEX mainMonitorInfo{sizeof(MONITORINFOEX)};
-    BOOL result = GetMonitorInfo(mainMonitor, &mainMonitorInfo);
-    if (!result)
-    {
-        return FALSE;
-    }
-
-    // The bottom offset represents the area taken by the taskbar,
-    // with no error when shytaskbar is enabled on the primary monitor
-    DOUBLE mainBottomOffset = mainMonitorInfo.rcMonitor.bottom - mainMonitorInfo.rcWork.bottom;
-
-    UINT mainMonitorDpiX;
-    UINT mainMonitorDpiY;
-
-    if (S_OK != GetDpiForMonitor(mainMonitor, MDT_EFFECTIVE_DPI, &mainMonitorDpiX, &mainMonitorDpiY))
-    {
-        return FALSE;
-    }
-
-    // Divide by the DPI Y value to compare with other displays
-    DOUBLE mainMonitorScaling = ((DOUBLE)mainMonitorDpiY / (DOUBLE)DEFAULT_DPI);
-    mainBottomOffset /= mainMonitorScaling;
-
-    return EnumDisplayMonitors(NULL, NULL, EnumDisplayMonitorCallback, reinterpret_cast<LPARAM>(&mainBottomOffset));
-}
-
-BOOLEAN lastDisplayState1 = TRUE;
-BOOLEAN lastDisplayState2 = TRUE;
-
 HRESULT WINAPI
 SetDisplayStates(
     CONST WCHAR *DisplayPanelId1,
@@ -643,17 +500,16 @@ SetDisplayStates(
     DISPLAY_DEVICE DisplayDevice2 = {0};
     DEVMODE DevMode1 = {0};
     DEVMODE DevMode2 = {0};
+    BOOLEAN lastDisplayState1 = FALSE;
+    BOOLEAN lastDisplayState2 = FALSE;
     HRESULT Status = ERROR_SUCCESS;
 
-    BOOLEAN IsSingleScreen = (!DisplayState1 && DisplayState2) || (!DisplayState2 && DisplayState1);
+    /*BOOLEAN IsSingleScreen = (!DisplayState1 && DisplayState2) || (!DisplayState2 && DisplayState1);
 
     if (IsSingleScreen && (lastDisplayState1 == DisplayState1) && (lastDisplayState2 == DisplayState2))
     {
         goto exit;
-    }
-
-    lastDisplayState1 = DisplayState1;
-    lastDisplayState2 = DisplayState2;
+    }*/
 
     Status = GetDisplayDeviceByPanelId(DisplayPanelId1, &DisplayDevice1);
     if (FAILED(Status))
@@ -679,24 +535,31 @@ SetDisplayStates(
         goto exit;
     }
 
-    if (DisplayState1 == FALSE) //&& (DisplayDevice1.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP))
+    lastDisplayState1 = (DisplayDevice1.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP);
+    lastDisplayState2 = (DisplayDevice2.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP);
+
+    if (DisplayState1 == FALSE && lastDisplayState1)
     {
         // First make sure matching sensors are off to avoid init issues
-        /*Status =*/ SetHardwareEnabledStateForPanel(DisplayPanelId1, _T("HID_DEVICE_UP:000D_U:000F"), FALSE);
-        /*if (FAILED(Status))
+        Status = SetHardwareEnabledStateForPanel(DisplayPanelId1, _T("HID_DEVICE_UP:000D_U:000F"), FALSE);
+        if (FAILED(Status))
         {
-            goto exit;
-        }*/
+            // goto exit;
+            //  Non fatal for now
+            Status = ERROR_SUCCESS;
+        }
     }
 
-    if (DisplayState2 == FALSE) //&& (DisplayDevice2.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP))
+    if (DisplayState2 == FALSE && lastDisplayState2)
     {
         // First make sure matching sensors are off to avoid init issues
-        /*Status =*/ SetHardwareEnabledStateForPanel(DisplayPanelId2, _T("HID_DEVICE_UP:000D_U:000F"), FALSE);
-        /*if (FAILED(Status))
+        Status = SetHardwareEnabledStateForPanel(DisplayPanelId2, _T("HID_DEVICE_UP:000D_U:000F"), FALSE);
+        if (FAILED(Status))
         {
-            goto exit;
-        }*/
+            // goto exit;
+            //  Non fatal for now
+            Status = ERROR_SUCCESS;
+        }
     }
 
     // DevMode1.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION | DM_DISPLAYORIENTATION;
@@ -779,51 +642,85 @@ SetDisplayStates(
     // Left on, Right off
     else if (DisplayState1 && !DisplayState2)
     {
-        DevMode2.dmPelsWidth = 0;
-        DevMode2.dmPelsHeight = 0;
-
-        if (ChangeDisplaySettingsEx(
-                DisplayDevice2.DeviceName, &DevMode2, NULL, CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET, NULL) !=
-            DISP_CHANGE_SUCCESSFUL)
+        if (lastDisplayState1 && !lastDisplayState2)
         {
-            Status = HRESULT_FROM_WIN32(GetLastError());
-            goto exit;
+            Status = NotifyAutoRotationAlpcPortOfOrientationChange(DisplayOrientation2);
+            if (FAILED(Status))
+            {
+                goto exit;
+            }
         }
-
-        if (ChangeDisplaySettingsEx(
-                DisplayDevice1.DeviceName,
-                &DevMode1,
-                NULL,
-                CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET | CDS_SET_PRIMARY,
-                NULL) != DISP_CHANGE_SUCCESSFUL)
+        else
         {
-            Status = HRESULT_FROM_WIN32(GetLastError());
-            goto exit;
+            if (lastDisplayState2)
+            {
+                DevMode2.dmPelsWidth = 0;
+                DevMode2.dmPelsHeight = 0;
+
+                if (ChangeDisplaySettingsEx(
+                        DisplayDevice2.DeviceName,
+                        &DevMode2,
+                        NULL,
+                        CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET,
+                        NULL) != DISP_CHANGE_SUCCESSFUL)
+                {
+                    Status = HRESULT_FROM_WIN32(GetLastError());
+                    goto exit;
+                }
+            }
+
+            if (ChangeDisplaySettingsEx(
+                    DisplayDevice1.DeviceName,
+                    &DevMode1,
+                    NULL,
+                    CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET | CDS_SET_PRIMARY,
+                    NULL) != DISP_CHANGE_SUCCESSFUL)
+            {
+                Status = HRESULT_FROM_WIN32(GetLastError());
+                goto exit;
+            }
         }
     }
     // Left off, Right on
     else if (!DisplayState1 && DisplayState2)
     {
-        DevMode1.dmPelsWidth = 0;
-        DevMode1.dmPelsHeight = 0;
-
-        if (ChangeDisplaySettingsEx(
-                DisplayDevice1.DeviceName, &DevMode1, NULL, CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET, NULL) !=
-            DISP_CHANGE_SUCCESSFUL)
+        if (!lastDisplayState1 && lastDisplayState2)
         {
-            Status = HRESULT_FROM_WIN32(GetLastError());
-            goto exit;
+            Status = NotifyAutoRotationAlpcPortOfOrientationChange(DisplayOrientation2);
+            if (FAILED(Status))
+            {
+                goto exit;
+            }
         }
-
-        if (ChangeDisplaySettingsEx(
-                DisplayDevice2.DeviceName,
-                &DevMode2,
-                NULL,
-                CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET | CDS_SET_PRIMARY,
-                NULL) != DISP_CHANGE_SUCCESSFUL)
+        else
         {
-            Status = HRESULT_FROM_WIN32(GetLastError());
-            goto exit;
+            if (lastDisplayState1)
+            {
+                DevMode1.dmPelsWidth = 0;
+                DevMode1.dmPelsHeight = 0;
+
+                if (ChangeDisplaySettingsEx(
+                        DisplayDevice1.DeviceName,
+                        &DevMode1,
+                        NULL,
+                        CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET,
+                        NULL) != DISP_CHANGE_SUCCESSFUL)
+                {
+                    Status = HRESULT_FROM_WIN32(GetLastError());
+                    goto exit;
+                }
+            }
+
+            if (ChangeDisplaySettingsEx(
+                    DisplayDevice2.DeviceName,
+                    &DevMode2,
+                    NULL,
+                    CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET | CDS_SET_PRIMARY,
+                    NULL) != DISP_CHANGE_SUCCESSFUL)
+            {
+                Status = HRESULT_FROM_WIN32(GetLastError());
+                goto exit;
+            }
         }
     }
 
@@ -837,7 +734,7 @@ SetDisplayStates(
     // Wait a second to make sure the display configuration is switched
     Sleep(1000);
 
-    // Need to fix work areas if multiple displays due to windows shytaskbar bugs...
+    // Need to fix work areas if multiple displays due to Windows Shy Taskbar bugs...
     if (DisplayState1 && DisplayState2)
     {
         if (!UpdateMonitorWorkAreas())
@@ -848,74 +745,31 @@ SetDisplayStates(
     }
 
     // Display needs to be turned on but was not currently attached
-    if (DisplayState1 == TRUE) //&& !(DisplayDevice1.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP))
+    if (DisplayState1 == TRUE && !lastDisplayState1)
     {
         // First make sure matching sensors are on to avoid init issues
-        /*Status =*/ SetHardwareEnabledStateForPanel(DisplayPanelId1, _T("HID_DEVICE_UP:000D_U:000F"), TRUE);
-        /*if (FAILED(Status))
+        Status = SetHardwareEnabledStateForPanel(DisplayPanelId1, _T("HID_DEVICE_UP:000D_U:000F"), TRUE);
+        if (FAILED(Status))
         {
-            goto exit;
-        }*/
+            // goto exit;
+            //  Non fatal for now
+            Status = ERROR_SUCCESS;
+        }
     }
 
     // Display needs to be turned on but was not currently attached
-    if (DisplayState2 == TRUE) //&& !(DisplayDevice2.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP))
+    if (DisplayState2 == TRUE && !lastDisplayState2)
     {
         // First make sure matching sensors are on to avoid init issues
-        /*Status =*/ SetHardwareEnabledStateForPanel(DisplayPanelId2, _T("HID_DEVICE_UP:000D_U:000F"), TRUE);
-        /*if (FAILED(Status))
+        Status = SetHardwareEnabledStateForPanel(DisplayPanelId2, _T("HID_DEVICE_UP:000D_U:000F"), TRUE);
+        if (FAILED(Status))
         {
-            goto exit;
-        }*/
+            // goto exit;
+            //  Non fatal for now
+            Status = ERROR_SUCCESS;
+        }
     }
 
 exit:
     return Status;
-}
-
-HRESULT WINAPI
-SetExtendedDisplayConfiguration()
-{
-    return SetDisplayConfig(0, NULL, 0, NULL, SDC_APPLY | SDC_TOPOLOGY_EXTEND | SDC_PATH_PERSIST_IF_REQUIRED);
-}
-
-VOID
-InitializeDisplayRotationManager()
-{
-    HRESULT Status;
-    UNICODE_STRING DestinationString;
-    OBJECT_ATTRIBUTES ObjectAttribs;
-    ALPC_PORT_ATTRIBUTES PortAttribs = {0};
-
-    //
-    // Initialize ALPC Port. This will decide the way we do screen flip
-    //
-    RtlZeroMemory(&ObjectAttribs, sizeof(ObjectAttribs));
-    ObjectAttribs.Length = sizeof(ObjectAttribs);
-
-    RtlZeroMemory(&PortAttribs, sizeof(PortAttribs));
-    PortAttribs.MaxMessageLength = 56;
-
-    RtlInitUnicodeString(&DestinationString, _T("\\RPC Control\\AutoRotationApiPort"));
-
-#pragma warning(disable : 6387)
-    Status = NtAlpcConnectPort(
-        &PortHandle,
-        &DestinationString,
-        &ObjectAttribs,
-        &PortAttribs,
-        ALPC_MSGFLG_SYNC_REQUEST,
-        NULL,
-        NULL,
-        NULL,
-        NULL,
-        NULL,
-        NULL);
-#pragma warning(default : 6387)
-
-    if (FAILED(Status))
-    {
-        // Can't initialize critical section; skip Auto rotation API
-        PortHandle = NULL;
-    }
 }
