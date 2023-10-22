@@ -20,9 +20,10 @@
  * SOFTWARE.
  */
 #include "pch.h"
+#include "AutoRotate.h"
 #include "DisplayRotationManager.h"
 #include "TabletPostureManager.h"
-#include "AutoRotate.h"
+#include "WorkAreas.h"
 #include <powrprof.h>
 #include <tchar.h>
 
@@ -156,6 +157,10 @@ OnPostureChanged(
     TwoPanelHingedDevicePosture const & /*sender*/,
     TwoPanelHingedDevicePostureReadingChangedEventArgs const & /*args*/)
 {
+    SetTabletPostureState(TRUE);
+    SetTabletPostureTaskbarState(TRUE);
+    UpdateMonitorWorkAreas();
+
     TogglePostureScreenOrientationState();
 }
 
@@ -166,6 +171,10 @@ OnFlipSensorReadingChanged(FlipSensor const & /*sender*/, FlipSensorReadingChang
     {
         return;
     }
+
+    SetTabletPostureState(TRUE);
+    SetTabletPostureTaskbarState(TRUE);
+    UpdateMonitorWorkAreas();
 
     FlipSensorReading reading = args.Reading();
     if (reading.GestureState() == GestureState::Completed)
@@ -378,23 +387,6 @@ SetupAutoRotation(TwoPanelHingedDevicePosture const &postureSensor, FlipSensor c
     }
 }
 
-BOOLEAN WINAPI
-IsOOBEInProgress()
-{
-    DWORD oobeInProgress = 0;
-
-    HKEY key;
-    DWORD type = REG_DWORD, size = 8;
-
-    if (SUCCEEDED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, _T("SYSTEM\\Setup"), NULL, KEY_WRITE, &key)))
-    {
-        RegQueryValueEx(key, _T("OOBEInProgress"), NULL, &type, (LPBYTE)&oobeInProgress, &size);
-        RegCloseKey(key);
-    }
-
-    return oobeInProgress == 1;
-}
-
 VOID
 AutoRotateMain()
 {
@@ -436,11 +428,10 @@ AutoRotateMain()
 
     InitializeCriticalSectionAndSpinCount(&g_AutoRotationCriticalSection, 0x00000400);
 
-    if (!IsOOBEInProgress())
-    {
-        SetTabletPostureState(TRUE);
-        SetTabletPostureTaskbarState(TRUE);
-    }
+    SetExtendedDisplayConfiguration();
+    SetTabletPostureState(TRUE);
+    SetTabletPostureTaskbarState(TRUE);
+    UpdateMonitorWorkAreas();
 
     // Set initial state
     TogglePostureScreenOrientationState();
@@ -491,11 +482,9 @@ AutoRotateMain()
     g_PostureSensor = NULL;
     g_FlipSensor = NULL;
 
-    if (!IsOOBEInProgress())
-    {
-        SetTabletPostureTaskbarState(FALSE);
-        SetTabletPostureState(FALSE);
-    }
+    UpdateMonitorWorkAreas();
+    SetTabletPostureState(FALSE);
+    SetTabletPostureTaskbarState(FALSE);
 
     uninit_apartment();
 

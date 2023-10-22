@@ -22,6 +22,8 @@
 #pragma once
 
 HRESULT WINAPI
+SetExtendedDisplayConfiguration();
+HRESULT WINAPI
 SetDisplayStates(
     CONST WCHAR *DisplayPanelId1,
     CONST WCHAR *DisplayPanelId2,

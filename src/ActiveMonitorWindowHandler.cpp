@@ -28,6 +28,7 @@ THE SOFTWARE.
 */
 #include "pch.h"
 #include "ActiveMonitorWindowHandler.h"
+#include "TabletPostureManager.h"
 #include "VirtualDesktop.h"
 #include "WorkAreas.h"
 #include <on_thread_executor.h>
@@ -660,6 +661,10 @@ WinHookProc(
     UNREFERENCED_PARAMETER(eventThread);
     UNREFERENCED_PARAMETER(eventTime);
 
+    SetTabletPostureState(TRUE);
+    SetTabletPostureTaskbarState(TRUE);
+    UpdateMonitorWorkAreas();
+
     POINT ptScreen;
     GetPhysicalCursorPos(&ptScreen);
 
@@ -716,6 +721,8 @@ ActiveMonitorWindowHandlerMain()
 
         if (msg.message == WM_SETTINGCHANGE && msg.wParam == SPI_SETWORKAREA)
         {
+            SetTabletPostureState(TRUE);
+            SetTabletPostureTaskbarState(TRUE);
             UpdateMonitorWorkAreas();
         }
         

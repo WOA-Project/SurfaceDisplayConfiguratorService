@@ -89,12 +89,34 @@ _RegSetKeyValue(HKEY hKey, LPCWSTR lpSubKey, LPCWSTR lpValueName, DWORD dwType, 
     return status;
 }
 
+BOOLEAN WINAPI
+IsOOBEInProgress()
+{
+    DWORD oobeInProgress = 0;
+
+    HKEY key;
+    DWORD type = REG_DWORD, size = 8;
+
+    if (SUCCEEDED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, _T("SYSTEM\\Setup"), NULL, KEY_WRITE, &key)))
+    {
+        RegQueryValueEx(key, _T("OOBEInProgress"), NULL, &type, (LPBYTE)&oobeInProgress, &size);
+        RegCloseKey(key);
+    }
+
+    return oobeInProgress == 1;
+}
+
 BOOL WINAPI
 SetTabletPostureState(BOOLEAN state)
 {
     BYTE TabletPosture = (BYTE)state;
     DWORD TabletPostureSize = sizeof(BYTE);
     WNF_CHANGE_STAMP TabletPostureChangeStamp;
+
+    if (IsOOBEInProgress())
+    {
+        return FALSE;
+    }
 
     NTSTATUS status = NtQueryWnfStateData(
         &WNF_TMCN_ISTABLETPOSTURE, nullptr, nullptr, &TabletPostureChangeStamp, &TabletPosture, &TabletPostureSize);
@@ -115,6 +137,11 @@ SetTabletModeState(BOOLEAN state)
     DWORD TabletModeSize = sizeof(BYTE);
     WNF_CHANGE_STAMP TabletModeChangeStamp;
 
+    if (IsOOBEInProgress())
+    {
+        return FALSE;
+    }
+
     NTSTATUS status = NtQueryWnfStateData(
         &WNF_TMCN_ISTABLETMODE, nullptr, nullptr, &TabletModeChangeStamp, &TabletMode, &TabletModeSize);
 
@@ -132,6 +159,11 @@ SetTabletPostureTaskbarState(BOOLEAN state)
 {
     DWORD pcbData = sizeof(DWORD);
     DWORD pvData = (BYTE)state;
+
+    if (IsOOBEInProgress())
+    {
+        return FALSE;
+    }
 
     HRESULT status = RegGetValue(
         HKEY_CURRENT_USER,

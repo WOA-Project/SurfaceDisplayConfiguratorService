@@ -773,3 +773,9 @@ SetDisplayStates(
 exit:
     return Status;
 }
+
+HRESULT WINAPI
+SetExtendedDisplayConfiguration()
+{
+    return SetDisplayConfig(0, NULL, 0, NULL, SDC_APPLY | SDC_TOPOLOGY_EXTEND | SDC_PATH_PERSIST_IF_REQUIRED);
+}
