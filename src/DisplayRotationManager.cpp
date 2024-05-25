@@ -652,6 +652,17 @@ SetDisplayStates(
         }
         else
         {
+            if (ChangeDisplaySettingsEx(
+                    DisplayDevice1.DeviceName,
+                    &DevMode1,
+                    NULL,
+                    CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET | CDS_SET_PRIMARY,
+                    NULL) != DISP_CHANGE_SUCCESSFUL)
+            {
+                Status = HRESULT_FROM_WIN32(GetLastError());
+                goto exit;
+            }
+
             if (lastDisplayState2)
             {
                 DevMode2.dmPelsWidth = 0;
@@ -668,17 +679,6 @@ SetDisplayStates(
                     goto exit;
                 }
             }
-
-            if (ChangeDisplaySettingsEx(
-                    DisplayDevice1.DeviceName,
-                    &DevMode1,
-                    NULL,
-                    CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET | CDS_SET_PRIMARY,
-                    NULL) != DISP_CHANGE_SUCCESSFUL)
-            {
-                Status = HRESULT_FROM_WIN32(GetLastError());
-                goto exit;
-            }
         }
     }
     // Left off, Right on
@@ -694,6 +694,17 @@ SetDisplayStates(
         }
         else
         {
+            if (ChangeDisplaySettingsEx(
+                    DisplayDevice2.DeviceName,
+                    &DevMode2,
+                    NULL,
+                    CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET | CDS_SET_PRIMARY,
+                    NULL) != DISP_CHANGE_SUCCESSFUL)
+            {
+                Status = HRESULT_FROM_WIN32(GetLastError());
+                goto exit;
+            }
+
             if (lastDisplayState1)
             {
                 DevMode1.dmPelsWidth = 0;
@@ -709,17 +720,6 @@ SetDisplayStates(
                     Status = HRESULT_FROM_WIN32(GetLastError());
                     goto exit;
                 }
-            }
-
-            if (ChangeDisplaySettingsEx(
-                    DisplayDevice2.DeviceName,
-                    &DevMode2,
-                    NULL,
-                    CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET | CDS_SET_PRIMARY,
-                    NULL) != DISP_CHANGE_SUCCESSFUL)
-            {
-                Status = HRESULT_FROM_WIN32(GetLastError());
-                goto exit;
             }
         }
     }

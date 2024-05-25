@@ -177,7 +177,7 @@ OnFlipSensorReadingChanged(FlipSensor const & /*sender*/, FlipSensorReadingChang
     UpdateMonitorWorkAreas();
 
     FlipSensorReading reading = args.Reading();
-    if (reading.GestureState() == GestureState::Completed)
+    if (reading.GestureState() == GestureState::Started)
     {
         ToggleFavoriteSingleScreenDisplay();
     }
