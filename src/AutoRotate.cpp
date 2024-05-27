@@ -29,15 +29,10 @@
 
 #define WINDOWS_AUTO_ROTATION_KEY_PATH _T("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\AutoRotation")
 
-//
-// The system registry key for auto rotation
-//
-HKEY autoRotationKey = NULL;
+BOOLEAN AutoRotationEnabled = TRUE;
 
-//
-// Are we already registered with the sensor?
-//
-BOOL AlreadySetup = FALSE;
+INT Panel1Orientation = 0;
+INT Panel2Orientation = 0;
 
 //
 // The handle the power notify event registration
@@ -59,10 +54,10 @@ event_token flipEventToken;
 //
 // Is the event subscribed
 //
-BOOL postureSubscribed = FALSE;
-BOOL flipSubscribed = FALSE;
+BOOLEAN postureSubscribed = FALSE;
+BOOLEAN flipSubscribed = FALSE;
 
-BOOL FoundAllSensors = FALSE;
+BOOLEAN FoundAllSensors = FALSE;
 
 BOOLEAN IsDisplay1SingleScreenFavorite = FALSE;
 
@@ -93,46 +88,43 @@ ConvertSimpleOrientationToDMDO(SimpleOrientation orientation)
 HRESULT WINAPI
 SetPanelsOrientationState(TwoPanelHingedDevicePostureReading reading)
 {
-    SimpleOrientation Panel1SimpleOrientation = reading.Panel1Orientation();
-    SimpleOrientation Panel2SimpleOrientation = reading.Panel2Orientation();
-
     CONST WCHAR *panel1Id = reading.Panel1Id().c_str();
     CONST WCHAR *panel2Id = reading.Panel2Id().c_str();
 
-    BOOLEAN Panel1UnknownOrientation =
-        Panel1SimpleOrientation == SimpleOrientation::Faceup || Panel1SimpleOrientation == SimpleOrientation::Facedown;
-    BOOLEAN Panel2UnknownOrientation =
-        Panel2SimpleOrientation == SimpleOrientation::Faceup || Panel2SimpleOrientation == SimpleOrientation::Facedown;
+    BOOLEAN Display1State = TRUE;
+    BOOLEAN Display2State = TRUE;
 
-    if (Panel1UnknownOrientation && !Panel2UnknownOrientation)
+    if (AutoRotationEnabled)
     {
-        Panel1SimpleOrientation = Panel2SimpleOrientation;
-    }
-    else if (Panel2UnknownOrientation && !Panel1UnknownOrientation)
-    {
-        Panel2SimpleOrientation = Panel1SimpleOrientation;
-    }
+        SimpleOrientation Panel1SimpleOrientation = reading.Panel1Orientation();
+        SimpleOrientation Panel2SimpleOrientation = reading.Panel2Orientation();
 
-    INT Panel1Orientation = ConvertSimpleOrientationToDMDO(Panel1SimpleOrientation);
-    INT Panel2Orientation = ConvertSimpleOrientationToDMDO(Panel2SimpleOrientation);
+        BOOLEAN Panel1UnknownOrientation =
+            Panel1SimpleOrientation == SimpleOrientation::Faceup || Panel1SimpleOrientation == SimpleOrientation::Facedown;
+        BOOLEAN Panel2UnknownOrientation =
+            Panel2SimpleOrientation == SimpleOrientation::Faceup || Panel2SimpleOrientation == SimpleOrientation::Facedown;
 
-    if (reading.HingeState() == Windows::Internal::System::HingeState::Full)
-    {
-        return SetDisplayStates(
-            panel1Id,
-            panel2Id,
-            Panel1Orientation,
-            Panel2Orientation,
-            IsDisplay1SingleScreenFavorite ? TRUE : FALSE,
-            IsDisplay1SingleScreenFavorite ? FALSE : TRUE);
-    }
-    // All displays must be enabled
-    else
-    {
-        return SetDisplayStates(panel1Id, panel2Id, Panel1Orientation, Panel2Orientation, TRUE, TRUE);
+        if (Panel1UnknownOrientation && !Panel2UnknownOrientation)
+        {
+            Panel1SimpleOrientation = Panel2SimpleOrientation;
+        }
+        else if (Panel2UnknownOrientation && !Panel1UnknownOrientation)
+        {
+            Panel2SimpleOrientation = Panel1SimpleOrientation;
+        }
+
+        Panel1Orientation = ConvertSimpleOrientationToDMDO(Panel1SimpleOrientation);
+        Panel2Orientation = ConvertSimpleOrientationToDMDO(Panel2SimpleOrientation);
     }
 
-    return ERROR_SUCCESS;
+    // All displays must not be enabled
+    if (reading.HingeState() != Windows::Internal::System::HingeState::Full)
+    {
+        Display1State = IsDisplay1SingleScreenFavorite ? TRUE : FALSE;
+        Display2State = IsDisplay1SingleScreenFavorite ? FALSE : TRUE;
+    }
+
+    return SetDisplayStates(panel1Id, panel2Id, Panel1Orientation, Panel2Orientation, Display1State, Display2State);
 }
 
 VOID WINAPI
@@ -314,60 +306,7 @@ SuspendResumeCallback(PVOID context, ULONG powerEvent, PVOID setting)
 }
 
 VOID
-RegisterEverything(TwoPanelHingedDevicePosture const &postureSensor, FlipSensor const &flipSensor)
-{
-    DEVICE_NOTIFY_SUBSCRIBE_PARAMETERS powerParams{};
-    powerParams.Callback = SuspendResumeCallback;
-
-    PowerRegisterSuspendResumeNotification(DEVICE_NOTIFY_CALLBACK, &powerParams, &m_systemSuspendHandle);
-
-    //
-    // Subscribe to sensor events
-    //
-    if (!postureSubscribed)
-    {
-        postureEventToken = postureSensor.PostureChanged(OnPostureChanged);
-        postureSubscribed = TRUE;
-    }
-
-    if (!flipSubscribed)
-    {
-        flipEventToken = flipSensor.ReadingChanged(OnFlipSensorReadingChanged);
-        flipSubscribed = TRUE;
-    }
-
-    AlreadySetup = TRUE;
-}
-
-VOID
-UnregisterEverything(TwoPanelHingedDevicePosture const &postureSensor, FlipSensor const &flipSensor)
-{
-    if (m_systemSuspendHandle != NULL)
-    {
-        PowerUnregisterSuspendResumeNotification(m_systemSuspendHandle);
-        m_systemSuspendHandle = NULL;
-    }
-
-    //
-    // Unsubscribe to sensor events
-    //
-    if (postureSubscribed)
-    {
-        postureSensor.PostureChanged(postureEventToken);
-        postureSubscribed = FALSE;
-    }
-
-    if (flipSubscribed)
-    {
-        flipSensor.ReadingChanged(flipEventToken);
-        flipSubscribed = FALSE;
-    }
-
-    AlreadySetup = FALSE;
-}
-
-VOID
-SetupAutoRotation(TwoPanelHingedDevicePosture const &postureSensor, FlipSensor const &flipSensor)
+SetupAutoRotation(HKEY autoRotationKey)
 {
     DWORD type = REG_DWORD, size = sizeof(DWORD);
 
@@ -377,13 +316,13 @@ SetupAutoRotation(TwoPanelHingedDevicePosture const &postureSensor, FlipSensor c
     DWORD enabled = 0;
     RegQueryValueEx(autoRotationKey, _T("Enable"), NULL, &type, (LPBYTE)&enabled, &size);
 
-    if (enabled == 1 && AlreadySetup == FALSE)
+    if (enabled == 1)
     {
-        RegisterEverything(postureSensor, flipSensor);
+        AutoRotationEnabled = TRUE;
     }
-    else if (enabled == 0 && AlreadySetup == TRUE)
+    else if (enabled == 0)
     {
-        UnregisterEverything(postureSensor, flipSensor);
+        AutoRotationEnabled = FALSE;
     }
 }
 
@@ -392,40 +331,42 @@ AutoRotateMain()
 {
     init_apartment();
 
-    try
     {
-        g_PostureSensor = TwoPanelHingedDevicePosture::GetDefaultAsync().get();
-    }
-    catch (...)
-    {
-        uninit_apartment();
-        return;
-    }
+        try
+        {
+            g_PostureSensor = TwoPanelHingedDevicePosture::GetDefaultAsync().get();
+        }
+        catch (...)
+        {
+            uninit_apartment();
+            return;
+        }
 
-    if (g_PostureSensor == NULL)
-    {
-        uninit_apartment();
-        return;
-    }
+        if (g_PostureSensor == NULL)
+        {
+            uninit_apartment();
+            return;
+        }
 
-    try
-    {
-        g_FlipSensor = FlipSensor::GetDefaultAsync().get();
-    }
-    catch (...)
-    {
-        uninit_apartment();
-        return;
-    }
+        try
+        {
+            g_FlipSensor = FlipSensor::GetDefaultAsync().get();
+        }
+        catch (...)
+        {
+            uninit_apartment();
+            return;
+        }
 
-    if (g_FlipSensor == NULL)
-    {
-        uninit_apartment();
-        return;
+        if (g_FlipSensor == NULL)
+        {
+            uninit_apartment();
+            return;
+        }
+
+        FoundAllSensors = TRUE;
     }
-
-    FoundAllSensors = TRUE;
-
+    
     InitializeCriticalSectionAndSpinCount(&g_AutoRotationCriticalSection, 0x00000400);
 
     SetExtendedDisplayConfiguration();
@@ -435,6 +376,33 @@ AutoRotateMain()
 
     // Set initial state
     TogglePostureScreenOrientationState();
+
+    {
+        DEVICE_NOTIFY_SUBSCRIBE_PARAMETERS powerParams{};
+        powerParams.Callback = SuspendResumeCallback;
+
+        PowerRegisterSuspendResumeNotification(DEVICE_NOTIFY_CALLBACK, &powerParams, &m_systemSuspendHandle);
+
+        //
+        // Subscribe to sensor events
+        //
+        if (!postureSubscribed)
+        {
+            postureEventToken = g_PostureSensor.PostureChanged(OnPostureChanged);
+            postureSubscribed = TRUE;
+        }
+
+        if (!flipSubscribed)
+        {
+            flipEventToken = g_FlipSensor.ReadingChanged(OnFlipSensorReadingChanged);
+            flipSubscribed = TRUE;
+        }
+    }
+
+    //
+    // The system registry key for auto rotation
+    //
+    HKEY autoRotationKey = NULL;
 
     //
     // Set sensor present for windows to show the auto rotation toggle in action center
@@ -452,7 +420,7 @@ AutoRotateMain()
 
         while (true)
         {
-            SetupAutoRotation(g_PostureSensor, g_FlipSensor);
+            SetupAutoRotation(autoRotationKey);
 
             RegNotifyChangeKeyValue(autoRotationKey, false, REG_NOTIFY_CHANGE_LAST_SET, hEvent, true);
 
@@ -467,8 +435,6 @@ AutoRotateMain()
     }
     else
     {
-        RegisterEverything(g_PostureSensor, g_FlipSensor);
-
         // Wait indefinitely
         while (true)
         {
@@ -476,11 +442,34 @@ AutoRotateMain()
         }
     }
 
-    UnregisterEverything(g_PostureSensor, g_FlipSensor);
+    {
+        if (m_systemSuspendHandle != NULL)
+        {
+            PowerUnregisterSuspendResumeNotification(m_systemSuspendHandle);
+            m_systemSuspendHandle = NULL;
+        }
 
-    FoundAllSensors = FALSE;
-    g_PostureSensor = NULL;
-    g_FlipSensor = NULL;
+        //
+        // Unsubscribe to sensor events
+        //
+        if (postureSubscribed)
+        {
+            g_PostureSensor.PostureChanged(postureEventToken);
+            postureSubscribed = FALSE;
+        }
+
+        if (flipSubscribed)
+        {
+            g_FlipSensor.ReadingChanged(flipEventToken);
+            flipSubscribed = FALSE;
+        }
+    }
+
+    {
+        FoundAllSensors = FALSE;
+        g_PostureSensor = NULL;
+        g_FlipSensor = NULL;
+    }
 
     UpdateMonitorWorkAreas();
     SetTabletPostureState(FALSE);
