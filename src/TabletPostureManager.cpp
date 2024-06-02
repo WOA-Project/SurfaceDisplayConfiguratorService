@@ -73,7 +73,7 @@ _RegSetKeyValue(HKEY hKey, LPCWSTR lpSubKey, LPCWSTR lpValueName, DWORD dwType, 
     if (lpSubKey && *lpSubKey)
     {
         status = RegCreateKeyEx(HKEY_CURRENT_USER, lpSubKey, NULL, NULL, NULL, 2, NULL, &hKey, NULL);
-        if (SUCCEEDED(status))
+        if (!SUCCEEDED(status))
             return status;
     }
     else
@@ -97,7 +97,7 @@ IsOOBEInProgress()
     HKEY key;
     DWORD type = REG_DWORD, size = 8;
 
-    if (SUCCEEDED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, _T("SYSTEM\\Setup"), NULL, KEY_WRITE, &key)))
+    if (SUCCEEDED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, _T("SYSTEM\\Setup"), NULL, KEY_READ, &key)))
     {
         RegQueryValueEx(key, _T("OOBEInProgress"), NULL, &type, (LPBYTE)&oobeInProgress, &size);
         RegCloseKey(key);
@@ -126,6 +126,25 @@ SetTabletPostureState(BOOLEAN state)
         TabletPosture = (BYTE)state;
         status = RtlPublishWnfStateData(WNF_TMCN_ISTABLETPOSTURE, nullptr, &TabletPosture, sizeof(BYTE), nullptr);
     }
+
+    return SUCCEEDED(status);
+}
+
+BOOL WINAPI
+SetWallpaperSpanStyle()
+{
+    HRESULT status;
+
+    const WCHAR* pvData = L"22";
+    DWORD pcbData = ((DWORD)wcslen(pvData) + 1) * sizeof(WCHAR);
+
+    status = _RegSetKeyValue(
+        HKEY_CURRENT_USER,
+        _T("Control Panel\\Desktop"),
+        _T("WallpaperStyle"),
+        REG_SZ,
+        (PBYTE)pvData,
+        pcbData);
 
     return SUCCEEDED(status);
 }

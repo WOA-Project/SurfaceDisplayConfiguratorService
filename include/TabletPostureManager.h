@@ -29,3 +29,5 @@ BOOL WINAPI
 SetTabletModeState(BOOLEAN state);
 BOOL WINAPI
 SetTabletPostureTaskbarState(BOOLEAN state);
+BOOL WINAPI
+SetWallpaperSpanStyle();

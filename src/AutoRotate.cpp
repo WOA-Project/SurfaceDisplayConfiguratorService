@@ -118,7 +118,7 @@ SetPanelsOrientationState(TwoPanelHingedDevicePostureReading reading)
     }
 
     // All displays must not be enabled
-    if (reading.HingeState() != Windows::Internal::System::HingeState::Full)
+    if (reading.HingeState() == Windows::Internal::System::HingeState::Full)
     {
         Display1State = IsDisplay1SingleScreenFavorite ? TRUE : FALSE;
         Display2State = IsDisplay1SingleScreenFavorite ? FALSE : TRUE;
@@ -152,6 +152,7 @@ OnPostureChanged(
     SetTabletPostureState(TRUE);
     SetTabletPostureTaskbarState(TRUE);
     UpdateMonitorWorkAreas();
+    SetWallpaperSpanStyle();
 
     TogglePostureScreenOrientationState();
 }
@@ -167,6 +168,7 @@ OnFlipSensorReadingChanged(FlipSensor const & /*sender*/, FlipSensorReadingChang
     SetTabletPostureState(TRUE);
     SetTabletPostureTaskbarState(TRUE);
     UpdateMonitorWorkAreas();
+    SetWallpaperSpanStyle();
 
     FlipSensorReading reading = args.Reading();
     if (reading.GestureState() == GestureState::Started)
@@ -373,6 +375,7 @@ AutoRotateMain()
     SetTabletPostureState(TRUE);
     SetTabletPostureTaskbarState(TRUE);
     UpdateMonitorWorkAreas();
+    SetWallpaperSpanStyle();
 
     // Set initial state
     TogglePostureScreenOrientationState();
@@ -474,6 +477,7 @@ AutoRotateMain()
     UpdateMonitorWorkAreas();
     SetTabletPostureState(FALSE);
     SetTabletPostureTaskbarState(FALSE);
+    SetWallpaperSpanStyle();
 
     uninit_apartment();
 
