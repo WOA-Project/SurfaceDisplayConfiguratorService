@@ -333,6 +333,12 @@ AutoRotateMain()
 {
     init_apartment();
 
+    SetExtendedDisplayConfiguration();
+    SetTabletPostureState(TRUE);
+    SetTabletPostureTaskbarState(TRUE);
+    UpdateMonitorWorkAreas();
+    SetWallpaperSpanStyle();
+
     {
         try
         {
@@ -370,12 +376,6 @@ AutoRotateMain()
     }
     
     InitializeCriticalSectionAndSpinCount(&g_AutoRotationCriticalSection, 0x00000400);
-
-    SetExtendedDisplayConfiguration();
-    SetTabletPostureState(TRUE);
-    SetTabletPostureTaskbarState(TRUE);
-    UpdateMonitorWorkAreas();
-    SetWallpaperSpanStyle();
 
     // Set initial state
     TogglePostureScreenOrientationState();
