@@ -496,52 +496,102 @@ SetDisplayStates(
     BOOLEAN DisplayState1,
     BOOLEAN DisplayState2)
 {
-    DISPLAY_DEVICE DisplayDevice1 = {0};
-    DISPLAY_DEVICE DisplayDevice2 = {0};
-    DEVMODE DevMode1 = {0};
-    DEVMODE DevMode2 = {0};
-    BOOLEAN lastDisplayState1 = FALSE;
-    BOOLEAN lastDisplayState2 = FALSE;
+    /*ACPI_PLD_V2_BUFFER PLD1 = {0};
+    ACPI_PLD_V2_BUFFER PLD2 = {0};
     HRESULT Status = ERROR_SUCCESS;
 
-    /*BOOLEAN IsSingleScreen = (!DisplayState1 && DisplayState2) || (!DisplayState2 && DisplayState1);
+    Status = GetDisplayDevicePLD(DisplayPanelId1, &PLD1);
+    if (FAILED(Status))
+    {
+        return Status;
+    }
 
-    if (IsSingleScreen && (lastDisplayState1 == DisplayState1) && (lastDisplayState2 == DisplayState2))
+    Status = GetDisplayDevicePLD(DisplayPanelId1, &PLD2);
+    if (FAILED(Status))
+    {
+        return Status;
+    }
+
+    if (PLD1.CabinetNumber == PLD2.CabinetNumber || PLD1.CabinetNumber > 1 || PLD2.CabinetNumber > 1)
+    {
+        return STATUS_INVALID_PARAMETER;
+    }*/
+
+    BOOLEAN PLD1IsLeftDisplay = TRUE;//PLD1.CabinetNumber == 1;
+    BOOLEAN PLD2IsRightDisplay = TRUE;//PLD2.CabinetNumber == 0;
+
+    CONST WCHAR *LeftDisplayPanelId = PLD1IsLeftDisplay ? DisplayPanelId1 : DisplayPanelId2;
+    CONST WCHAR *RightDisplayPanelId = PLD2IsRightDisplay ? DisplayPanelId2 : DisplayPanelId1;
+    INT LeftDisplayOrientation = PLD1IsLeftDisplay ? DisplayOrientation1 : DisplayOrientation2;
+    INT RightDisplayOrientation = PLD2IsRightDisplay ? DisplayOrientation2 : DisplayOrientation1;
+    BOOLEAN LeftDisplayState = PLD1IsLeftDisplay ? DisplayState1 : DisplayState2;
+    BOOLEAN RightDisplayState = PLD2IsRightDisplay ? DisplayState2 : DisplayState1;
+    
+    return SetDisplayStatesInternal(
+        LeftDisplayPanelId,
+        RightDisplayPanelId,
+        LeftDisplayOrientation,
+        RightDisplayOrientation,
+        LeftDisplayState,
+        RightDisplayState
+    );
+}
+
+HRESULT WINAPI
+SetDisplayStatesInternal(
+    CONST WCHAR *LeftDisplayPanelId,
+    CONST WCHAR *RightDisplayPanelId,
+    INT LeftDisplayOrientation,
+    INT RightDisplayOrientation,
+    BOOLEAN LeftDisplayState,
+    BOOLEAN RightDisplayState)
+{
+    DISPLAY_DEVICE LeftDisplayDevice = {0};
+    DISPLAY_DEVICE RightDisplayDevice = {0};
+    DEVMODE LeftDevMode = {0};
+    DEVMODE RightDevMode = {0};
+    BOOLEAN lastLeftDisplayState = FALSE;
+    BOOLEAN lastRightDisplayState = FALSE;
+    HRESULT Status = ERROR_SUCCESS;
+
+    /*BOOLEAN IsSingleScreen = (!LeftDisplayState && RightDisplayState) || (!LeftDisplayState && RightDisplayState);
+
+    if (IsSingleScreen && (lastLeftDisplayState == LeftDisplayState) && (lastRightDisplayState == RightDisplayState))
     {
         goto exit;
     }*/
 
-    Status = GetDisplayDeviceByPanelId(DisplayPanelId1, &DisplayDevice1);
+    Status = GetDisplayDeviceByPanelId(LeftDisplayPanelId, &LeftDisplayDevice);
     if (FAILED(Status))
     {
         goto exit;
     }
 
-    Status = GetDisplayDeviceByPanelId(DisplayPanelId2, &DisplayDevice2);
+    Status = GetDisplayDeviceByPanelId(RightDisplayPanelId, &RightDisplayDevice);
     if (FAILED(Status))
     {
         goto exit;
     }
 
-    Status = GetDisplayDeviceBestDisplayMode(&DisplayDevice1, &DevMode1);
+    Status = GetDisplayDeviceBestDisplayMode(&LeftDisplayDevice, &LeftDevMode);
     if (FAILED(Status))
     {
         goto exit;
     }
 
-    Status = GetDisplayDeviceBestDisplayMode(&DisplayDevice2, &DevMode2);
+    Status = GetDisplayDeviceBestDisplayMode(&RightDisplayDevice, &RightDevMode);
     if (FAILED(Status))
     {
         goto exit;
     }
 
-    lastDisplayState1 = (DisplayDevice1.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP);
-    lastDisplayState2 = (DisplayDevice2.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP);
+    lastLeftDisplayState = (LeftDisplayDevice.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP);
+    lastRightDisplayState = (RightDisplayDevice.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP);
 
-    if (DisplayState1 == FALSE && lastDisplayState1)
+    if (LeftDisplayState == FALSE && lastLeftDisplayState)
     {
         // First make sure matching sensors are off to avoid init issues
-        Status = SetHardwareEnabledStateForPanel(DisplayPanelId1, _T("HID_DEVICE_UP:000D_U:000F"), FALSE);
+        Status = SetHardwareEnabledStateForPanel(LeftDisplayPanelId, _T("HID_DEVICE_UP:000D_U:000F"), FALSE);
         if (FAILED(Status))
         {
             // goto exit;
@@ -550,10 +600,10 @@ SetDisplayStates(
         }
     }
 
-    if (DisplayState2 == FALSE && lastDisplayState2)
+    if (RightDisplayState == FALSE && lastRightDisplayState)
     {
         // First make sure matching sensors are off to avoid init issues
-        Status = SetHardwareEnabledStateForPanel(DisplayPanelId2, _T("HID_DEVICE_UP:000D_U:000F"), FALSE);
+        Status = SetHardwareEnabledStateForPanel(RightDisplayPanelId, _T("HID_DEVICE_UP:000D_U:000F"), FALSE);
         if (FAILED(Status))
         {
             // goto exit;
@@ -562,64 +612,117 @@ SetDisplayStates(
         }
     }
 
-    // DevMode1.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION | DM_DISPLAYORIENTATION;
-    DevMode1.dmPosition.x = 0;
-    DevMode1.dmPosition.y = 0;
+    //LeftDevMode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION | DM_DISPLAYORIENTATION;
+    LeftDevMode.dmPosition.x = 0;
+    LeftDevMode.dmPosition.y = 0;
 
-    // DevMode2.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION | DM_DISPLAYORIENTATION;
-    DevMode2.dmPosition.x = 0;
-    DevMode2.dmPosition.y = 0;
+    //RightDevMode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION | DM_DISPLAYORIENTATION;
+    RightDevMode.dmPosition.x = 0;
+    RightDevMode.dmPosition.y = 0;
 
     //
     // In order to switch from portrait to landscape and vice versa we need to swap the resolution width and height
     // So we check for that
     //
-    if ((DevMode1.dmDisplayOrientation + DisplayOrientation1) % 2 == 1)
+    if ((LeftDevMode.dmDisplayOrientation + LeftDisplayOrientation) % 2 == 1)
     {
-        INT temp = DevMode1.dmPelsHeight;
-        DevMode1.dmPelsHeight = DevMode1.dmPelsWidth;
-        DevMode1.dmPelsWidth = temp;
+        INT temp = LeftDevMode.dmPelsHeight;
+        LeftDevMode.dmPelsHeight = LeftDevMode.dmPelsWidth;
+        LeftDevMode.dmPelsWidth = temp;
     }
 
-    DevMode1.dmDisplayOrientation = DisplayOrientation1;
+    LeftDevMode.dmDisplayOrientation = LeftDisplayOrientation;
 
-    if ((DevMode2.dmDisplayOrientation + DisplayOrientation2) % 2 == 1)
+    if ((RightDevMode.dmDisplayOrientation + RightDisplayOrientation) % 2 == 1)
     {
-        INT temp = DevMode2.dmPelsHeight;
-        DevMode2.dmPelsHeight = DevMode2.dmPelsWidth;
-        DevMode2.dmPelsWidth = temp;
+        INT temp = RightDevMode.dmPelsHeight;
+        RightDevMode.dmPelsHeight = RightDevMode.dmPelsWidth;
+        RightDevMode.dmPelsWidth = temp;
     }
 
-    DevMode2.dmDisplayOrientation = DisplayOrientation2;
+    RightDevMode.dmDisplayOrientation = RightDisplayOrientation;
 
     // Both displays on
-    if (DisplayState1 && DisplayState2)
+    if (LeftDisplayState && RightDisplayState)
     {
-        switch (DisplayOrientation1)
+        // Orientation shouldn't differ between both displays unless we are in tent mode
+        switch (LeftDisplayOrientation)
         {
         case DMDO_DEFAULT: {
-            DevMode1.dmPosition.x = -1 * DevMode2.dmPelsWidth;
-            break;
-        }
-        case DMDO_180: {
-            DevMode2.dmPosition.x = -1 * DevMode1.dmPelsWidth;
+            //
+            // X---- | Y----
+            // | L | | | R |
+            // ----- | -----
+            //
+            // X: (0,0); Y: (1350,0)
+            LeftDevMode.dmPosition.x = 0;
+            LeftDevMode.dmPosition.y = 0;
+            RightDevMode.dmPosition.x = LeftDevMode.dmPelsWidth;
+            RightDevMode.dmPosition.y = 0;
             break;
         }
         case DMDO_90: {
-            DevMode1.dmPosition.y = -1 * DevMode2.dmPelsHeight;
+            //
+            //  +------
+            //  | CCW
+            //  v 90°
+            //
+            // Y-------|
+            // |   R   |
+            // |-------|
+            // ---------
+            // X-------|
+            // |   L   |
+            // |-------|
+            //
+            // X: (0,1350); Y: (0,0)
+            LeftDevMode.dmPosition.x = 0;
+            LeftDevMode.dmPosition.y = RightDevMode.dmPelsHeight;
+            RightDevMode.dmPosition.x = 0;
+            RightDevMode.dmPosition.y = 0;
+            break;
+        }
+        case DMDO_180: {
+            //
+            // Y---- | X----
+            // | R | | | L |
+            // ----- | -----
+            //
+            // X: (1350,0); Y: (0,0)
+            LeftDevMode.dmPosition.x = RightDevMode.dmPelsWidth;
+            LeftDevMode.dmPosition.y = 0;
+            RightDevMode.dmPosition.x = 0;
+            RightDevMode.dmPosition.y = 0;
             break;
         }
         case DMDO_270: {
-            DevMode2.dmPosition.y = -1 * DevMode1.dmPelsHeight;
+            //
+            //   -----+
+            //   CCW  |
+            //   270° v
+            //
+            // X-------|
+            // |   L   |
+            // |-------|
+            // ---------
+            // Y-------|
+            // |   R   |
+            // |-------|
+            //
+            // X: (0,0); Y: (0,1350)
+            LeftDevMode.dmPosition.x = 0;
+            LeftDevMode.dmPosition.y = 0;
+            RightDevMode.dmPosition.x = 0;
+            RightDevMode.dmPosition.y = LeftDevMode.dmPelsHeight;
             break;
         }
         }
 
-        BOOLEAN IsDisplay1Primary = DevMode1.dmPosition.x == 0 && DevMode1.dmPosition.y == 0;
+        BOOLEAN IsLeftDisplayPrimary = LeftDevMode.dmPosition.x == 0 && LeftDevMode.dmPosition.y == 0;
 
         if (ChangeDisplaySettingsEx(
-                IsDisplay1Primary ? DisplayDevice1.DeviceName : DisplayDevice2.DeviceName,
-                IsDisplay1Primary ? &DevMode1 : &DevMode2,
+                IsLeftDisplayPrimary ? LeftDisplayDevice.DeviceName : RightDisplayDevice.DeviceName,
+                IsLeftDisplayPrimary ? &LeftDevMode : &RightDevMode,
                 NULL,
                 CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET | CDS_SET_PRIMARY,
                 NULL) != DISP_CHANGE_SUCCESSFUL)
@@ -629,8 +732,8 @@ SetDisplayStates(
         }
 
         if (ChangeDisplaySettingsEx(
-                IsDisplay1Primary ? DisplayDevice2.DeviceName : DisplayDevice1.DeviceName,
-                IsDisplay1Primary ? &DevMode2 : &DevMode1,
+                IsLeftDisplayPrimary ? RightDisplayDevice.DeviceName : LeftDisplayDevice.DeviceName,
+                IsLeftDisplayPrimary ? &RightDevMode : &LeftDevMode,
                 NULL,
                 CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET,
                 NULL) != DISP_CHANGE_SUCCESSFUL)
@@ -640,11 +743,11 @@ SetDisplayStates(
         }
     }
     // Left on, Right off
-    else if (DisplayState1 && !DisplayState2)
+    else if (LeftDisplayState && !RightDisplayState)
     {
-        if (lastDisplayState1 && !lastDisplayState2)
+        if (lastLeftDisplayState && !lastRightDisplayState)
         {
-            Status = NotifyAutoRotationAlpcPortOfOrientationChange(DisplayOrientation2);
+            Status = NotifyAutoRotationAlpcPortOfOrientationChange(LeftDisplayOrientation);
             if (FAILED(Status))
             {
                 goto exit;
@@ -653,8 +756,8 @@ SetDisplayStates(
         else
         {
             if (ChangeDisplaySettingsEx(
-                    DisplayDevice1.DeviceName,
-                    &DevMode1,
+                    LeftDisplayDevice.DeviceName,
+                    &LeftDevMode,
                     NULL,
                     CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET | CDS_SET_PRIMARY,
                     NULL) != DISP_CHANGE_SUCCESSFUL)
@@ -663,14 +766,14 @@ SetDisplayStates(
                 goto exit;
             }
 
-            if (lastDisplayState2)
+            if (lastRightDisplayState)
             {
-                DevMode2.dmPelsWidth = 0;
-                DevMode2.dmPelsHeight = 0;
+                RightDevMode.dmPelsWidth = 0;
+                RightDevMode.dmPelsHeight = 0;
 
                 if (ChangeDisplaySettingsEx(
-                        DisplayDevice2.DeviceName,
-                        &DevMode2,
+                        RightDisplayDevice.DeviceName,
+                        &RightDevMode,
                         NULL,
                         CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET,
                         NULL) != DISP_CHANGE_SUCCESSFUL)
@@ -682,11 +785,11 @@ SetDisplayStates(
         }
     }
     // Left off, Right on
-    else if (!DisplayState1 && DisplayState2)
+    else if (!LeftDisplayState && RightDisplayState)
     {
-        if (!lastDisplayState1 && lastDisplayState2)
+        if (!lastLeftDisplayState && lastRightDisplayState)
         {
-            Status = NotifyAutoRotationAlpcPortOfOrientationChange(DisplayOrientation2);
+            Status = NotifyAutoRotationAlpcPortOfOrientationChange(RightDisplayOrientation);
             if (FAILED(Status))
             {
                 goto exit;
@@ -695,8 +798,8 @@ SetDisplayStates(
         else
         {
             if (ChangeDisplaySettingsEx(
-                    DisplayDevice2.DeviceName,
-                    &DevMode2,
+                    RightDisplayDevice.DeviceName,
+                    &RightDevMode,
                     NULL,
                     CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET | CDS_SET_PRIMARY,
                     NULL) != DISP_CHANGE_SUCCESSFUL)
@@ -705,14 +808,14 @@ SetDisplayStates(
                 goto exit;
             }
 
-            if (lastDisplayState1)
+            if (lastLeftDisplayState)
             {
-                DevMode1.dmPelsWidth = 0;
-                DevMode1.dmPelsHeight = 0;
+                LeftDevMode.dmPelsWidth = 0;
+                LeftDevMode.dmPelsHeight = 0;
 
                 if (ChangeDisplaySettingsEx(
-                        DisplayDevice1.DeviceName,
-                        &DevMode1,
+                        LeftDisplayDevice.DeviceName,
+                        &LeftDevMode,
                         NULL,
                         CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET,
                         NULL) != DISP_CHANGE_SUCCESSFUL)
@@ -735,7 +838,7 @@ SetDisplayStates(
     Sleep(1000);
 
     // Need to fix work areas if multiple displays due to Windows Shy Taskbar bugs...
-    if (DisplayState1 && DisplayState2)
+    if (LeftDisplayState && RightDisplayState)
     {
         if (!UpdateMonitorWorkAreas())
         {
@@ -745,10 +848,10 @@ SetDisplayStates(
     }
 
     // Display needs to be turned on but was not currently attached
-    if (DisplayState1 == TRUE && !lastDisplayState1)
+    if (LeftDisplayState == TRUE && !lastLeftDisplayState)
     {
         // First make sure matching sensors are on to avoid init issues
-        Status = SetHardwareEnabledStateForPanel(DisplayPanelId1, _T("HID_DEVICE_UP:000D_U:000F"), TRUE);
+        Status = SetHardwareEnabledStateForPanel(LeftDisplayPanelId, _T("HID_DEVICE_UP:000D_U:000F"), TRUE);
         if (FAILED(Status))
         {
             // goto exit;
@@ -758,10 +861,10 @@ SetDisplayStates(
     }
 
     // Display needs to be turned on but was not currently attached
-    if (DisplayState2 == TRUE && !lastDisplayState2)
+    if (RightDisplayState == TRUE && !lastRightDisplayState)
     {
         // First make sure matching sensors are on to avoid init issues
-        Status = SetHardwareEnabledStateForPanel(DisplayPanelId2, _T("HID_DEVICE_UP:000D_U:000F"), TRUE);
+        Status = SetHardwareEnabledStateForPanel(RightDisplayPanelId, _T("HID_DEVICE_UP:000D_U:000F"), TRUE);
         if (FAILED(Status))
         {
             // goto exit;
