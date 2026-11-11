@@ -69,8 +69,6 @@ SpanController::OnWindowCreated(HWND window)
 
     HMONITOR monitor = m_launchMonitorResolver.DetermineLaunchMonitor(window);
 
-    m_launchMonitorResolver.ClearLaunchSignal();
-
     std::thread([this, window, monitor] {
         RECT previous{};
         RECT current{};
@@ -111,6 +109,8 @@ SpanController::OnWindowCreated(HWND window)
         }
 
         m_windowPlacementService.PlaceWindow(window, monitor);
+
+        m_launchMonitorResolver.ClearLaunchSignal();
     }).detach();
 }
 

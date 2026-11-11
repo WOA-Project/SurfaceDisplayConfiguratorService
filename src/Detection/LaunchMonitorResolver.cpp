@@ -3,7 +3,7 @@
 #include "Monitor/MonitorHelpers.h"
 
 namespace {
-constexpr ULONGLONG SignalTimeoutMs = 1500;
+constexpr ULONGLONG SignalTimeoutMs = 10000;
 
 bool
 IsIgnoredForegroundWindow(HWND hwnd)
@@ -91,7 +91,11 @@ LaunchMonitorResolver::RecordForegroundWindow(HWND window)
 
         m_lastTaskbarMonitor = {monitor, now};
 
-        m_lastLaunchSignal = {monitor, now, LaunchSignalSource::Taskbar};
+        if (m_lastLaunchSignal.Source != LaunchSignalSource::Taskbar &&
+            m_lastLaunchSignal.Source != LaunchSignalSource::StartMenu)
+        {
+            m_lastLaunchSignal = {monitor, now, LaunchSignalSource::Taskbar};
+        }
 
         return;
     }
