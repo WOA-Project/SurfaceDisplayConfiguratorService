@@ -53,16 +53,65 @@ SpanController::OnForegroundChanged(HWND window)
 void
 SpanController::OnWindowCreated(HWND window)
 {
+    static constexpr wchar_t ProcessedProperty[] = L"SDC_Processed";
+
     if (!m_windowClassifier.IsProcessable(window))
     {
         return;
     }
 
+    if (GetProp(window, ProcessedProperty))
+    {
+        return;
+    }
+
+    SetProp(window, ProcessedProperty, (HANDLE)1);
+
     HMONITOR monitor = m_launchMonitorResolver.DetermineLaunchMonitor(window);
 
     m_launchMonitorResolver.ClearLaunchSignal();
 
-    m_windowPlacementService.PlaceWindow(window, monitor);
+    std::thread([this, window, monitor] {
+        RECT previous{};
+        RECT current{};
+
+        int stableCount = 0;
+
+        for (int i = 0; i < 20; ++i)
+        {
+            if (!IsWindow(window))
+            {
+                return;
+            }
+
+            GetWindowRect(window, &current);
+
+            if (EqualRect(&previous, &current))
+            {
+                ++stableCount;
+
+                if (stableCount >= 3)
+                {
+                    break;
+                }
+            }
+            else
+            {
+                stableCount = 0;
+            }
+
+            previous = current;
+
+            Sleep(100);
+        }
+
+        if (!IsWindow(window))
+        {
+            return;
+        }
+
+        m_windowPlacementService.PlaceWindow(window, monitor);
+    }).detach();
 }
 
 void
@@ -233,5 +282,6 @@ SpanController::UpdateDragPreview()
 void
 SpanController::OnWindowDestroyed(HWND hwnd)
 {
+    RemoveProp(hwnd, L"SDC_Processed");
     m_spanManager.RemoveWindow(hwnd);
 }
