@@ -186,6 +186,30 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\src\Application\Runtime.cpp" />
+
+    <ClCompile Include="..\src\Core\SpanController.cpp" />
+
+    <ClCompile Include="..\src\Hooks\MouseHook.cpp" />
+    <ClCompile Include="..\src\Hooks\WinEventDispatcher.cpp" />
+
+    <ClCompile Include="..\src\Detection\LaunchMonitorResolver.cpp" />
+    <ClCompile Include="..\src\Detection\WindowClassifier.cpp" />
+
+    <ClCompile Include="..\src\Monitor\MonitorHelpers.cpp" />
+    <ClCompile Include="..\src\Monitor\MonitorTopology.cpp" />
+
+    <ClCompile Include="..\src\Overlay\OverlayWindow.cpp" />
+
+    <ClCompile Include="..\src\Utilities\DpiHelpers.cpp" />
+    <ClCompile Include="..\src\Utilities\Geometry.cpp" />
+    <ClCompile Include="..\src\Utilities\Logging.cpp" />
+    <ClCompile Include="..\src\Utilities\WindowHelpers.cpp" />
+
+    <ClCompile Include="..\src\WindowPlacement\SpanManager.cpp" />
+    <ClCompile Include="..\src\WindowPlacement\WindowMover.cpp" />
+    <ClCompile Include="..\src\WindowPlacement\WindowPlacementService.cpp" />
+
     <ClCompile Include="..\src\ActiveMonitorWindowHandler.cpp" />
     <ClCompile Include="..\src\AutoRotate.cpp" />
     <ClCompile Include="..\src\DisplayRotationManager.cpp" />
@@ -213,6 +237,37 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\include\Application\Runtime.h" />
+
+    <ClInclude Include="..\include\Core\SpanController.h" />
+
+    <ClInclude Include="..\include\Hooks\MouseHook.h" />
+    <ClInclude Include="..\include\Hooks\WinEventDispatcher.h" />
+
+    <ClInclude Include="..\include\Detection\LaunchMonitorResolver.h" />
+    <ClInclude Include="..\include\Detection\WindowClassifier.h" />
+
+    <ClInclude Include="..\include\Monitor\MonitorHelpers.h" />
+    <ClInclude Include="..\include\Monitor\MonitorTopology.h" />
+
+    <ClInclude Include="..\include\Overlay\OverlayWindow.h" />
+
+    <ClInclude Include="..\include\Utilities\DpiHelpers.h" />
+    <ClInclude Include="..\include\Utilities\Geometry.h" />
+    <ClInclude Include="..\include\Utilities\Logging.h" />
+    <ClInclude Include="..\include\Utilities\WindowHelpers.h" />
+
+    <ClInclude Include="..\include\WindowPlacement\SpanManager.h" />
+    <ClInclude Include="..\include\WindowPlacement\WindowMover.h" />
+    <ClInclude Include="..\include\WindowPlacement\WindowPlacementService.h" />
+
+    <ClInclude Include="..\include\Models\LaunchSignal.h" />
+    <ClInclude Include="..\include\Models\MonitorSignal.h" />
+    <ClInclude Include="..\include\Models\SeamInfo.h" />
+    <ClInclude Include="..\include\Models\SpanState.h" />
+
+    <ClInclude Include="..\include\Configuration\Configuration.h" />
+
     <ClInclude Include="..\include\ActiveMonitorWindowHandler.h" />
     <ClInclude Include="..\include\AutoRotate.h" />
     <ClInclude Include="..\include\DisplayRotationManager.h" />

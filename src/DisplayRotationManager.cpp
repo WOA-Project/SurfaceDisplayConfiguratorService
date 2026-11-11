@@ -114,7 +114,7 @@ IsDeviceBoundToPanelId(CONST WCHAR *DeviceName, CONST WCHAR *DevicePanelId)
                 break;
             }
 
-            match = memcmp(DeviceName, devBuffer + index, min(lengthDeviceName, length) * sizeof(WCHAR)) == 0;
+            match = memcmp(DeviceName, devBuffer + index, std::min(lengthDeviceName, length) * sizeof(WCHAR)) == 0;
 
             if (match)
             {
@@ -170,7 +170,7 @@ IsDeviceBoundToPanelId(CONST WCHAR *DeviceName, CONST WCHAR *DevicePanelId)
             match = memcmp(
                         DeviceName + DeviceNameOffset,
                         devBuffer + index,
-                        min(lengthDeviceName - DeviceNameOffset, length) * sizeof(WCHAR)) == 0;
+                        std::min(lengthDeviceName - DeviceNameOffset, length) * sizeof(WCHAR)) == 0;
 
             if (match)
             {
