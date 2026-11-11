@@ -99,10 +99,10 @@ SetPanelsOrientationState(TwoPanelHingedDevicePostureReading reading)
         SimpleOrientation Panel1SimpleOrientation = reading.Panel1Orientation();
         SimpleOrientation Panel2SimpleOrientation = reading.Panel2Orientation();
 
-        BOOLEAN Panel1UnknownOrientation =
-            Panel1SimpleOrientation == SimpleOrientation::Faceup || Panel1SimpleOrientation == SimpleOrientation::Facedown;
-        BOOLEAN Panel2UnknownOrientation =
-            Panel2SimpleOrientation == SimpleOrientation::Faceup || Panel2SimpleOrientation == SimpleOrientation::Facedown;
+        BOOLEAN Panel1UnknownOrientation = Panel1SimpleOrientation == SimpleOrientation::Faceup ||
+                                           Panel1SimpleOrientation == SimpleOrientation::Facedown;
+        BOOLEAN Panel2UnknownOrientation = Panel2SimpleOrientation == SimpleOrientation::Faceup ||
+                                           Panel2SimpleOrientation == SimpleOrientation::Facedown;
 
         if (Panel1UnknownOrientation && !Panel2UnknownOrientation)
         {
@@ -379,15 +379,8 @@ AutoRotateMain()
 
     InitializeTabletPostureSubscriptions();
 
-    g_TaskbarMonitorThread =
-        CreateThread(
-            nullptr,
-            0,
-            TaskbarRegistryMonitorThread,
-            nullptr,
-            0,
-            nullptr);
-    
+    g_TaskbarMonitorThread = CreateThread(nullptr, 0, TaskbarRegistryMonitorThread, nullptr, 0, nullptr);
+
     InitializeCriticalSectionAndSpinCount(&g_AutoRotationCriticalSection, 0x00000400);
 
     // Set initial state

@@ -47,11 +47,11 @@ enum DWM_WINDOW_CORNER_PREFERENCE
     DWMWCP_ROUND = 2,
     DWMWCP_ROUNDSMALL = 3
 };
-#define DWMWA_WINDOW_CORNER_PREFERENCE 33
+#    define DWMWA_WINDOW_CORNER_PREFERENCE 33
 #endif
 
 #ifndef DWMWA_SYSTEMBACKDROP_TYPE
-#define DWMWA_SYSTEMBACKDROP_TYPE 38
+#    define DWMWA_SYSTEMBACKDROP_TYPE 38
 enum DWM_SYSTEMBACKDROP_TYPE
 {
     DWMSBT_AUTO = 0,
@@ -92,24 +92,14 @@ struct WINDOWCOMPOSITIONATTRIBDATA
     SIZE_T cbData;
 };
 
-using SetWindowCompositionAttribute_t =
-    BOOL(WINAPI*)(
-        HWND,
-        WINDOWCOMPOSITIONATTRIBDATA*);
+using SetWindowCompositionAttribute_t = BOOL(WINAPI *)(HWND, WINDOWCOMPOSITIONATTRIBDATA *);
 
 static void
 SetSpanAppearance(HWND window, bool enabled)
 {
-    DWM_WINDOW_CORNER_PREFERENCE pref =
-        enabled
-            ? DWMWCP_DONOTROUND
-            : DWMWCP_DEFAULT;
+    DWM_WINDOW_CORNER_PREFERENCE pref = enabled ? DWMWCP_DONOTROUND : DWMWCP_DEFAULT;
 
-    DwmSetWindowAttribute(
-        window,
-        DWMWA_WINDOW_CORNER_PREFERENCE,
-        &pref,
-        sizeof(pref));
+    DwmSetWindowAttribute(window, DWMWA_WINDOW_CORNER_PREFERENCE, &pref, sizeof(pref));
 }
 
 enum class WindowPlacementPolicy
@@ -121,8 +111,7 @@ enum class WindowPlacementPolicy
     MaximizeAcrossDisplays // fill all work areas
 };
 
-constexpr WindowPlacementPolicy g_PlacementPolicy =
-    WindowPlacementPolicy::MaximizeAcrossDisplays;
+constexpr WindowPlacementPolicy g_PlacementPolicy = WindowPlacementPolicy::MaximizeAcrossDisplays;
 
 constexpr bool g_ForceResizeNonResizable = true;
 
@@ -147,7 +136,8 @@ const wchar_t PropertyMovedOnOpening[] = _T("FancyZones_MovedOnOpening");
 OnThreadExecutor m_dpiUnawareThread;
 std::vector<HWINEVENTHOOK> m_staticWinEventHooks;
 
-static RECT GetCombinedWorkAreaRect();
+static RECT
+GetCombinedWorkAreaRect();
 
 static HWND g_SpanOverlay = nullptr;
 static HWND g_DragWindow{};
@@ -186,15 +176,10 @@ GetSeamInfo()
 {
     std::vector<HMONITOR> monitors;
 
-    EnumDisplayMonitors(
-        nullptr,
-        nullptr,
-        saveDisplayToVector,
-        (LPARAM)&monitors);
+    EnumDisplayMonitors(nullptr, nullptr, saveDisplayToVector, (LPARAM)&monitors);
 
     SeamInfo result{};
-    result.orientation =
-        SeamOrientation::None;
+    result.orientation = SeamOrientation::None;
 
     if (monitors.size() != 2)
     {
@@ -218,49 +203,33 @@ GetSeamInfo()
         std::swap(a, b);
     }
 
-    if (abs(a.right - b.left) < SEAM_TOLERANCE ||
-    abs(b.right - a.left) < SEAM_TOLERANCE)
+    if (abs(a.right - b.left) < SEAM_TOLERANCE || abs(b.right - a.left) < SEAM_TOLERANCE)
     {
-        result.orientation =
-            SeamOrientation::Vertical;
+        result.orientation = SeamOrientation::Vertical;
 
-        result.position =
-            abs(a.right - b.left) <
-            SEAM_TOLERANCE
-                ? a.right
-                : b.right;
+        result.position = abs(a.right - b.left) < SEAM_TOLERANCE ? a.right : b.right;
 
-        result.activationZone =
-        {
+        result.activationZone = {
             result.position - PREVIEW_MARGIN,
             min(a.top, b.top),
 
             result.position + PREVIEW_MARGIN,
-            max(a.bottom, b.bottom)
-        };
+            max(a.bottom, b.bottom)};
     }
-    else if (abs(a.bottom - b.top) < SEAM_TOLERANCE ||
-    abs(b.bottom - a.top) < SEAM_TOLERANCE)
+    else if (abs(a.bottom - b.top) < SEAM_TOLERANCE || abs(b.bottom - a.top) < SEAM_TOLERANCE)
     {
-        result.orientation =
-            SeamOrientation::Horizontal;
+        result.orientation = SeamOrientation::Horizontal;
 
-        result.position =
-            abs(a.bottom - b.top) <
-            SEAM_TOLERANCE
-                ? a.bottom
-                : b.bottom;
+        result.position = abs(a.bottom - b.top) < SEAM_TOLERANCE ? a.bottom : b.bottom;
 
-        result.activationZone =
-        {
+        result.activationZone = {
             min(a.left, b.left),
 
             result.position - PREVIEW_MARGIN,
 
             max(a.right, b.right),
 
-            result.position + PREVIEW_MARGIN
-        };
+            result.position + PREVIEW_MARGIN};
     }
 
     printf(
@@ -285,10 +254,7 @@ GetSeamInfo()
         mi2.rcWork.right,
         mi2.rcWork.bottom);
 
-    printf(
-        "SEAM pos=%ld orientation=%d\n",
-        result.position,
-        (int)result.orientation);
+    printf("SEAM pos=%ld orientation=%d\n", result.position, (int)result.orientation);
 
     return result;
 }
@@ -401,98 +367,63 @@ static std::unordered_map<HWND, SpanState> g_SpanStates;
 static void
 RestoreSpannedWindow(HWND window)
 {
-    auto it =
-        g_SpanStates.find(window);
+    auto it = g_SpanStates.find(window);
 
     if (it == g_SpanStates.end())
     {
         return;
     }
 
-    SetSpanAppearance(
-        window,
-        false);
+    SetSpanAppearance(window, false);
 
     DwmFlush();
 
-    WINDOWPLACEMENT placement =
-        it->second.placement;
+    WINDOWPLACEMENT placement = it->second.placement;
 
-    placement.length =
-        sizeof(WINDOWPLACEMENT);
+    placement.length = sizeof(WINDOWPLACEMENT);
 
     RECT current{};
-    GetWindowRect(
-        window,
-        &current);
+    GetWindowRect(window, &current);
 
     POINT cursor{};
-    GetCursorPos(
-        &cursor);
+    GetCursorPos(&cursor);
 
-    RECT restore =
-        placement.rcNormalPosition;
+    RECT restore = placement.rcNormalPosition;
 
-    const int restoreWidth =
-        restore.right - restore.left;
+    const int restoreWidth = restore.right - restore.left;
 
-    const int restoreHeight =
-        restore.bottom - restore.top;
+    const int restoreHeight = restore.bottom - restore.top;
 
-    const int currentWidth =
-        current.right - current.left;
+    const int currentWidth = current.right - current.left;
 
     //
     // Preserve where the user grabbed the title bar.
     //
-    double grabRatio =
-        0.5;
+    double grabRatio = 0.5;
 
     if (currentWidth > 0)
     {
-        grabRatio =
-            double(cursor.x - current.left) /
-            double(currentWidth);
+        grabRatio = double(cursor.x - current.left) / double(currentWidth);
 
-        grabRatio =
-            max(
-                0.0,
-                min(
-                    1.0,
-                    grabRatio));
+        grabRatio = max(0.0, min(1.0, grabRatio));
     }
 
     RECT target{};
 
-    target.left =
-        cursor.x -
-        LONG(grabRatio * restoreWidth);
+    target.left = cursor.x - LONG(grabRatio * restoreWidth);
 
     //
     // Mimic Windows maximize-drag behavior.
     //
-    const int cursorOffsetY =
-        cursor.y -
-        current.top;
+    const int cursorOffsetY = cursor.y - current.top;
 
-    const int titleBarOffsetY =
-        min(
-            max(
-                cursorOffsetY,
-                16),
-            32);
+    const int titleBarOffsetY = min(max(cursorOffsetY, 16), 32);
 
-    target.top =
-        cursor.y -
-        titleBarOffsetY;
+    target.top = cursor.y - titleBarOffsetY;
 
-    target.right =
-        target.left +
-        restoreWidth;
+    target.right = target.left + restoreWidth;
 
-    target.bottom =
-        target.top +
-        restoreHeight;
+    target.bottom = target.top + restoreHeight;
 
     printf(
         "RESTORE size=%dx%d "
@@ -513,19 +444,13 @@ RestoreSpannedWindow(HWND window)
     // Update the normal position but use the
     // cursor-derived location.
     //
-    placement.rcNormalPosition =
-        target;
+    placement.rcNormalPosition = target;
 
-    placement.showCmd =
-        SW_RESTORE;
+    placement.showCmd = SW_RESTORE;
 
-    SetWindowPlacement(
-        window,
-        &placement);
+    SetWindowPlacement(window, &placement);
 
-    ShowWindow(
-        window,
-        SW_RESTORE);
+    ShowWindow(window, SW_RESTORE);
 
     SetWindowPos(
         window,
@@ -534,16 +459,11 @@ RestoreSpannedWindow(HWND window)
         target.top,
         restoreWidth,
         restoreHeight,
-        SWP_NOZORDER |
-        SWP_NOACTIVATE |
-        SWP_FRAMECHANGED);
+        SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
 
-    RemoveProp(
-        window,
-        L"SDC_SPANNED");
+    RemoveProp(window, L"SDC_SPANNED");
 
-    g_SpanStates.erase(
-        it);
+    g_SpanStates.erase(it);
 }
 
 static void
@@ -551,53 +471,33 @@ SpanOrCenterWindow(HWND window)
 {
     RECT before{};
 
-    if (!GetWindowRect(
-            window,
-            &before))
+    if (!GetWindowRect(window, &before))
     {
         return;
     }
 
-    RECT span =
-        GetCombinedWorkAreaRect();
+    RECT span = GetCombinedWorkAreaRect();
 
     WINDOWPLACEMENT placement{};
     placement.length = sizeof(placement);
 
-    GetWindowPlacement(
-        window,
-        &placement);
+    GetWindowPlacement(window, &placement);
 
-    g_SpanStates[window] =
-    {
-        placement,
-        true
-    };
+    g_SpanStates[window] = {placement, true};
 
-    ShowWindow(
-        window,
-        SW_RESTORE);
+    ShowWindow(window, SW_RESTORE);
 
     //
     // Make the window look more like a real maximized
     // Windows 11 window.
     //
-    SetSpanAppearance(
-        window,
-        true);
+    SetSpanAppearance(window, true);
 
-    const int borderX =
-        GetSystemMetrics(SM_CXSIZEFRAME) +
-        GetSystemMetrics(SM_CXPADDEDBORDER);
+    const int borderX = GetSystemMetrics(SM_CXSIZEFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER);
 
-    const int borderY =
-        GetSystemMetrics(SM_CYSIZEFRAME) +
-        GetSystemMetrics(SM_CXPADDEDBORDER);
+    const int borderY = GetSystemMetrics(SM_CYSIZEFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER);
 
-    printf(
-        "SPAN BORDER x=%d y=%d\n",
-        borderX,
-        borderY);
+    printf("SPAN BORDER x=%d y=%d\n", borderX, borderY);
 
     SetWindowPos(
         window,
@@ -606,15 +506,11 @@ SpanOrCenterWindow(HWND window)
         span.top - 2,
         (span.right - span.left) + borderX * 2,
         (span.bottom - span.top) + borderY + 2,
-        SWP_NOZORDER |
-        SWP_NOACTIVATE |
-        SWP_FRAMECHANGED);
+        SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
 
-    const int beforeWidth =
-        before.right - before.left;
+    const int beforeWidth = before.right - before.left;
 
-    const int beforeHeight =
-        before.bottom - before.top;
+    const int beforeHeight = before.bottom - before.top;
 
     RECT actual{};
 
@@ -627,32 +523,23 @@ SpanOrCenterWindow(HWND window)
             return;
         }
 
-        GetWindowRect(
-            window,
-            &actual);
+        GetWindowRect(window, &actual);
 
-        const int currentWidth =
-            actual.right - actual.left;
+        const int currentWidth = actual.right - actual.left;
 
-        const int currentHeight =
-            actual.bottom - actual.top;
+        const int currentHeight = actual.bottom - actual.top;
 
-        if (currentWidth > beforeWidth + 100 ||
-            currentHeight > beforeHeight + 100)
+        if (currentWidth > beforeWidth + 100 || currentHeight > beforeHeight + 100)
         {
             break;
         }
     }
 
-    const int actualWidth =
-        actual.right - actual.left;
+    const int actualWidth = actual.right - actual.left;
 
-    const int actualHeight =
-        actual.bottom - actual.top;
+    const int actualHeight = actual.bottom - actual.top;
 
-    const bool resizeIgnored =
-        actualWidth < beforeWidth * 3 / 2 &&
-        actualHeight < beforeHeight * 3 / 2;
+    const bool resizeIgnored = actualWidth < beforeWidth * 3 / 2 && actualHeight < beforeHeight * 3 / 2;
 
     printf(
         "SPAN before=%dx%d actual=%dx%d ignored=%d\n",
@@ -664,108 +551,58 @@ SpanOrCenterWindow(HWND window)
 
     if (resizeIgnored)
     {
-        const int spanWidth =
-            span.right - span.left;
+        const int spanWidth = span.right - span.left;
 
-        const int spanHeight =
-            span.bottom - span.top;
+        const int spanHeight = span.bottom - span.top;
 
-        const int x =
-            span.left +
-            (spanWidth - actualWidth) / 2;
+        const int x = span.left + (spanWidth - actualWidth) / 2;
 
-        const int y =
-            span.top +
-            (spanHeight - actualHeight) / 2;
+        const int y = span.top + (spanHeight - actualHeight) / 2;
 
-        SetWindowPos(
-            window,
-            nullptr,
-            x,
-            y,
-            0,
-            0,
-            SWP_NOZORDER |
-            SWP_NOACTIVATE |
-            SWP_NOSIZE);
+        SetWindowPos(window, nullptr, x, y, 0, 0, SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOSIZE);
     }
 
-    SetProp(
-        window,
-        L"SDC_SPANNED",
-        (HANDLE)1);
+    SetProp(window, L"SDC_SPANNED", (HANDLE)1);
 }
 
 static RECT
 GetCombinedWorkAreaRect()
 {
-    RECT combined =
-    {
-        LONG_MAX,
-        LONG_MAX,
-        LONG_MIN,
-        LONG_MIN
-    };
+    RECT combined = {LONG_MAX, LONG_MAX, LONG_MIN, LONG_MIN};
 
     EnumDisplayMonitors(
         nullptr,
         nullptr,
-        [](HMONITOR monitor,
-           HDC,
-           LPRECT,
-           LPARAM param) -> BOOL
-        {
-            auto rect =
-                reinterpret_cast<RECT*>(param);
+        [](HMONITOR monitor, HDC, LPRECT, LPARAM param) -> BOOL {
+            auto rect = reinterpret_cast<RECT *>(param);
 
             MONITORINFO mi{};
-            mi.cbSize =
-                sizeof(mi);
+            mi.cbSize = sizeof(mi);
 
-            GetMonitorInfo(
-                monitor,
-                &mi);
+            GetMonitorInfo(monitor, &mi);
 
-            rect->left =
-                min(
-                    rect->left,
-                    mi.rcWork.left);
+            rect->left = min(rect->left, mi.rcWork.left);
 
-            rect->top =
-                min(
-                    rect->top,
-                    mi.rcWork.top);
+            rect->top = min(rect->top, mi.rcWork.top);
 
-            rect->right =
-                max(
-                    rect->right,
-                    mi.rcWork.right);
+            rect->right = max(rect->right, mi.rcWork.right);
 
-            rect->bottom =
-                max(
-                    rect->bottom,
-                    mi.rcWork.bottom);
+            rect->bottom = max(rect->bottom, mi.rcWork.bottom);
 
             return TRUE;
         },
-        reinterpret_cast<LPARAM>(
-            &combined));
+        reinterpret_cast<LPARAM>(&combined));
 
     return combined;
 }
 
 static void
-SizeWindowToRect(
-    HWND window,
-    RECT rect,
-    bool translateToWorkArea = true) noexcept
+SizeWindowToRect(HWND window, RECT rect, bool translateToWorkArea = true) noexcept
 {
     WINDOWPLACEMENT placement{};
     placement.length = sizeof(placement);
 
-    if (!GetWindowPlacement(
-            window,
-            &placement))
+    if (!GetWindowPlacement(window, &placement))
     {
         return;
     }
@@ -773,28 +610,18 @@ SizeWindowToRect(
     //
     // Wait if the app is still starting minimized.
     //
-    for (int i = 0;
-         i < 5 &&
-         placement.showCmd == SW_SHOWMINIMIZED;
-         ++i)
+    for (int i = 0; i < 5 && placement.showCmd == SW_SHOWMINIMIZED; ++i)
     {
-        std::this_thread::sleep_for(
-            std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-        GetWindowPlacement(
-            window,
-            &placement);
+        GetWindowPlacement(window, &placement);
     }
 
-    const bool wasMaximized =
-        IsZoomed(window) ||
-        placement.showCmd == SW_SHOWMAXIMIZED;
+    const bool wasMaximized = IsZoomed(window) || placement.showCmd == SW_SHOWMAXIMIZED;
 
     if (translateToWorkArea)
     {
-        ScreenToWorkAreaCoords(
-            window,
-            rect);
+        ScreenToWorkAreaCoords(window, rect);
     }
 
     //
@@ -814,15 +641,12 @@ SizeWindowToRect(
     {
         placement.showCmd = SW_SHOWMAXIMIZED;
     }
-    else if (placement.showCmd != SW_SHOWMINIMIZED &&
-            placement.showCmd != SW_MINIMIZE)
+    else if (placement.showCmd != SW_SHOWMINIMIZED && placement.showCmd != SW_MINIMIZE)
     {
         placement.showCmd = SW_RESTORE;
     }
 
-    if (!SetWindowPlacement(
-            window,
-            &placement))
+    if (!SetWindowPlacement(window, &placement))
     {
         return;
     }
@@ -830,18 +654,14 @@ SizeWindowToRect(
     //
     // Some applications ignore the first placement.
     //
-    SetWindowPlacement(
-        window,
-        &placement);
+    SetWindowPlacement(window, &placement);
 
     //
     // Force re-maximization on the destination monitor.
     //
     if (wasMaximized)
     {
-        ShowWindow(
-            window,
-            SW_MAXIMIZE);
+        ShowWindow(window, SW_MAXIMIZE);
     }
 }
 
@@ -862,47 +682,31 @@ GetVirtualDesktopRect()
 {
     RECT r;
 
-    r.left =
-        GetSystemMetrics(
-            SM_XVIRTUALSCREEN);
+    r.left = GetSystemMetrics(SM_XVIRTUALSCREEN);
 
-    r.top =
-        GetSystemMetrics(
-            SM_YVIRTUALSCREEN);
+    r.top = GetSystemMetrics(SM_YVIRTUALSCREEN);
 
-    r.right =
-        r.left +
-        GetSystemMetrics(
-            SM_CXVIRTUALSCREEN);
+    r.right = r.left + GetSystemMetrics(SM_CXVIRTUALSCREEN);
 
-    r.bottom =
-        r.top +
-        GetSystemMetrics(
-            SM_CYVIRTUALSCREEN);
+    r.bottom = r.top + GetSystemMetrics(SM_CYVIRTUALSCREEN);
 
     return r;
 }
 
 static RECT
-ConstrainToVirtualDesktop(
-    const RECT& windowRect)
+ConstrainToVirtualDesktop(const RECT &windowRect)
 {
     RECT result = windowRect;
 
-    RECT virtualRect =
-        GetVirtualDesktopRect();
+    RECT virtualRect = GetVirtualDesktopRect();
 
-    const int virtualWidth =
-        RectWidth(virtualRect);
+    const int virtualWidth = RectWidth(virtualRect);
 
-    const int virtualHeight =
-        RectHeight(virtualRect);
+    const int virtualHeight = RectHeight(virtualRect);
 
-    int width =
-        RectWidth(result);
+    int width = RectWidth(result);
 
-    int height =
-        RectHeight(result);
+    int height = RectHeight(result);
 
     //
     // If the window is larger than the
@@ -910,22 +714,16 @@ ConstrainToVirtualDesktop(
     //
     if (width > virtualWidth)
     {
-        result.right =
-            result.left +
-            virtualWidth;
+        result.right = result.left + virtualWidth;
 
-        width =
-            virtualWidth;
+        width = virtualWidth;
     }
 
     if (height > virtualHeight)
     {
-        result.bottom =
-            result.top +
-            virtualHeight;
+        result.bottom = result.top + virtualHeight;
 
-        height =
-            virtualHeight;
+        height = virtualHeight;
     }
 
     //
@@ -933,83 +731,55 @@ ConstrainToVirtualDesktop(
     //
     if (result.left < virtualRect.left)
     {
-        OffsetRect(
-            &result,
-            virtualRect.left - result.left,
-            0);
+        OffsetRect(&result, virtualRect.left - result.left, 0);
     }
 
     if (result.right > virtualRect.right)
     {
-        OffsetRect(
-            &result,
-            virtualRect.right - result.right,
-            0);
+        OffsetRect(&result, virtualRect.right - result.right, 0);
     }
 
     if (result.top < virtualRect.top)
     {
-        OffsetRect(
-            &result,
-            0,
-            virtualRect.top - result.top);
+        OffsetRect(&result, 0, virtualRect.top - result.top);
     }
 
     if (result.bottom > virtualRect.bottom)
     {
-        OffsetRect(
-            &result,
-            0,
-            virtualRect.bottom - result.bottom);
+        OffsetRect(&result, 0, virtualRect.bottom - result.bottom);
     }
 
     return result;
 }
 
 static RECT
-ConstrainToMonitor(
-    HWND hwnd,
-    const RECT& windowRect,
-    const RECT& monitorRect)
+ConstrainToMonitor(HWND hwnd, const RECT &windowRect, const RECT &monitorRect)
 {
     RECT result = windowRect;
 
-    LONG_PTR style =
-        GetWindowLongPtr(
-            hwnd,
-            GWL_STYLE);
+    LONG_PTR style = GetWindowLongPtr(hwnd, GWL_STYLE);
 
-    const bool canResize =
-        g_ForceResizeNonResizable ||
-        ((style & WS_THICKFRAME) != 0);
+    const bool canResize = g_ForceResizeNonResizable || ((style & WS_THICKFRAME) != 0);
 
-    const int monitorWidth =
-        RectWidth(monitorRect);
+    const int monitorWidth = RectWidth(monitorRect);
 
-    const int monitorHeight =
-        RectHeight(monitorRect);
+    const int monitorHeight = RectHeight(monitorRect);
 
-    const int width =
-        RectWidth(result);
+    const int width = RectWidth(result);
 
-    const int height =
-        RectHeight(result);
+    const int height = RectHeight(result);
 
-    if ((width > monitorWidth ||
-        height > monitorHeight))
+    if ((width > monitorWidth || height > monitorHeight))
     {
         char className[256]{};
 
-        GetClassNameA(
-            hwnd,
-            className,
-            sizeof(className));
+        GetClassNameA(hwnd, className, sizeof(className));
 
         printf(
             "OVERSIZE class=%s style=%p thick=%d max=%d "
             "monitor=(%d,%d) window=(%d,%d)\n",
             className,
-            (void*)style,
+            (void *)style,
             !!(style & WS_THICKFRAME),
             !!(style & WS_MAXIMIZEBOX),
             monitorWidth,
@@ -1030,16 +800,12 @@ ConstrainToMonitor(
     {
         if (width > monitorWidth)
         {
-            result.right =
-                result.left +
-                monitorWidth;
+            result.right = result.left + monitorWidth;
         }
 
         if (height > monitorHeight)
         {
-            result.bottom =
-                result.top +
-                monitorHeight;
+            result.bottom = result.top + monitorHeight;
         }
     }
 
@@ -1050,18 +816,12 @@ ConstrainToMonitor(
     {
         if (result.left < monitorRect.left)
         {
-            OffsetRect(
-                &result,
-                monitorRect.left - result.left,
-                0);
+            OffsetRect(&result, monitorRect.left - result.left, 0);
         }
 
         if (result.right > monitorRect.right)
         {
-            OffsetRect(
-                &result,
-                monitorRect.right - result.right,
-                0);
+            OffsetRect(&result, monitorRect.right - result.right, 0);
         }
     }
 
@@ -1072,18 +832,12 @@ ConstrainToMonitor(
     {
         if (result.top < monitorRect.top)
         {
-            OffsetRect(
-                &result,
-                0,
-                monitorRect.top - result.top);
+            OffsetRect(&result, 0, monitorRect.top - result.top);
         }
 
         if (result.bottom > monitorRect.bottom)
         {
-            OffsetRect(
-                &result,
-                0,
-                monitorRect.bottom - result.bottom);
+            OffsetRect(&result, 0, monitorRect.bottom - result.bottom);
         }
     }
 
@@ -1106,10 +860,7 @@ FitOnScreen(const RECT &windowRect, const RECT &originMonitorRect, const RECT &d
 
     if (left + W > destMonitorRect.right)
     {
-        left =
-            destMonitorRect.right -
-            W -
-            CUSTOM_POSITIONING_LEFT_TOP_PADDING;
+        left = destMonitorRect.right - W - CUSTOM_POSITIONING_LEFT_TOP_PADDING;
     }
 
     if (top < destMonitorRect.top)
@@ -1119,13 +870,10 @@ FitOnScreen(const RECT &windowRect, const RECT &originMonitorRect, const RECT &d
 
     if (top + H > destMonitorRect.bottom)
     {
-        top =
-            destMonitorRect.bottom -
-            H -
-            CUSTOM_POSITIONING_LEFT_TOP_PADDING;
+        top = destMonitorRect.bottom - H - CUSTOM_POSITIONING_LEFT_TOP_PADDING;
     }
 
-    return { left, top, left + W, top + H };
+    return {left, top, left + W, top + H};
 }
 
 static void
@@ -1166,39 +914,26 @@ OpenWindowOnActiveMonitor(HWND window, HMONITOR monitor) noexcept
     //
     // Force maximize on selected monitor.
     //
-    if (g_PlacementPolicy ==
-        WindowPlacementPolicy::MaximizeMonitor)
+    if (g_PlacementPolicy == WindowPlacementPolicy::MaximizeMonitor)
     {
         WINDOWPLACEMENT placement{};
-        placement.length =
-            sizeof(placement);
+        placement.length = sizeof(placement);
 
-        if (GetWindowPlacement(
-                window,
-                &placement))
+        if (GetWindowPlacement(window, &placement))
         {
-            RECT restore
-            {
+            RECT restore{
                 targetInfo.rcWork.left + 100,
                 targetInfo.rcWork.top + 100,
                 targetInfo.rcWork.left + 1100,
-                targetInfo.rcWork.top + 800
-            };
+                targetInfo.rcWork.top + 800};
 
-            placement.rcNormalPosition =
-                restore;
+            placement.rcNormalPosition = restore;
 
-            SetWindowPlacement(
-                window,
-                &placement);
+            SetWindowPlacement(window, &placement);
 
-            ShowWindow(
-                window,
-                SW_RESTORE);
+            ShowWindow(window, SW_RESTORE);
 
-            ShowWindow(
-                window,
-                SW_MAXIMIZE);
+            ShowWindow(window, SW_MAXIMIZE);
         }
 
         return;
@@ -1209,63 +944,41 @@ OpenWindowOnActiveMonitor(HWND window, HMONITOR monitor) noexcept
         WINDOWPLACEMENT placement{};
         placement.length = sizeof(placement);
 
-        if (GetWindowPlacement(
-                window,
-                &placement))
+        if (GetWindowPlacement(window, &placement))
         {
-            RECT result =
-                placement.rcNormalPosition;
+            RECT result = placement.rcNormalPosition;
 
             switch (g_PlacementPolicy)
             {
-            case WindowPlacementPolicy::FitMonitor:
-            {
-                result =
-                    ConstrainToMonitor(
-                        window,
-                        result,
-                        targetInfo.rcWork);
+            case WindowPlacementPolicy::FitMonitor: {
+                result = ConstrainToMonitor(window, result, targetInfo.rcWork);
                 break;
             }
 
-            case WindowPlacementPolicy::PreserveSize:
-            {
-                result =
-                    ConstrainToVirtualDesktop(
-                        result);
+            case WindowPlacementPolicy::PreserveSize: {
+                result = ConstrainToVirtualDesktop(result);
                 break;
             }
 
-            case WindowPlacementPolicy::SpanMonitors:
-            {
-                result =
-                    GetVirtualDesktopRect();
+            case WindowPlacementPolicy::SpanMonitors: {
+                result = GetVirtualDesktopRect();
                 break;
             }
 
-            case WindowPlacementPolicy::MaximizeMonitor:
-            {
-                ShowWindow(
-                    window,
-                    SW_MAXIMIZE);
+            case WindowPlacementPolicy::MaximizeMonitor: {
+                ShowWindow(window, SW_MAXIMIZE);
                 return;
             }
-            case WindowPlacementPolicy::MaximizeAcrossDisplays:
-            {
-                SpanOrCenterWindow(
-                    window);
+            case WindowPlacementPolicy::MaximizeAcrossDisplays: {
+                SpanOrCenterWindow(window);
 
                 return;
             }
             }
 
-            if (!EqualRect(
-                    &result,
-                    &placement.rcNormalPosition))
+            if (!EqualRect(&result, &placement.rcNormalPosition))
             {
-                SizeWindowToRect(
-                    window,
-                    result);
+                SizeWindowToRect(window, result);
             }
         }
 
@@ -1283,124 +996,81 @@ OpenWindowOnActiveMonitor(HWND window, HMONITOR monitor) noexcept
         MONITORINFOEX destMi;
         destMi.cbSize = sizeof(destMi);
 
-        if (GetMonitorInfo(origin, &originMi) &&
-            GetMonitorInfo(monitor, &destMi))
+        if (GetMonitorInfo(origin, &originMi) && GetMonitorInfo(monitor, &destMi))
         {
-            const bool isMaximized =
-                IsZoomed(window) ||
-                placement.showCmd == SW_SHOWMAXIMIZED;
+            const bool isMaximized = IsZoomed(window) || placement.showCmd == SW_SHOWMAXIMIZED;
             if (isMaximized)
             {
-                if (g_PlacementPolicy ==
-                    WindowPlacementPolicy::MaximizeAcrossDisplays)
+                if (g_PlacementPolicy == WindowPlacementPolicy::MaximizeAcrossDisplays)
                 {
-                    SpanOrCenterWindow(
-                        window);
+                    SpanOrCenterWindow(window);
 
                     return;
                 }
 
                 MONITORINFOEX target{};
                 target.cbSize = sizeof(target);
-            
-                if (!GetMonitorInfo(
-                        monitor,
-                        &target))
+
+                if (!GetMonitorInfo(monitor, &target))
                 {
                     return;
                 }
-            
-                RECT restore =
-                    placement.rcNormalPosition;
-            
-                restore.left =
-                    target.rcWork.left + 100;
-            
-                restore.top =
-                    target.rcWork.top + 100;
-            
-                restore.right =
-                    restore.left +
-                    RectWidth(
-                        placement.rcNormalPosition);
-                    
-                restore.bottom =
-                    restore.top +
-                    RectHeight(
-                        placement.rcNormalPosition);
-                    
-                placement.rcNormalPosition =
-                    restore;
-                    
-                SetWindowPlacement(
-                    window,
-                    &placement);
-                
-                ShowWindow(
-                    window,
-                    SW_RESTORE);
-                
-                ShowWindow(
-                    window,
-                    SW_MAXIMIZE);
-                
+
+                RECT restore = placement.rcNormalPosition;
+
+                restore.left = target.rcWork.left + 100;
+
+                restore.top = target.rcWork.top + 100;
+
+                restore.right = restore.left + RectWidth(placement.rcNormalPosition);
+
+                restore.bottom = restore.top + RectHeight(placement.rcNormalPosition);
+
+                placement.rcNormalPosition = restore;
+
+                SetWindowPlacement(window, &placement);
+
+                ShowWindow(window, SW_RESTORE);
+
+                ShowWindow(window, SW_MAXIMIZE);
+
                 return;
             }
             else
             {
-                RECT newPosition =
-                    FitOnScreen(
-                        placement.rcNormalPosition,
-                        originMi.rcWork,
-                        destMi.rcWork);
+                RECT newPosition = FitOnScreen(placement.rcNormalPosition, originMi.rcWork, destMi.rcWork);
 
                 switch (g_PlacementPolicy)
                 {
-                case WindowPlacementPolicy::FitMonitor:
-                {
-                    newPosition =
-                        ConstrainToMonitor(
-                            window,
-                            newPosition,
-                            destMi.rcWork);
+                case WindowPlacementPolicy::FitMonitor: {
+                    newPosition = ConstrainToMonitor(window, newPosition, destMi.rcWork);
                     break;
                 }
 
-                case WindowPlacementPolicy::PreserveSize:
-                {
-                    newPosition =
-                        ConstrainToVirtualDesktop(
-                            newPosition);
+                case WindowPlacementPolicy::PreserveSize: {
+                    newPosition = ConstrainToVirtualDesktop(newPosition);
                     break;
                 }
 
-                case WindowPlacementPolicy::SpanMonitors:
-                {
-                    newPosition =
-                        GetVirtualDesktopRect();
+                case WindowPlacementPolicy::SpanMonitors: {
+                    newPosition = GetVirtualDesktopRect();
                     break;
                 }
 
-                case WindowPlacementPolicy::MaximizeMonitor:
-                {
+                case WindowPlacementPolicy::MaximizeMonitor: {
                     //
                     // Already handled above.
                     //
                     break;
                 }
-                case WindowPlacementPolicy::MaximizeAcrossDisplays:
-                {
-                    SpanOrCenterWindow(
-                        window);
+                case WindowPlacementPolicy::MaximizeAcrossDisplays: {
+                    SpanOrCenterWindow(window);
 
                     return;
                 }
                 }
 
-                SizeWindowToRect(
-                    window,
-                    newPosition,
-                    false);
+                SizeWindowToRect(window, newPosition, false);
             }
         }
     }
@@ -1433,10 +1103,7 @@ IsStandardWindow(HWND window)
 
     char className[256]{};
 
-    GetClassNameA(
-        window,
-        className,
-        sizeof(className));
+    GetClassNameA(window, className, sizeof(className));
 
     printf(
         "STANDARD class=%s hwnd=%p "
@@ -1712,15 +1379,9 @@ IsProcessable(HWND window) noexcept
 {
     char className[256]{};
 
-    GetClassNameA(
-        window,
-        className,
-        sizeof(className));
+    GetClassNameA(window, className, sizeof(className));
 
-    printf(
-        "PROCESSABLE CHECK hwnd=%p class=%s\n",
-        window,
-        className);
+    printf("PROCESSABLE CHECK hwnd=%p class=%s\n", window, className);
 
     if (!_stricmp(className, "XamlExplorerHostIslandWindow"))
     {
@@ -1753,9 +1414,7 @@ IsProcessable(HWND window) noexcept
     // also, popup could be the windows we want to snap disregarding the "allowSnapPopupWindows" setting, e.g. Telegram
     bool isPopup = IsPopupWindow(window);
     bool hasThickFrame = HasThickFrame(window);
-    if (isPopup &&
-        !hasThickFrame &&
-        GetWindow(window, GW_OWNER) != nullptr)
+    if (isPopup && !hasThickFrame && GetWindow(window, GW_OWNER) != nullptr)
     {
         printf("REJECT isPopup && !hasThickFrame\n");
         return false;
@@ -1787,23 +1446,16 @@ IsProcessable(HWND window) noexcept
     return true;
 }
 
-static bool IsIgnoredForegroundWindow(HWND hwnd)
+static bool
+IsIgnoredForegroundWindow(HWND hwnd)
 {
     char className[256]{};
 
-    GetClassNameA(
-        hwnd,
-        className,
-        sizeof(className));
+    GetClassNameA(hwnd, className, sizeof(className));
 
-    return
-        !_stricmp(
-            className,
-            "ApplicationManager_DesktopShellWindow") ||
+    return !_stricmp(className, "ApplicationManager_DesktopShellWindow") ||
 
-        !_stricmp(
-            className,
-            "WinUIDesktopWin32WindowClass");
+           !_stricmp(className, "WinUIDesktopWin32WindowClass");
 }
 
 static void
@@ -1825,7 +1477,7 @@ struct MonitorSignal
     ULONGLONG Tick{};
 };
 
-static std::atomic<HMONITOR> g_LastInteractionMonitor{ nullptr };
+static std::atomic<HMONITOR> g_LastInteractionMonitor{nullptr};
 
 static MonitorSignal g_LastTaskbarMonitor{};
 static MonitorSignal g_LastMouseMonitor{};
@@ -1860,49 +1512,32 @@ DetermineLaunchMonitor(HWND newWindow)
     LaunchSignal signal;
 
     {
-        std::lock_guard<std::mutex> lock(
-            g_SignalLock);
+        std::lock_guard<std::mutex> lock(g_SignalLock);
 
         signal = g_LastLaunchSignal;
     }
 
-    printf(
-        "DEBUG launch monitor=%p tick=%llu source=%d\n",
-        signal.Monitor,
-        signal.Tick,
-        (int)signal.Source);
+    printf("DEBUG launch monitor=%p tick=%llu source=%d\n", signal.Monitor, signal.Tick, (int)signal.Source);
 
-    printf(
-        "DEBUG taskbar monitor=%p tick=%llu\n",
-        g_LastTaskbarMonitor.Monitor,
-        g_LastTaskbarMonitor.Tick);
+    printf("DEBUG taskbar monitor=%p tick=%llu\n", g_LastTaskbarMonitor.Monitor, g_LastTaskbarMonitor.Tick);
 
-    printf(
-        "DEBUG mouse monitor=%p tick=%llu\n",
-        g_LastMouseMonitor.Monitor,
-        g_LastMouseMonitor.Tick);
+    printf("DEBUG mouse monitor=%p tick=%llu\n", g_LastMouseMonitor.Monitor, g_LastMouseMonitor.Tick);
 
     const ULONGLONG now = NowMs();
 
-    printf(
-        "DEBUG launch age=%llu\n",
-        now - signal.Tick);
+    printf("DEBUG launch age=%llu\n", now - signal.Tick);
 
-    printf(
-        "signal.Monitor=%p age=%llu\n",
-        signal.Monitor,
-        now - signal.Tick);
+    printf("signal.Monitor=%p age=%llu\n", signal.Monitor, now - signal.Tick);
 
     //
     // Start menu / launcher surface.
     //
-    if (signal.Monitor)/* &&
-        (now - signal.Tick) < 1500)*/
+    if (signal.Monitor) /* &&
+         (now - signal.Tick) < 1500)*/
     {
-        printf(
-            "TAKING LaunchSignal branch\n");
+        printf("TAKING LaunchSignal branch\n");
 
-        const char* source = "Unknown";
+        const char *source = "Unknown";
 
         switch (signal.Source)
         {
@@ -1925,10 +1560,7 @@ DetermineLaunchMonitor(HWND newWindow)
             signal.Monitor,
             now - signal.Tick);*/
 
-        printf(
-            "LaunchMonitor source=%s monitor=%p\n",
-            source,
-            signal.Monitor);
+        printf("LaunchMonitor source=%s monitor=%p\n", source, signal.Monitor);
 
         return signal.Monitor;
     }
@@ -1936,8 +1568,7 @@ DetermineLaunchMonitor(HWND newWindow)
     //
     // Explicit taskbar interaction.
     //
-    if (g_LastTaskbarMonitor.Monitor &&
-        (now - g_LastTaskbarMonitor.Tick) < 1500)
+    if (g_LastTaskbarMonitor.Monitor && (now - g_LastTaskbarMonitor.Tick) < 1500)
     {
         printf(
             "LaunchMonitor source=Taskbar monitor=%p age=%llu\n",
@@ -1950,8 +1581,7 @@ DetermineLaunchMonitor(HWND newWindow)
     //
     // Real mouse interaction.
     //
-    if (g_LastMouseMonitor.Monitor &&
-        (now - g_LastMouseMonitor.Tick) < 1500)
+    if (g_LastMouseMonitor.Monitor && (now - g_LastMouseMonitor.Tick) < 1500)
     {
         printf(
             "LaunchMonitor source=Mouse monitor=%p age=%llu\n",
@@ -1967,34 +1597,24 @@ DetermineLaunchMonitor(HWND newWindow)
     {
         if (!IsIgnoredForegroundWindow(fg))
         {
-            return MonitorFromWindow(
-                fg,
-                MONITOR_DEFAULTTONEAREST);
+            return MonitorFromWindow(fg, MONITOR_DEFAULTTONEAREST);
         }
 
-        printf(
-            "Ignoring foreground class during launch\n");
+        printf("Ignoring foreground class during launch\n");
     }
 
     POINT pt{};
 
     if (GetCursorPos(&pt))
     {
-        return MonitorFromPoint(
-            pt,
-            MONITOR_DEFAULTTOPRIMARY);
+        return MonitorFromPoint(pt, MONITOR_DEFAULTTOPRIMARY);
     }
 
-    return MonitorFromWindow(
-        newWindow,
-        MONITOR_DEFAULTTOPRIMARY);
+    return MonitorFromWindow(newWindow, MONITOR_DEFAULTTOPRIMARY);
 }
 
 static LRESULT CALLBACK
-LowLevelMouseProc(
-    int nCode,
-    WPARAM wParam,
-    LPARAM lParam)
+LowLevelMouseProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     if (nCode == HC_ACTION)
     {
@@ -2003,109 +1623,61 @@ LowLevelMouseProc(
         case WM_LBUTTONDOWN:
         case WM_RBUTTONDOWN:
         case WM_MBUTTONDOWN:
-        case WM_NCLBUTTONDOWN:
-        {
-            const MSLLHOOKSTRUCT* mouse =
-                (const MSLLHOOKSTRUCT*)lParam;
+        case WM_NCLBUTTONDOWN: {
+            const MSLLHOOKSTRUCT *mouse = (const MSLLHOOKSTRUCT *)lParam;
 
-                
             MONITORINFOEX mi{};
             mi.cbSize = sizeof(mi);
 
-            HMONITOR monitor =
-                MonitorFromPoint(
-                    mouse->pt,
-                    MONITOR_DEFAULTTOPRIMARY);
+            HMONITOR monitor = MonitorFromPoint(mouse->pt, MONITOR_DEFAULTTOPRIMARY);
 
-            GetMonitorInfo(
-                monitor,
-                &mi);
+            GetMonitorInfo(monitor, &mi);
 
             char buf[256];
 
-            sprintf_s(
-                buf,
-                "CLICK MONITOR=%p (%ld,%ld)\n",
-                monitor,
-                mouse->pt.x,
-                mouse->pt.y);
+            sprintf_s(buf, "CLICK MONITOR=%p (%ld,%ld)\n", monitor, mouse->pt.x, mouse->pt.y);
 
             printf(buf);
 
-            HWND hwnd =
-                WindowFromPoint(mouse->pt);
+            HWND hwnd = WindowFromPoint(mouse->pt);
 
             char cls[256]{};
 
-            GetClassNameA(
-                hwnd,
-                cls,
-                sizeof(cls));
+            GetClassNameA(hwnd, cls, sizeof(cls));
 
-            printf(
-                "CLICK hwnd=%p class=%s monitor=%p\n",
-                hwnd,
-                cls,
-                monitor);
+            printf("CLICK hwnd=%p class=%s monitor=%p\n", hwnd, cls, monitor);
 
-            HWND root =
-                GetAncestor(
-                    hwnd,
-                    GA_ROOT);
+            HWND root = GetAncestor(hwnd, GA_ROOT);
 
-            if (GetProp(
-                    root,
-                    L"SDC_SPANNED"))
+            if (GetProp(root, L"SDC_SPANNED"))
             {
-                printf(
-                    "PRE-RESTORE root=%p class=%s\n",
-                    root,
-                    cls);
+                printf("PRE-RESTORE root=%p class=%s\n", root, cls);
 
-                RestoreSpannedWindow(
-                    root);
+                RestoreSpannedWindow(root);
             }
 
-            g_LastInteractionMonitor.store(
-                monitor,
-                std::memory_order_relaxed);
+            g_LastInteractionMonitor.store(monitor, std::memory_order_relaxed);
 
             g_LastMouseMonitor.Monitor = monitor;
             g_LastMouseMonitor.Tick = NowMs();
 
             {
-                std::lock_guard<std::mutex> lock(
-                    g_SignalLock);
+                std::lock_guard<std::mutex> lock(g_SignalLock);
 
-                const bool isDesktopClick =
-                    !_stricmp(cls, "SysListView32");
+                const bool isDesktopClick = !_stricmp(cls, "SysListView32");
 
                 if (isDesktopClick)
                 {
-                    g_LastLaunchSignal =
-                    {
-                        monitor,
-                        NowMs(),
-                        LaunchSignalSource::Mouse
-                    };
+                    g_LastLaunchSignal = {monitor, NowMs(), LaunchSignalSource::Mouse};
 
-                    printf(
-                        "DESKTOP LAUNCH SIGNAL=%p\n",
-                        monitor);
+                    printf("DESKTOP LAUNCH SIGNAL=%p\n", monitor);
                 }
-                else if (g_LastLaunchSignal.Source != LaunchSignalSource::StartMenu &&
-                        g_LastLaunchSignal.Source != LaunchSignalSource::Taskbar)
+                else if (
+                    g_LastLaunchSignal.Source != LaunchSignalSource::StartMenu &&
+                    g_LastLaunchSignal.Source != LaunchSignalSource::Taskbar)
                 {
-                    printf(
-                        "MOUSE SIGNAL=%p class=%s\n",
-                        monitor,
-                        cls);
-                    g_LastLaunchSignal =
-                    {
-                        monitor,
-                        NowMs(),
-                        LaunchSignalSource::Mouse
-                    };
+                    printf("MOUSE SIGNAL=%p class=%s\n", monitor, cls);
+                    g_LastLaunchSignal = {monitor, NowMs(), LaunchSignalSource::Mouse};
                 }
             }
 
@@ -2114,11 +1686,7 @@ LowLevelMouseProc(
         }
     }
 
-    return CallNextHookEx(
-        nullptr,
-        nCode,
-        wParam,
-        lParam);
+    return CallNextHookEx(nullptr, nCode, wParam, lParam);
 }
 
 static void
@@ -2136,13 +1704,10 @@ WindowCreated(HWND window) noexcept
 
     StampMovedOnOpeningProperty(window);
 
-    HMONITOR activeMonitor =
-        DetermineLaunchMonitor(
-            window);
+    HMONITOR activeMonitor = DetermineLaunchMonitor(window);
 
     {
-        std::lock_guard<std::mutex> lock(
-            g_SignalLock);
+        std::lock_guard<std::mutex> lock(g_SignalLock);
 
         printf(
             "CLEARING launch signal source=%d monitor=%p\n",
@@ -2154,136 +1719,111 @@ WindowCreated(HWND window) noexcept
 
     char buf[256];
 
-    sprintf_s(
-        buf,
-        "DetermineLaunchMonitor returned=%p\n",
-        activeMonitor);
+    sprintf_s(buf, "DetermineLaunchMonitor returned=%p\n", activeMonitor);
 
     printf(buf);
 
     if (!activeMonitor)
     {
-        activeMonitor =
-            MonitorFromPoint(
-                POINT{ 0, 0 },
-                MONITOR_DEFAULTTOPRIMARY);
+        activeMonitor = MonitorFromPoint(POINT{0, 0}, MONITOR_DEFAULTTOPRIMARY);
     }
 
-    m_dpiUnawareThread.submit(
-        OnThreadExecutor::task_t{
-            [window, activeMonitor]
+    m_dpiUnawareThread.submit(OnThreadExecutor::task_t{[window, activeMonitor] {
+        RECT previous{};
+        RECT current{};
+
+        //
+        // Wait up to 1 second for the app to settle.
+        //
+        int stableCount = 0;
+
+        for (int i = 0; i < 20; i++)
+        {
+            RECT current{};
+
+            if (!GetWindowRect(window, &current))
             {
-                RECT previous{};
-                RECT current{};
-
-                //
-                // Wait up to 1 second for the app to settle.
-                //
-                int stableCount = 0;
-
-                for (int i = 0; i < 20; i++)
-                {
-                    RECT current{};
-
-                    if (!GetWindowRect(
-                            window,
-                            &current))
-                    {
-                        return;
-                    }
-
-                    if (EqualRect(
-                            &previous,
-                            &current))
-                    {
-                        stableCount++;
-
-                        if (stableCount >= 3)
-                        {
-                            break;
-                        }
-                    }
-                    else
-                    {
-                        stableCount = 0;
-                    }
-
-                    previous = current;
-
-                    Sleep(100);
-                }
-
-                RECT r{};
-                GetWindowRect(window, &r);
-
-                char buf[512];
-
-                sprintf_s(
-                    buf,
-                    "SETTLED hwnd=%p zoomed=%d monitor=%p rect=(%ld,%ld,%ld,%ld)\n",
-                    window,
-                    IsZoomed(window),
-                    MonitorFromWindow(
-                        window,
-                        MONITOR_DEFAULTTONEAREST),
-                    r.left,
-                    r.top,
-                    r.right,
-                    r.bottom);
-
-                printf(buf);
-
-                OpenWindowOnActiveMonitor(
-                    window,
-                    activeMonitor);
-
-                /*POINT cursor{};
-                GetCursorPos(&cursor);
-
-                HMONITOR cursorMonitor =
-                    MonitorFromPoint(
-                        cursor,
-                        MONITOR_DEFAULTTOPRIMARY);
-
-                char buf[512];
-
-                sprintf_s(
-                    buf,
-                    "CLICK=%p CURSOR=%p CURSORPOS=(%ld,%ld)\n",
-                    activeMonitor,
-                    cursorMonitor,
-                    cursor.x,
-                    cursor.y);
-
-                printf(buf);
-
-                OpenWindowOnActiveMonitor(
-                    window,
-                    cursorMonitor);*/
+                return;
             }
-        });
+
+            if (EqualRect(&previous, &current))
+            {
+                stableCount++;
+
+                if (stableCount >= 3)
+                {
+                    break;
+                }
+            }
+            else
+            {
+                stableCount = 0;
+            }
+
+            previous = current;
+
+            Sleep(100);
+        }
+
+        RECT r{};
+        GetWindowRect(window, &r);
+
+        char buf[512];
+
+        sprintf_s(
+            buf,
+            "SETTLED hwnd=%p zoomed=%d monitor=%p rect=(%ld,%ld,%ld,%ld)\n",
+            window,
+            IsZoomed(window),
+            MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST),
+            r.left,
+            r.top,
+            r.right,
+            r.bottom);
+
+        printf(buf);
+
+        OpenWindowOnActiveMonitor(window, activeMonitor);
+
+        /*POINT cursor{};
+        GetCursorPos(&cursor);
+
+        HMONITOR cursorMonitor =
+            MonitorFromPoint(
+                cursor,
+                MONITOR_DEFAULTTOPRIMARY);
+
+        char buf[512];
+
+        sprintf_s(
+            buf,
+            "CLICK=%p CURSOR=%p CURSORPOS=(%ld,%ld)\n",
+            activeMonitor,
+            cursorMonitor,
+            cursor.x,
+            cursor.y);
+
+        printf(buf);
+
+        OpenWindowOnActiveMonitor(
+            window,
+            cursorMonitor);*/
+    }});
 }
 
-void ShowSpanOverlay()
+void
+ShowSpanOverlay()
 {
-    static auto SetWindowCompositionAttribute =
-    reinterpret_cast<SetWindowCompositionAttribute_t>(
-        GetProcAddress(
-            GetModuleHandleW(L"user32.dll"),
-            "SetWindowCompositionAttribute"));
+    static auto SetWindowCompositionAttribute = reinterpret_cast<SetWindowCompositionAttribute_t>(
+        GetProcAddress(GetModuleHandleW(L"user32.dll"), "SetWindowCompositionAttribute"));
 
-    RECT span =
-        GetCombinedWorkAreaRect();
+    RECT span = GetCombinedWorkAreaRect();
 
     constexpr int inset = 16;
 
-    const int width =
-        (span.right - span.left) -
-        inset * 2;
+    const int width = (span.right - span.left) - inset * 2;
 
-    const int height =
-        (span.bottom - span.top) -
-        inset * 2;
+    const int height = (span.bottom - span.top) - inset * 2;
 
     SetWindowPos(
         g_SpanOverlay,
@@ -2294,117 +1834,75 @@ void ShowSpanOverlay()
         (span.bottom - span.top) - inset * 2,
         SWP_SHOWWINDOW);
 
-    HRGN region =
-        CreateRoundRectRgn(
-            0,
-            0,
-            width,
-            height,
-            48,
-            48);
+    HRGN region = CreateRoundRectRgn(0, 0, width, height, 48, 48);
 
     if (SetWindowCompositionAttribute)
     {
         ACCENT_POLICY policy{};
-        policy.AccentState =
-            ACCENT_ENABLE_BLURBEHIND;
+        policy.AccentState = ACCENT_ENABLE_BLURBEHIND;
 
         policy.AccentFlags = 0;
         policy.GradientColor = 0;
 
         WINDOWCOMPOSITIONATTRIBDATA data{};
-        data.Attrib =
-            WCA_ACCENT_POLICY;
+        data.Attrib = WCA_ACCENT_POLICY;
 
-        data.pvData =
-            &policy;
+        data.pvData = &policy;
 
-        data.cbData =
-            sizeof(policy);
+        data.cbData = sizeof(policy);
 
-        SetWindowCompositionAttribute(
-            g_SpanOverlay,
-            &data);
+        SetWindowCompositionAttribute(g_SpanOverlay, &data);
     }
 
-    SetWindowRgn(
-        g_SpanOverlay,
-        region,
-        TRUE);
+    SetWindowRgn(g_SpanOverlay, region, TRUE);
 
-    RedrawWindow(
-        g_SpanOverlay,
-        nullptr,
-        nullptr,
-        RDW_INVALIDATE |
-        RDW_ERASE |
-        RDW_UPDATENOW);
+    RedrawWindow(g_SpanOverlay, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_UPDATENOW);
 
-    DWM_SYSTEMBACKDROP_TYPE backdrop =
-        DWMSBT_TRANSIENTWINDOW;
+    DWM_SYSTEMBACKDROP_TYPE backdrop = DWMSBT_TRANSIENTWINDOW;
 
-    DwmSetWindowAttribute(
-        g_SpanOverlay,
-        DWMWA_SYSTEMBACKDROP_TYPE,
-        &backdrop,
-        sizeof(backdrop));
+    DwmSetWindowAttribute(g_SpanOverlay, DWMWA_SYSTEMBACKDROP_TYPE, &backdrop, sizeof(backdrop));
 }
 
-void HideSpanOverlay()
+void
+HideSpanOverlay()
 {
-    ShowWindow(
-        g_SpanOverlay,
-        SW_HIDE);
+    ShowWindow(g_SpanOverlay, SW_HIDE);
 }
 
-void UpdateSpanPreview()
+void
+UpdateSpanPreview()
 {
-    if (!g_Dragging ||
-        !g_DragWindow)
+    if (!g_Dragging || !g_DragWindow)
     {
         return;
     }
 
     RECT windowRect{};
 
-    if (!GetWindowRect(
-            g_DragWindow,
-            &windowRect))
+    if (!GetWindowRect(g_DragWindow, &windowRect))
     {
         return;
     }
 
-    auto seam =
-        GetSeamInfo();
+    auto seam = GetSeamInfo();
 
     POINT pt{};
     GetCursorPos(&pt);
 
-    printf(
-        "SEAM=%ld CURSOR=(%ld,%ld)\n",
-        seam.position,
-        pt.x,
-        pt.y);
+    printf("SEAM=%ld CURSOR=(%ld,%ld)\n", seam.position, pt.x, pt.y);
 
     LONG delta = LONG_MAX;
 
     if (seam.orientation == SeamOrientation::Vertical)
     {
-        delta =
-            abs(
-                pt.x -
-                seam.position);
+        delta = abs(pt.x - seam.position);
     }
     else if (seam.orientation == SeamOrientation::Horizontal)
     {
-        delta =
-            abs(
-                pt.y -
-                seam.position);
+        delta = abs(pt.y - seam.position);
     }
 
-    if (seam.orientation ==
-        SeamOrientation::None)
+    if (seam.orientation == SeamOrientation::None)
     {
         if (g_SpanPreviewVisible)
         {
@@ -2421,8 +1919,7 @@ void UpdateSpanPreview()
         {
             ShowSpanOverlay();
 
-            g_SpanPreviewVisible =
-                true;
+            g_SpanPreviewVisible = true;
         }
     }
     else
@@ -2431,8 +1928,7 @@ void UpdateSpanPreview()
         {
             HideSpanOverlay();
 
-            g_SpanPreviewVisible =
-                false;
+            g_SpanPreviewVisible = false;
         }
     }
 }
@@ -2475,61 +1971,37 @@ WinHookProc(
             WindowCreated(window);
         }
         break;
-    case EVENT_SYSTEM_FOREGROUND:
-    {
+    case EVENT_SYSTEM_FOREGROUND: {
         char className[256]{};
         wchar_t title[256]{};
 
-        GetClassNameA(
-            window,
-            className,
-            sizeof(className));
+        GetClassNameA(window, className, sizeof(className));
 
-        GetWindowTextW(
-            window,
-            title,
-            ARRAYSIZE(title));
+        GetWindowTextW(window, title, ARRAYSIZE(title));
 
-        HMONITOR monitor =
-            MonitorFromWindow(
-                window,
-                MONITOR_DEFAULTTONEAREST);
+        HMONITOR monitor = MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
 
-        if (!_stricmp(className, "Shell_TrayWnd") ||
-            !_stricmp(className, "Shell_SecondaryTrayWnd"))
+        if (!_stricmp(className, "Shell_TrayWnd") || !_stricmp(className, "Shell_SecondaryTrayWnd"))
         {
             g_LastTaskbarMonitor.Monitor = monitor;
             g_LastTaskbarMonitor.Tick = NowMs();
 
             char taskbarBuf[256];
 
-            sprintf_s(
-                taskbarBuf,
-                "TASKBAR MONITOR UPDATED=%p\n",
-                monitor);
+            sprintf_s(taskbarBuf, "TASKBAR MONITOR UPDATED=%p\n", monitor);
 
             printf("%s", taskbarBuf);
         }
 
-        if (!_stricmp(className, "Shell_TrayWnd") ||
-            !_stricmp(className, "Shell_SecondaryTrayWnd"))
+        if (!_stricmp(className, "Shell_TrayWnd") || !_stricmp(className, "Shell_SecondaryTrayWnd"))
         {
-            std::lock_guard<std::mutex> lock(
-                g_SignalLock);
+            std::lock_guard<std::mutex> lock(g_SignalLock);
 
-            if (g_LastLaunchSignal.Source !=
-                LaunchSignalSource::Taskbar)
+            if (g_LastLaunchSignal.Source != LaunchSignalSource::Taskbar)
             {
-                g_LastLaunchSignal =
-                {
-                    monitor,
-                    NowMs(),
-                    LaunchSignalSource::Taskbar
-                };
+                g_LastLaunchSignal = {monitor, NowMs(), LaunchSignalSource::Taskbar};
 
-                printf(
-                    "TASKBAR LAUNCH SIGNAL=%p\n",
-                    monitor);
+                printf("TASKBAR LAUNCH SIGNAL=%p\n", monitor);
             }
         }
 
@@ -2538,20 +2010,12 @@ WinHookProc(
             if (!_wcsicmp(title, L"Start"))
             {
                 {
-                    std::lock_guard<std::mutex> lock(
-                        g_SignalLock);
+                    std::lock_guard<std::mutex> lock(g_SignalLock);
 
-                    g_LastLaunchSignal =
-                    {
-                        monitor,
-                        NowMs(),
-                        LaunchSignalSource::StartMenu
-                    };
+                    g_LastLaunchSignal = {monitor, NowMs(), LaunchSignalSource::StartMenu};
                 }
 
-                printf(
-                    "START MONITOR UPDATED=%p\n",
-                    monitor);
+                printf("START MONITOR UPDATED=%p\n", monitor);
             }
         }
 
@@ -2559,12 +2023,7 @@ WinHookProc(
         {
             char buf[1024];
 
-            sprintf_s(
-                buf,
-                "COREWINDOW hwnd=%p monitor=%p title=%ws\n",
-                window,
-                monitor,
-                title);
+            sprintf_s(buf, "COREWINDOW hwnd=%p monitor=%p title=%ws\n", window, monitor, title);
 
             printf("%s", buf);
         }
@@ -2572,9 +2031,7 @@ WinHookProc(
         MONITORINFOEX mi{};
         mi.cbSize = sizeof(mi);
 
-        GetMonitorInfo(
-            monitor,
-            &mi);
+        GetMonitorInfo(monitor, &mi);
 
         char buf[2048];
 
@@ -2595,26 +2052,17 @@ WinHookProc(
 
         break;
     }
-    case EVENT_SYSTEM_MOVESIZESTART:
-    {
-        printf(
-            "MOVESIZESTART hwnd=%p class=",
-            window);
+    case EVENT_SYSTEM_MOVESIZESTART: {
+        printf("MOVESIZESTART hwnd=%p class=", window);
 
         char cls[256]{};
-        GetClassNameA(
-            window,
-            cls,
-            sizeof(cls));
+        GetClassNameA(window, cls, sizeof(cls));
 
         printf("%s\n", cls);
 
-        if (GetProp(
-                window,
-                L"SDC_SPANNED"))
+        if (GetProp(window, L"SDC_SPANNED"))
         {
-            RestoreSpannedWindow(
-                window);
+            RestoreSpannedWindow(window);
         }
 
         HideSpanOverlay();
@@ -2623,27 +2071,16 @@ WinHookProc(
         g_Dragging = true;
         g_DragWindow = window;
 
-        SetTimer(
-            nullptr,
-            SPAN_PREVIEW_TIMER,
-            16,
-            [](HWND, UINT, UINT_PTR, DWORD)
-            {
-                UpdateSpanPreview();
-            });
+        SetTimer(nullptr, SPAN_PREVIEW_TIMER, 16, [](HWND, UINT, UINT_PTR, DWORD) { UpdateSpanPreview(); });
 
         break;
     }
-    case EVENT_SYSTEM_MOVESIZEEND:
-    {
+    case EVENT_SYSTEM_MOVESIZEEND: {
         if (g_Dragging)
         {
-            KillTimer(
-                nullptr,
-                SPAN_PREVIEW_TIMER);
-            
-            auto seam =
-                GetSeamInfo();
+            KillTimer(nullptr, SPAN_PREVIEW_TIMER);
+
+            auto seam = GetSeamInfo();
 
             HideSpanOverlay();
             g_SpanPreviewVisible = false;
@@ -2654,51 +2091,34 @@ WinHookProc(
             }
 
             RECT windowRect{};
-            GetWindowRect(
-                g_DragWindow,
-                &windowRect);
+            GetWindowRect(g_DragWindow, &windowRect);
 
             LONG delta = LONG_MAX;
 
             POINT pt{};
             GetCursorPos(&pt);
 
-            printf(
-                "SEAM=%ld CURSOR=(%ld,%ld)\n",
-                seam.position,
-                pt.x,
-                pt.y);
+            printf("SEAM=%ld CURSOR=(%ld,%ld)\n", seam.position, pt.x, pt.y);
 
-            if (seam.orientation ==
-                SeamOrientation::Vertical)
+            if (seam.orientation == SeamOrientation::Vertical)
             {
-                delta =
-                    abs(
-                        pt.x -
-                        seam.position);
+                delta = abs(pt.x - seam.position);
             }
-            else if (seam.orientation ==
-                SeamOrientation::Horizontal)
+            else if (seam.orientation == SeamOrientation::Horizontal)
             {
-                delta =
-                    abs(
-                        pt.y -
-                        seam.position);
+                delta = abs(pt.y - seam.position);
             }
 
-            if (seam.orientation ==
-                SeamOrientation::None)
+            if (seam.orientation == SeamOrientation::None)
             {
                 g_Dragging = false;
                 g_DragWindow = nullptr;
                 break;
             }
 
-            if (delta < COMMIT_MARGIN &&
-                !GetProp(window, L"SDC_SPANNED"))
+            if (delta < COMMIT_MARGIN && !GetProp(window, L"SDC_SPANNED"))
             {
-                SpanOrCenterWindow(
-                    window);
+                SpanOrCenterWindow(window);
             }
 
             g_Dragging = false;
@@ -2706,13 +2126,10 @@ WinHookProc(
         }
         break;
     }
-    case EVENT_OBJECT_DESTROY:
-    {
+    case EVENT_OBJECT_DESTROY: {
         g_SpanStates.erase(window);
 
-        RemoveProp(
-            window,
-            L"SDC_SPANNED");
+        RemoveProp(window, L"SDC_SPANNED");
 
         break;
     }
@@ -2720,115 +2137,86 @@ WinHookProc(
 }
 
 static LRESULT CALLBACK
-OverlayWndProc(
-    HWND hwnd,
-    UINT msg,
-    WPARAM wParam,
-    LPARAM lParam)
+OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg)
     {
     case WM_ERASEBKGND:
         return 1;
-    /*case WM_PAINT:
-    {
+        /*case WM_PAINT:
+        {
+            PAINTSTRUCT ps{};
+            HDC hdc = BeginPaint(hwnd, &ps);
+
+            RECT rc{};
+            GetClientRect(hwnd, &rc);
+
+            FillRect(
+                hdc,
+                &rc,
+                (HBRUSH)GetStockObject(BLACK_BRUSH));
+
+            HBRUSH brush =
+                CreateSolidBrush(
+                    RGB(240,240,240));
+
+            HPEN pen =
+                (HPEN)GetStockObject(NULL_PEN);
+
+            auto oldPen =
+                SelectObject(hdc, pen);
+
+            auto oldBrush =
+                SelectObject(hdc, brush);
+
+            RoundRect(
+                hdc,
+                0,
+                0,
+                rc.right,
+                rc.bottom,
+                16,
+                16);
+
+            SelectObject(hdc, oldPen);
+            SelectObject(hdc, oldBrush);
+
+            DeleteObject(brush);
+
+            EndPaint(hwnd, &ps);
+            return 0;
+        }*/
+        /*case WM_PAINT:
+         {
+             PAINTSTRUCT ps{};
+             BeginPaint(hwnd, &ps);
+             EndPaint(hwnd, &ps);
+             return 0;
+         }*/
+    case WM_PAINT: {
         PAINTSTRUCT ps{};
         HDC hdc = BeginPaint(hwnd, &ps);
 
         RECT rc{};
         GetClientRect(hwnd, &rc);
 
-        FillRect(
-            hdc,
-            &rc,
-            (HBRUSH)GetStockObject(BLACK_BRUSH));
-
-        HBRUSH brush =
-            CreateSolidBrush(
-                RGB(240,240,240));
-
-        HPEN pen =
-            (HPEN)GetStockObject(NULL_PEN);
-
-        auto oldPen =
-            SelectObject(hdc, pen);
-
-        auto oldBrush =
-            SelectObject(hdc, brush);
-
-        RoundRect(
-            hdc,
-            0,
-            0,
-            rc.right,
-            rc.bottom,
-            16,
-            16);
-
-        SelectObject(hdc, oldPen);
-        SelectObject(hdc, oldBrush);
-
-        DeleteObject(brush);
-
-        EndPaint(hwnd, &ps);
-        return 0;
-    }*/
-   /*case WM_PAINT:
-    {
-        PAINTSTRUCT ps{};
-        BeginPaint(hwnd, &ps);
-        EndPaint(hwnd, &ps);
-        return 0;
-    }*/
-    case WM_PAINT:
-    {
-        PAINTSTRUCT ps{};
-        HDC hdc = BeginPaint(hwnd, &ps);
-
-        RECT rc{};
-        GetClientRect(hwnd, &rc);
-
-        HBRUSH brush =
-            CreateSolidBrush(
-                RGB(255,255,255));
+        HBRUSH brush = CreateSolidBrush(RGB(255, 255, 255));
 
         BLENDFUNCTION blend{};
         blend.BlendOp = AC_SRC_OVER;
         blend.SourceConstantAlpha = 12; // experiment
 
-        HDC memDc =
-            CreateCompatibleDC(hdc);
+        HDC memDc = CreateCompatibleDC(hdc);
 
-        HBITMAP bmp =
-            CreateCompatibleBitmap(
-                hdc,
-                rc.right,
-                rc.bottom);
+        HBITMAP bmp = CreateCompatibleBitmap(hdc, rc.right, rc.bottom);
 
-        auto oldBmp =
-            SelectObject(memDc, bmp);
+        auto oldBmp = SelectObject(memDc, bmp);
 
-        FillRect(
-            memDc,
-            &rc,
-            brush);
+        FillRect(memDc, &rc, brush);
 
-        AlphaBlend(
-            hdc,
-            0,
-            0,
-            rc.right,
-            rc.bottom,
-            memDc,
-            0,
-            0,
-            rc.right,
-            rc.bottom,
-            blend);
+        AlphaBlend(hdc, 0, 0, rc.right, rc.bottom, memDc, 0, 0, rc.right, rc.bottom, blend);
 
-        SelectObject(
-            memDc,
-            oldBmp);
+        SelectObject(memDc, oldBmp);
 
         DeleteObject(bmp);
         DeleteObject(brush);
@@ -2842,11 +2230,7 @@ OverlayWndProc(
         return HTTRANSPARENT;
     }
 
-    return DefWindowProc(
-        hwnd,
-        msg,
-        wParam,
-        lParam);
+    return DefWindowProc(hwnd, msg, wParam, lParam);
 }
 
 VOID
@@ -2856,26 +2240,20 @@ ActiveMonitorWindowHandlerMain()
 
     SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
 
-    POINT pt = { 0, 0 };
+    POINT pt = {0, 0};
 
-    g_LastInteractionMonitor.store(
-        MonitorFromPoint(
-            pt,
-            MONITOR_DEFAULTTOPRIMARY),
-        std::memory_order_relaxed);
+    g_LastInteractionMonitor.store(MonitorFromPoint(pt, MONITOR_DEFAULTTOPRIMARY), std::memory_order_relaxed);
 
     WNDCLASSEX wc{};
-        wc.cbSize = sizeof(wc);
-        wc.lpfnWndProc = OverlayWndProc;
-        wc.hInstance = GetModuleHandle(nullptr);
-        wc.lpszClassName = L"SpanOverlay";
+    wc.cbSize = sizeof(wc);
+    wc.lpfnWndProc = OverlayWndProc;
+    wc.hInstance = GetModuleHandle(nullptr);
+    wc.lpszClassName = L"SpanOverlay";
 
-        RegisterClassEx(&wc);
+    RegisterClassEx(&wc);
 
     g_SpanOverlay = CreateWindowEx(
-        WS_EX_TOOLWINDOW |
-        WS_EX_TRANSPARENT |
-        WS_EX_NOACTIVATE,
+        WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE,
         L"SpanOverlay",
         L"",
         WS_POPUP,
@@ -2888,41 +2266,21 @@ ActiveMonitorWindowHandlerMain()
         GetModuleHandle(nullptr),
         nullptr);
 
-    DWM_WINDOW_CORNER_PREFERENCE pref =
-        DWMWCP_ROUND;
+    DWM_WINDOW_CORNER_PREFERENCE pref = DWMWCP_ROUND;
 
-    DwmSetWindowAttribute(
-        g_SpanOverlay,
-        DWMWA_WINDOW_CORNER_PREFERENCE,
-        &pref,
-        sizeof(pref));
+    DwmSetWindowAttribute(g_SpanOverlay, DWMWA_WINDOW_CORNER_PREFERENCE, &pref, sizeof(pref));
 
-    MARGINS margins =
-    {
-        -1
-    };
+    MARGINS margins = {-1};
 
-    DwmExtendFrameIntoClientArea(
-        g_SpanOverlay,
-        &margins);
+    DwmExtendFrameIntoClientArea(g_SpanOverlay, &margins);
 
     BOOL enable = TRUE;
 
-    DwmSetWindowAttribute(
-        g_SpanOverlay,
-        DWMWA_NCRENDERING_ENABLED,
-        &enable,
-        sizeof(enable));
+    DwmSetWindowAttribute(g_SpanOverlay, DWMWA_NCRENDERING_ENABLED, &enable, sizeof(enable));
 
-    g_MouseHook =
-    SetWindowsHookEx(
-        WH_MOUSE_LL,
-        LowLevelMouseProc,
-        GetModuleHandle(NULL),
-        0);
+    g_MouseHook = SetWindowsHookEx(WH_MOUSE_LL, LowLevelMouseProc, GetModuleHandle(NULL), 0);
 
-    std::array<DWORD, 8> events_to_subscribe =
-    {
+    std::array<DWORD, 8> events_to_subscribe = {
         EVENT_SYSTEM_FOREGROUND,
         EVENT_OBJECT_NAMECHANGE,
         EVENT_OBJECT_UNCLOAKED,
@@ -2930,8 +2288,7 @@ ActiveMonitorWindowHandlerMain()
         EVENT_OBJECT_CREATE,
         EVENT_SYSTEM_MOVESIZESTART,
         EVENT_SYSTEM_MOVESIZEEND,
-        EVENT_OBJECT_DESTROY
-    };
+        EVENT_OBJECT_DESTROY};
 
     for (const auto event : events_to_subscribe)
     {
@@ -2955,7 +2312,7 @@ ActiveMonitorWindowHandlerMain()
         {
             UpdateMonitorWorkAreas();
         }
-        
+
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }

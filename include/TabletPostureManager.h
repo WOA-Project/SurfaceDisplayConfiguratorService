@@ -36,7 +36,6 @@ InitializeTabletPostureSubscriptions();
 VOID WINAPI
 ShutdownTabletPostureSubscriptions();
 DWORD WINAPI
-TaskbarRegistryMonitorThread(
-    LPVOID Context);
+TaskbarRegistryMonitorThread(LPVOID Context);
 
 extern HANDLE g_TaskbarMonitorThread;

@@ -518,8 +518,8 @@ SetDisplayStates(
         return STATUS_INVALID_PARAMETER;
     }*/
 
-    BOOLEAN PLD1IsLeftDisplay = TRUE;//PLD1.CabinetNumber == 1;
-    BOOLEAN PLD2IsRightDisplay = TRUE;//PLD2.CabinetNumber == 0;
+    BOOLEAN PLD1IsLeftDisplay = TRUE;  // PLD1.CabinetNumber == 1;
+    BOOLEAN PLD2IsRightDisplay = TRUE; // PLD2.CabinetNumber == 0;
 
     CONST WCHAR *LeftDisplayPanelId = PLD1IsLeftDisplay ? DisplayPanelId1 : DisplayPanelId2;
     CONST WCHAR *RightDisplayPanelId = PLD2IsRightDisplay ? DisplayPanelId2 : DisplayPanelId1;
@@ -527,15 +527,14 @@ SetDisplayStates(
     INT RightDisplayOrientation = PLD2IsRightDisplay ? DisplayOrientation2 : DisplayOrientation1;
     BOOLEAN LeftDisplayState = PLD1IsLeftDisplay ? DisplayState1 : DisplayState2;
     BOOLEAN RightDisplayState = PLD2IsRightDisplay ? DisplayState2 : DisplayState1;
-    
+
     return SetDisplayStatesInternal(
         LeftDisplayPanelId,
         RightDisplayPanelId,
         LeftDisplayOrientation,
         RightDisplayOrientation,
         LeftDisplayState,
-        RightDisplayState
-    );
+        RightDisplayState);
 }
 
 HRESULT WINAPI
@@ -585,8 +584,7 @@ SetDisplayStatesInternal(
 
     if (_wcsicmp(LeftDisplayDevice.DeviceName, L"\\\\.\\DISPLAY2") == 0)
     {
-        wprintf(
-            L"DISPLAY2 detected as left display, swapping left/right devices and modes\n");
+        wprintf(L"DISPLAY2 detected as left display, swapping left/right devices and modes\n");
 
         DISPLAY_DEVICE TempDisplayDevice;
         DEVMODE TempDevMode;

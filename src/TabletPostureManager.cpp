@@ -65,7 +65,7 @@ RtlPublishWnfStateData(
     _In_opt_ const PVOID ExplicitScope);
 }
 
-typedef NTSTATUS (NTAPI *PRTL_SUBSCRIBE_WNF_STATE_CHANGE_NOTIFICATION)(
+typedef NTSTATUS(NTAPI *PRTL_SUBSCRIBE_WNF_STATE_CHANGE_NOTIFICATION)(
     PVOID *Subscription,
     WNF_STATE_NAME StateName,
     ULONG ChangeStamp,
@@ -74,8 +74,7 @@ typedef NTSTATUS (NTAPI *PRTL_SUBSCRIBE_WNF_STATE_CHANGE_NOTIFICATION)(
     PVOID TypeId,
     ULONG SerializationGroup);
 
-typedef NTSTATUS (NTAPI *PRTL_UNSUBSCRIBE_WNF_STATE_CHANGE_NOTIFICATION)(
-    PVOID Subscription);
+typedef NTSTATUS(NTAPI *PRTL_UNSUBSCRIBE_WNF_STATE_CHANGE_NOTIFICATION)(PVOID Subscription);
 
 volatile BYTE g_CurrentTabletPosture = 0xFF;
 volatile BYTE g_CurrentTabletMode = 0xFF;
@@ -89,8 +88,7 @@ HANDLE g_TaskbarMonitorThread = nullptr;
 BOOLEAN g_StopTaskbarMonitor = FALSE;
 
 DWORD WINAPI
-TaskbarRegistryMonitorThread(
-    LPVOID Context)
+TaskbarRegistryMonitorThread(LPVOID Context)
 {
     UNREFERENCED_PARAMETER(Context);
 
@@ -106,12 +104,7 @@ TaskbarRegistryMonitorThread(
         return 1;
     }
 
-    HANDLE eventHandle =
-        CreateEvent(
-            nullptr,
-            FALSE,
-            FALSE,
-            nullptr);
+    HANDLE eventHandle = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 
     while (!g_StopTaskbarMonitor)
     {
@@ -130,20 +123,11 @@ TaskbarRegistryMonitorThread(
             g_CurrentTabletPostureTaskbar = value;
         }
 
-        RegNotifyChangeKeyValue(
-            key,
-            FALSE,
-            REG_NOTIFY_CHANGE_LAST_SET,
-            eventHandle,
-            TRUE);
+        RegNotifyChangeKeyValue(key, FALSE, REG_NOTIFY_CHANGE_LAST_SET, eventHandle, TRUE);
 
-        WaitForSingleObject(
-            eventHandle,
-            INFINITE);
+        WaitForSingleObject(eventHandle, INFINITE);
 
-        printf(
-            "Registry: TabletPostureTaskbar=%lu\n",
-            g_CurrentTabletPostureTaskbar);
+        printf("Registry: TabletPostureTaskbar=%lu\n", g_CurrentTabletPostureTaskbar);
     }
 
     CloseHandle(eventHandle);
@@ -158,7 +142,7 @@ TabletPostureWnfCallback(
     WNF_CHANGE_STAMP ChangeStamp,
     PWNF_TYPE_ID TypeId,
     PVOID CallbackContext,
-    const VOID* Buffer,
+    const VOID *Buffer,
     ULONG BufferSize)
 {
     UNREFERENCED_PARAMETER(ChangeStamp);
@@ -170,23 +154,19 @@ TabletPostureWnfCallback(
         return 0;
     }
 
-    BYTE value = *(const BYTE*)Buffer;
+    BYTE value = *(const BYTE *)Buffer;
 
     if (StateName == WNF_TMCN_ISTABLETPOSTURE)
     {
         g_CurrentTabletPosture = value;
 
-        printf(
-            "WNF: TabletPosture=%u\n",
-            value);
+        printf("WNF: TabletPosture=%u\n", value);
     }
     else if (StateName == WNF_TMCN_ISTABLETMODE)
     {
         g_CurrentTabletMode = value;
 
-        printf(
-            "WNF: TabletMode=%u\n",
-            value);
+        printf("WNF: TabletMode=%u\n", value);
     }
 
     return 0;
@@ -195,11 +175,8 @@ TabletPostureWnfCallback(
 BOOL WINAPI
 InitializeTabletPostureSubscriptions()
 {
-    auto Subscribe =
-        (PRTL_SUBSCRIBE_WNF_STATE_CHANGE_NOTIFICATION)
-        GetProcAddress(
-            GetModuleHandleW(L"ntdll.dll"),
-            "RtlSubscribeWnfStateChangeNotification");
+    auto Subscribe = (PRTL_SUBSCRIBE_WNF_STATE_CHANGE_NOTIFICATION)GetProcAddress(
+        GetModuleHandleW(L"ntdll.dll"), "RtlSubscribeWnfStateChangeNotification");
 
     if (!Subscribe)
     {
@@ -213,46 +190,20 @@ InitializeTabletPostureSubscriptions()
     Value = 0;
     Size = sizeof(Value);
 
-    NtQueryWnfStateData(
-        &WNF_TMCN_ISTABLETPOSTURE,
-        nullptr,
-        nullptr,
-        &Stamp,
-        &Value,
-        &Size);
+    NtQueryWnfStateData(&WNF_TMCN_ISTABLETPOSTURE, nullptr, nullptr, &Stamp, &Value, &Size);
 
     g_CurrentTabletPosture = Value;
 
     Value = 0;
     Size = sizeof(Value);
 
-    NtQueryWnfStateData(
-        &WNF_TMCN_ISTABLETMODE,
-        nullptr,
-        nullptr,
-        &Stamp,
-        &Value,
-        &Size);
+    NtQueryWnfStateData(&WNF_TMCN_ISTABLETMODE, nullptr, nullptr, &Stamp, &Value, &Size);
 
     g_CurrentTabletMode = Value;
 
-    Subscribe(
-        &g_TabletPostureSubscription,
-        WNF_TMCN_ISTABLETPOSTURE,
-        0,
-        TabletPostureWnfCallback,
-        nullptr,
-        nullptr,
-        0);
+    Subscribe(&g_TabletPostureSubscription, WNF_TMCN_ISTABLETPOSTURE, 0, TabletPostureWnfCallback, nullptr, nullptr, 0);
 
-    Subscribe(
-        &g_TabletModeSubscription,
-        WNF_TMCN_ISTABLETMODE,
-        0,
-        TabletPostureWnfCallback,
-        nullptr,
-        nullptr,
-        0);
+    Subscribe(&g_TabletModeSubscription, WNF_TMCN_ISTABLETMODE, 0, TabletPostureWnfCallback, nullptr, nullptr, 0);
 
     return TRUE;
 }
@@ -260,11 +211,8 @@ InitializeTabletPostureSubscriptions()
 VOID WINAPI
 ShutdownTabletPostureSubscriptions()
 {
-    auto Unsubscribe =
-        (PRTL_UNSUBSCRIBE_WNF_STATE_CHANGE_NOTIFICATION)
-        GetProcAddress(
-            GetModuleHandleW(L"ntdll.dll"),
-            "RtlUnsubscribeWnfStateChangeNotification");
+    auto Unsubscribe = (PRTL_UNSUBSCRIBE_WNF_STATE_CHANGE_NOTIFICATION)GetProcAddress(
+        GetModuleHandleW(L"ntdll.dll"), "RtlUnsubscribeWnfStateChangeNotification");
 
     if (!Unsubscribe)
     {
@@ -330,7 +278,7 @@ SetTabletPostureState(BOOLEAN state)
 {
     BYTE TabletPosture = (BYTE)state;
 
-    //printf("Set Table Posture State Entry\n");
+    // printf("Set Table Posture State Entry\n");
 
     if (IsOOBEInProgress())
     {
@@ -354,16 +302,11 @@ SetWallpaperSpanStyle()
 {
     HRESULT status;
 
-    const WCHAR* pvData = L"22";
+    const WCHAR *pvData = L"22";
     DWORD pcbData = ((DWORD)wcslen(pvData) + 1) * sizeof(WCHAR);
 
     status = _RegSetKeyValue(
-        HKEY_CURRENT_USER,
-        _T("Control Panel\\Desktop"),
-        _T("WallpaperStyle"),
-        REG_SZ,
-        (PBYTE)pvData,
-        pcbData);
+        HKEY_CURRENT_USER, _T("Control Panel\\Desktop"), _T("WallpaperStyle"), REG_SZ, (PBYTE)pvData, pcbData);
 
     return SUCCEEDED(status);
 }
