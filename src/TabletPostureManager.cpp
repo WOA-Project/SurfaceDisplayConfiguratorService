@@ -65,6 +65,225 @@ RtlPublishWnfStateData(
     _In_opt_ const PVOID ExplicitScope);
 }
 
+typedef NTSTATUS (NTAPI *PRTL_SUBSCRIBE_WNF_STATE_CHANGE_NOTIFICATION)(
+    PVOID *Subscription,
+    WNF_STATE_NAME StateName,
+    ULONG ChangeStamp,
+    PVOID Callback,
+    PVOID CallbackContext,
+    PVOID TypeId,
+    ULONG SerializationGroup);
+
+typedef NTSTATUS (NTAPI *PRTL_UNSUBSCRIBE_WNF_STATE_CHANGE_NOTIFICATION)(
+    PVOID Subscription);
+
+volatile BYTE g_CurrentTabletPosture = 0xFF;
+volatile BYTE g_CurrentTabletMode = 0xFF;
+
+PVOID g_TabletPostureSubscription = nullptr;
+PVOID g_TabletModeSubscription = nullptr;
+
+volatile DWORD g_CurrentTabletPostureTaskbar = 0xFFFFFFFF;
+
+HANDLE g_TaskbarMonitorThread = nullptr;
+BOOLEAN g_StopTaskbarMonitor = FALSE;
+
+DWORD WINAPI
+TaskbarRegistryMonitorThread(
+    LPVOID Context)
+{
+    UNREFERENCED_PARAMETER(Context);
+
+    HKEY key;
+
+    if (RegOpenKeyEx(
+            HKEY_CURRENT_USER,
+            L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer",
+            0,
+            KEY_NOTIFY | KEY_QUERY_VALUE,
+            &key) != ERROR_SUCCESS)
+    {
+        return 1;
+    }
+
+    HANDLE eventHandle =
+        CreateEvent(
+            nullptr,
+            FALSE,
+            FALSE,
+            nullptr);
+
+    while (!g_StopTaskbarMonitor)
+    {
+        DWORD value = 0;
+        DWORD size = sizeof(value);
+
+        if (RegGetValue(
+                HKEY_CURRENT_USER,
+                L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer",
+                L"TabletPostureTaskbar",
+                RRF_RT_REG_DWORD,
+                nullptr,
+                &value,
+                &size) == ERROR_SUCCESS)
+        {
+            g_CurrentTabletPostureTaskbar = value;
+        }
+
+        RegNotifyChangeKeyValue(
+            key,
+            FALSE,
+            REG_NOTIFY_CHANGE_LAST_SET,
+            eventHandle,
+            TRUE);
+
+        WaitForSingleObject(
+            eventHandle,
+            INFINITE);
+
+        printf(
+            "Registry: TabletPostureTaskbar=%lu\n",
+            g_CurrentTabletPostureTaskbar);
+    }
+
+    CloseHandle(eventHandle);
+    RegCloseKey(key);
+
+    return 0;
+}
+
+NTSTATUS CALLBACK
+TabletPostureWnfCallback(
+    WNF_STATE_NAME StateName,
+    WNF_CHANGE_STAMP ChangeStamp,
+    PWNF_TYPE_ID TypeId,
+    PVOID CallbackContext,
+    const VOID* Buffer,
+    ULONG BufferSize)
+{
+    UNREFERENCED_PARAMETER(ChangeStamp);
+    UNREFERENCED_PARAMETER(TypeId);
+    UNREFERENCED_PARAMETER(CallbackContext);
+
+    if (!Buffer || BufferSize < sizeof(BYTE))
+    {
+        return 0;
+    }
+
+    BYTE value = *(const BYTE*)Buffer;
+
+    if (StateName == WNF_TMCN_ISTABLETPOSTURE)
+    {
+        g_CurrentTabletPosture = value;
+
+        printf(
+            "WNF: TabletPosture=%u\n",
+            value);
+    }
+    else if (StateName == WNF_TMCN_ISTABLETMODE)
+    {
+        g_CurrentTabletMode = value;
+
+        printf(
+            "WNF: TabletMode=%u\n",
+            value);
+    }
+
+    return 0;
+}
+
+BOOL WINAPI
+InitializeTabletPostureSubscriptions()
+{
+    auto Subscribe =
+        (PRTL_SUBSCRIBE_WNF_STATE_CHANGE_NOTIFICATION)
+        GetProcAddress(
+            GetModuleHandleW(L"ntdll.dll"),
+            "RtlSubscribeWnfStateChangeNotification");
+
+    if (!Subscribe)
+    {
+        return FALSE;
+    }
+
+    BYTE Value;
+    ULONG Size;
+    WNF_CHANGE_STAMP Stamp;
+
+    Value = 0;
+    Size = sizeof(Value);
+
+    NtQueryWnfStateData(
+        &WNF_TMCN_ISTABLETPOSTURE,
+        nullptr,
+        nullptr,
+        &Stamp,
+        &Value,
+        &Size);
+
+    g_CurrentTabletPosture = Value;
+
+    Value = 0;
+    Size = sizeof(Value);
+
+    NtQueryWnfStateData(
+        &WNF_TMCN_ISTABLETMODE,
+        nullptr,
+        nullptr,
+        &Stamp,
+        &Value,
+        &Size);
+
+    g_CurrentTabletMode = Value;
+
+    Subscribe(
+        &g_TabletPostureSubscription,
+        WNF_TMCN_ISTABLETPOSTURE,
+        0,
+        TabletPostureWnfCallback,
+        nullptr,
+        nullptr,
+        0);
+
+    Subscribe(
+        &g_TabletModeSubscription,
+        WNF_TMCN_ISTABLETMODE,
+        0,
+        TabletPostureWnfCallback,
+        nullptr,
+        nullptr,
+        0);
+
+    return TRUE;
+}
+
+VOID WINAPI
+ShutdownTabletPostureSubscriptions()
+{
+    auto Unsubscribe =
+        (PRTL_UNSUBSCRIBE_WNF_STATE_CHANGE_NOTIFICATION)
+        GetProcAddress(
+            GetModuleHandleW(L"ntdll.dll"),
+            "RtlUnsubscribeWnfStateChangeNotification");
+
+    if (!Unsubscribe)
+    {
+        return;
+    }
+
+    if (g_TabletPostureSubscription)
+    {
+        Unsubscribe(g_TabletPostureSubscription);
+        g_TabletPostureSubscription = nullptr;
+    }
+
+    if (g_TabletModeSubscription)
+    {
+        Unsubscribe(g_TabletModeSubscription);
+        g_TabletModeSubscription = nullptr;
+    }
+}
+
 HRESULT WINAPI
 _RegSetKeyValue(HKEY hKey, LPCWSTR lpSubKey, LPCWSTR lpValueName, DWORD dwType, BYTE *lpData, DWORD cbData)
 {
@@ -110,22 +329,22 @@ BOOL WINAPI
 SetTabletPostureState(BOOLEAN state)
 {
     BYTE TabletPosture = (BYTE)state;
-    DWORD TabletPostureSize = sizeof(BYTE);
-    WNF_CHANGE_STAMP TabletPostureChangeStamp;
+
+    //printf("Set Table Posture State Entry\n");
 
     if (IsOOBEInProgress())
     {
+        printf("OOBE is in progress, aborting setting tablet posture state.\n");
         return FALSE;
     }
 
-    NTSTATUS status = NtQueryWnfStateData(
-        &WNF_TMCN_ISTABLETPOSTURE, nullptr, nullptr, &TabletPostureChangeStamp, &TabletPosture, &TabletPostureSize);
-
-    if (FAILED(status) || TabletPosture != (BYTE)state)
+    if (g_CurrentTabletPosture == (BYTE)state)
     {
-        TabletPosture = (BYTE)state;
-        status = RtlPublishWnfStateData(WNF_TMCN_ISTABLETPOSTURE, nullptr, &TabletPosture, sizeof(BYTE), nullptr);
+        return TRUE;
     }
+
+    TabletPosture = (BYTE)state;
+    NTSTATUS status = RtlPublishWnfStateData(WNF_TMCN_ISTABLETPOSTURE, nullptr, &TabletPosture, sizeof(BYTE), nullptr);
 
     return SUCCEEDED(status);
 }
@@ -153,22 +372,19 @@ BOOL WINAPI
 SetTabletModeState(BOOLEAN state)
 {
     BYTE TabletMode = (BYTE)state;
-    DWORD TabletModeSize = sizeof(BYTE);
-    WNF_CHANGE_STAMP TabletModeChangeStamp;
 
     if (IsOOBEInProgress())
     {
         return FALSE;
     }
 
-    NTSTATUS status = NtQueryWnfStateData(
-        &WNF_TMCN_ISTABLETMODE, nullptr, nullptr, &TabletModeChangeStamp, &TabletMode, &TabletModeSize);
-
-    if (FAILED(status) || TabletMode != (BYTE)state)
+    if (g_CurrentTabletMode == (BYTE)state)
     {
-        TabletMode = (BYTE)state;
-        status = RtlPublishWnfStateData(WNF_TMCN_ISTABLETMODE, nullptr, &TabletMode, sizeof(BYTE), nullptr);
+        return TRUE;
     }
+
+    TabletMode = (BYTE)state;
+    NTSTATUS status = RtlPublishWnfStateData(WNF_TMCN_ISTABLETMODE, nullptr, &TabletMode, sizeof(BYTE), nullptr);
 
     return SUCCEEDED(status);
 }
@@ -184,26 +400,19 @@ SetTabletPostureTaskbarState(BOOLEAN state)
         return FALSE;
     }
 
-    HRESULT status = RegGetValue(
+    if (g_CurrentTabletPostureTaskbar == (DWORD)state)
+    {
+        return TRUE;
+    }
+
+    pvData = (BYTE)state;
+    HRESULT status = _RegSetKeyValue(
         HKEY_CURRENT_USER,
         _T("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer"),
         _T("TabletPostureTaskbar"),
         REG_DWORD,
-        NULL,
-        &pvData,
-        &pcbData);
-
-    if (FAILED(status) || pvData != (BYTE)state)
-    {
-        pvData = (BYTE)state;
-        status = _RegSetKeyValue(
-            HKEY_CURRENT_USER,
-            _T("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer"),
-            _T("TabletPostureTaskbar"),
-            REG_DWORD,
-            (PBYTE)&pvData,
-            pcbData);
-    }
+        (PBYTE)&pvData,
+        pcbData);
 
     return SUCCEEDED(status);
 }

@@ -303,6 +303,7 @@ GetDisplayDeviceBestDisplayMode(PDISPLAY_DEVICE DisplayDevice, PDEVMODE deviceMo
             if (deviceMode2.dmPelsHeight > maxHeightSeen)
             {
                 maxHeightSeen = deviceMode2.dmPelsHeight;
+                printf("dmFields=0x%08X\n", deviceMode2.dmFields);
                 memcpy(deviceMode, &deviceMode2, sizeof(DEVMODE));
             }
 
@@ -561,6 +562,15 @@ SetDisplayStatesInternal(
         goto exit;
     }*/
 
+    wprintf(
+        L"SetDisplayStatesInternal Entry: LeftPanel='%s' RightPanel='%s' LeftOrientation=%d RightOrientation=%d LeftState=%d RightState=%d\n",
+        LeftDisplayPanelId ? LeftDisplayPanelId : L"(null)",
+        RightDisplayPanelId ? RightDisplayPanelId : L"(null)",
+        LeftDisplayOrientation,
+        RightDisplayOrientation,
+        LeftDisplayState,
+        RightDisplayState);
+
     Status = GetDisplayDeviceByPanelId(LeftDisplayPanelId, &LeftDisplayDevice);
     if (FAILED(Status))
     {
@@ -571,6 +581,35 @@ SetDisplayStatesInternal(
     if (FAILED(Status))
     {
         goto exit;
+    }
+
+    if (_wcsicmp(LeftDisplayDevice.DeviceName, L"\\\\.\\DISPLAY2") == 0)
+    {
+        wprintf(
+            L"DISPLAY2 detected as left display, swapping left/right devices and modes\n");
+
+        DISPLAY_DEVICE TempDisplayDevice;
+        DEVMODE TempDevMode;
+
+        TempDisplayDevice = LeftDisplayDevice;
+        LeftDisplayDevice = RightDisplayDevice;
+        RightDisplayDevice = TempDisplayDevice;
+
+        TempDevMode = LeftDevMode;
+        LeftDevMode = RightDevMode;
+        RightDevMode = TempDevMode;
+
+        INT TempOrientation = LeftDisplayOrientation;
+        LeftDisplayOrientation = RightDisplayOrientation;
+        RightDisplayOrientation = TempOrientation;
+
+        BOOLEAN TempState = LeftDisplayState;
+        LeftDisplayState = RightDisplayState;
+        RightDisplayState = TempState;
+
+        PCWSTR TempPanelId = LeftDisplayPanelId;
+        LeftDisplayPanelId = RightDisplayPanelId;
+        RightDisplayPanelId = TempPanelId;
     }
 
     Status = GetDisplayDeviceBestDisplayMode(&LeftDisplayDevice, &LeftDevMode);
@@ -612,11 +651,11 @@ SetDisplayStatesInternal(
         }
     }
 
-    //LeftDevMode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION | DM_DISPLAYORIENTATION;
+    LeftDevMode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION | DM_DISPLAYORIENTATION;
     LeftDevMode.dmPosition.x = 0;
     LeftDevMode.dmPosition.y = 0;
 
-    //RightDevMode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION | DM_DISPLAYORIENTATION;
+    RightDevMode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION | DM_DISPLAYORIENTATION;
     RightDevMode.dmPosition.x = 0;
     RightDevMode.dmPosition.y = 0;
 
@@ -718,27 +757,61 @@ SetDisplayStatesInternal(
         }
         }
 
+        wprintf(
+            L"LEFTDEVMODE[%s]: fields=0x%08X pos=(%ld,%ld) res=%lux%lu orient=%lu freq=%lu bpp=%lu flags=0x%08X\n",
+            LeftDisplayDevice.DeviceName,
+            LeftDevMode.dmFields,
+            LeftDevMode.dmPosition.x,
+            LeftDevMode.dmPosition.y,
+            LeftDevMode.dmPelsWidth,
+            LeftDevMode.dmPelsHeight,
+            LeftDevMode.dmDisplayOrientation,
+            LeftDevMode.dmDisplayFrequency,
+            LeftDevMode.dmBitsPerPel,
+            LeftDevMode.dmDisplayFlags);
+
+        wprintf(
+            L"RIGHTDEVMODE[%s]: fields=0x%08X pos=(%ld,%ld) res=%lux%lu orient=%lu freq=%lu bpp=%lu flags=0x%08X\n",
+            RightDisplayDevice.DeviceName,
+            RightDevMode.dmFields,
+            RightDevMode.dmPosition.x,
+            RightDevMode.dmPosition.y,
+            RightDevMode.dmPelsWidth,
+            RightDevMode.dmPelsHeight,
+            RightDevMode.dmDisplayOrientation,
+            RightDevMode.dmDisplayFrequency,
+            RightDevMode.dmBitsPerPel,
+            RightDevMode.dmDisplayFlags);
+
         BOOLEAN IsLeftDisplayPrimary = LeftDevMode.dmPosition.x == 0 && LeftDevMode.dmPosition.y == 0;
 
-        if (ChangeDisplaySettingsEx(
-                IsLeftDisplayPrimary ? LeftDisplayDevice.DeviceName : RightDisplayDevice.DeviceName,
-                IsLeftDisplayPrimary ? &LeftDevMode : &RightDevMode,
-                NULL,
-                CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET | CDS_SET_PRIMARY,
-                NULL) != DISP_CHANGE_SUCCESSFUL)
+        LONG rc = ChangeDisplaySettingsEx(
+            IsLeftDisplayPrimary ? LeftDisplayDevice.DeviceName : RightDisplayDevice.DeviceName,
+            IsLeftDisplayPrimary ? &LeftDevMode : &RightDevMode,
+            NULL,
+            CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET | CDS_SET_PRIMARY,
+            NULL);
+
+        printf("CDSEx rc=%ld\n", rc);
+
+        if (rc != DISP_CHANGE_SUCCESSFUL)
         {
-            Status = HRESULT_FROM_WIN32(GetLastError());
+            Status = HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
             goto exit;
         }
 
-        if (ChangeDisplaySettingsEx(
-                IsLeftDisplayPrimary ? RightDisplayDevice.DeviceName : LeftDisplayDevice.DeviceName,
-                IsLeftDisplayPrimary ? &RightDevMode : &LeftDevMode,
-                NULL,
-                CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET,
-                NULL) != DISP_CHANGE_SUCCESSFUL)
+        rc = ChangeDisplaySettingsEx(
+            IsLeftDisplayPrimary ? RightDisplayDevice.DeviceName : LeftDisplayDevice.DeviceName,
+            IsLeftDisplayPrimary ? &RightDevMode : &LeftDevMode,
+            NULL,
+            CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET,
+            NULL);
+
+        printf("CDSEx rc=%ld\n", rc);
+
+        if (rc != DISP_CHANGE_SUCCESSFUL)
         {
-            Status = HRESULT_FROM_WIN32(GetLastError());
+            Status = HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
             goto exit;
         }
     }
@@ -827,11 +900,17 @@ SetDisplayStatesInternal(
         }
     }
 
-    // Commit changes now
-    if (ChangeDisplaySettingsEx(NULL, NULL, NULL, 0, NULL) != DISP_CHANGE_SUCCESSFUL)
     {
-        Status = HRESULT_FROM_WIN32(GetLastError());
-        goto exit;
+        // Commit changes now
+        LONG rc = ChangeDisplaySettingsEx(NULL, NULL, NULL, 0, NULL);
+
+        printf("CDSEx rc=%ld\n", rc);
+
+        if (rc != DISP_CHANGE_SUCCESSFUL)
+        {
+            Status = HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
+            goto exit;
+        }
     }
 
     // Wait a second to make sure the display configuration is switched
@@ -880,5 +959,11 @@ exit:
 HRESULT WINAPI
 SetExtendedDisplayConfiguration()
 {
-    return SetDisplayConfig(0, NULL, 0, NULL, SDC_APPLY | SDC_TOPOLOGY_EXTEND | SDC_PATH_PERSIST_IF_REQUIRED);
+    printf("Set Extended Display Configuration...\n");
+    HRESULT rc = SetDisplayConfig(0, NULL, 0, NULL, SDC_APPLY | SDC_TOPOLOGY_EXTEND | SDC_PATH_PERSIST_IF_REQUIRED);
+    if (FAILED(rc))
+    {
+        printf("SetDisplayConfig failed with rc=%ld\n", rc);
+    }
+    return rc;
 }

@@ -72,13 +72,13 @@ ConvertSimpleOrientationToDMDO(SimpleOrientation orientation)
         return DMDO_DEFAULT;
     }
     case SimpleOrientation::Rotated90DegreesCounterclockwise: {
-        return DMDO_270;
+        return DMDO_90;
     }
     case SimpleOrientation::Rotated180DegreesCounterclockwise: {
         return DMDO_180;
     }
     case SimpleOrientation::Rotated270DegreesCounterclockwise: {
-        return DMDO_90;
+        return DMDO_270;
     }
     }
 
@@ -149,9 +149,8 @@ OnPostureChanged(
     TwoPanelHingedDevicePosture const & /*sender*/,
     TwoPanelHingedDevicePostureReadingChangedEventArgs const & /*args*/)
 {
-    SetTabletPostureState(TRUE);
-    SetTabletPostureTaskbarState(TRUE);
-    UpdateMonitorWorkAreas();
+    printf("OnPostureChanged Entry\n");
+
     SetWallpaperSpanStyle();
 
     TogglePostureScreenOrientationState();
@@ -160,14 +159,13 @@ OnPostureChanged(
 VOID
 OnFlipSensorReadingChanged(FlipSensor const & /*sender*/, FlipSensorReadingChangedEventArgs const &args)
 {
+    printf("OnFlipSensorReadingChanged Entry\n");
+
     if (!FoundAllSensors)
     {
         return;
     }
 
-    SetTabletPostureState(TRUE);
-    SetTabletPostureTaskbarState(TRUE);
-    UpdateMonitorWorkAreas();
     SetWallpaperSpanStyle();
 
     FlipSensorReading reading = args.Reading();
@@ -346,12 +344,14 @@ AutoRotateMain()
         }
         catch (...)
         {
+            printf("Failed to obtain the posture sensor\n");
             uninit_apartment();
             return;
         }
 
         if (g_PostureSensor == NULL)
         {
+            printf("Failed to obtain the posture sensor\n");
             uninit_apartment();
             return;
         }
@@ -362,18 +362,31 @@ AutoRotateMain()
         }
         catch (...)
         {
+            printf("Failed to obtain the flip sensor\n");
             uninit_apartment();
             return;
         }
 
         if (g_FlipSensor == NULL)
         {
+            printf("Failed to obtain the flip sensor\n");
             uninit_apartment();
             return;
         }
 
         FoundAllSensors = TRUE;
     }
+
+    InitializeTabletPostureSubscriptions();
+
+    g_TaskbarMonitorThread =
+        CreateThread(
+            nullptr,
+            0,
+            TaskbarRegistryMonitorThread,
+            nullptr,
+            0,
+            nullptr);
     
     InitializeCriticalSectionAndSpinCount(&g_AutoRotationCriticalSection, 0x00000400);
 

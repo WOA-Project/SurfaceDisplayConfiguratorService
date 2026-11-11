@@ -619,6 +619,8 @@ RetrieveMovedOnOpeningProperty(HWND window)
     return handle != nullptr;
 }
 
+static HMONITOR g_LastInteractionMonitor = nullptr;
+
 static void
 WindowCreated(HWND window) noexcept
 {
@@ -627,22 +629,24 @@ WindowCreated(HWND window) noexcept
         return;
     }
 
-    HMONITOR primary = MonitorFromWindow(nullptr, MONITOR_DEFAULTTOPRIMARY);
-    HMONITOR active = primary;
-
-    POINT cursorPosition{};
-    if (GetCursorPos(&cursorPosition))
-    {
-        active = MonitorFromPoint(cursorPosition, MONITOR_DEFAULTTOPRIMARY);
-    }
-
     // window is recreated after switching virtual desktop
     // avoid moving already opened windows after switching vd
     bool isMoved = RetrieveMovedOnOpeningProperty(window);
     if (!isMoved)
     {
         StampMovedOnOpeningProperty(window);
-        m_dpiUnawareThread.submit(OnThreadExecutor::task_t{[&] { OpenWindowOnActiveMonitor(window, active); }}).wait();
+        HMONITOR activeMonitor =
+            g_LastInteractionMonitor;
+
+        m_dpiUnawareThread.submit(
+            OnThreadExecutor::task_t{
+                [window, activeMonitor]
+                {
+                    OpenWindowOnActiveMonitor(
+                        window,
+                        activeMonitor);
+                }
+            }).wait();
     }
 }
 
@@ -661,15 +665,32 @@ WinHookProc(
     UNREFERENCED_PARAMETER(eventThread);
     UNREFERENCED_PARAMETER(eventTime);
 
-    SetTabletPostureState(TRUE);
-    SetTabletPostureTaskbarState(TRUE);
-    UpdateMonitorWorkAreas();
-
-    POINT ptScreen;
-    GetPhysicalCursorPos(&ptScreen);
-
     switch (event)
     {
+    case EVENT_SYSTEM_FOREGROUND:
+    {
+        if (window)
+        {
+            g_LastInteractionMonitor =
+                MonitorFromWindow(
+                    window,
+                    MONITOR_DEFAULTTOPRIMARY);
+
+            MONITORINFOEX mi = { sizeof(mi) };
+
+            if (GetMonitorInfo(
+                    g_LastInteractionMonitor,
+                    &mi))
+            {
+                wprintf(
+                    L"Foreground changed: hwnd=0x%p monitor=%s\n",
+                    window,
+                    mi.szDevice);
+            }
+        }
+
+        break;
+    }
     case EVENT_OBJECT_NAMECHANGE:
         // The accessibility name of the desktop window changes whenever the user
         // switches virtual desktops.
@@ -699,8 +720,22 @@ ActiveMonitorWindowHandlerMain()
 
     SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
 
-    std::array<DWORD, 6> events_to_subscribe = {
-        EVENT_OBJECT_NAMECHANGE, EVENT_OBJECT_UNCLOAKED, EVENT_OBJECT_SHOW, EVENT_OBJECT_CREATE};
+    POINT pt = { 0, 0 };
+
+    g_LastInteractionMonitor =
+        MonitorFromPoint(
+            pt,
+            MONITOR_DEFAULTTOPRIMARY);
+
+    std::array<DWORD, 5> events_to_subscribe =
+    {
+        EVENT_SYSTEM_FOREGROUND,
+        EVENT_OBJECT_NAMECHANGE,
+        EVENT_OBJECT_UNCLOAKED,
+        EVENT_OBJECT_SHOW,
+        EVENT_OBJECT_CREATE
+    };
+
     for (const auto event : events_to_subscribe)
     {
         auto hook =
@@ -719,10 +754,8 @@ ActiveMonitorWindowHandlerMain()
             break;
         }
 
-        if (msg.message == WM_SETTINGCHANGE && msg.wParam == SPI_SETWORKAREA)
+        if (msg.message == WM_DISPLAYCHANGE || (msg.message == WM_SETTINGCHANGE && msg.wParam == SPI_SETWORKAREA))
         {
-            SetTabletPostureState(TRUE);
-            SetTabletPostureTaskbarState(TRUE);
             UpdateMonitorWorkAreas();
         }
         

@@ -31,3 +31,12 @@ BOOL WINAPI
 SetTabletPostureTaskbarState(BOOLEAN state);
 BOOL WINAPI
 SetWallpaperSpanStyle();
+BOOL WINAPI
+InitializeTabletPostureSubscriptions();
+VOID WINAPI
+ShutdownTabletPostureSubscriptions();
+DWORD WINAPI
+TaskbarRegistryMonitorThread(
+    LPVOID Context);
+
+extern HANDLE g_TaskbarMonitorThread;
