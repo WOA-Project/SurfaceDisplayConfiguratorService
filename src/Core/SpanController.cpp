@@ -7,7 +7,10 @@
 
 #include <limits>
 
-SpanController::SpanController() : m_windowPlacementService(m_spanManager, m_monitorTopology) {}
+SpanController::SpanController() : m_windowPlacementService(m_spanManager, m_monitorTopology)
+{
+    m_windowPlacementService.SetPolicy(Configuration::PlacementPolicy);
+}
 
 bool
 SpanController::Initialize()

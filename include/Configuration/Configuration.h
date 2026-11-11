@@ -9,5 +9,5 @@ inline constexpr LONG PreviewMargin = 120;
 
 inline constexpr LONG CommitMargin = 120;
 
-inline constexpr WindowPlacementPolicy PlacementPolicy = WindowPlacementPolicy::MaximizeAcrossDisplays;
+inline constexpr WindowPlacementPolicy PlacementPolicy = WindowPlacementPolicy::PreserveSize;
 } // namespace Configuration
