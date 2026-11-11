@@ -160,48 +160,90 @@ ScreenToWorkAreaCoords(HWND window, RECT &rect)
 }
 
 static void
-SizeWindowToRect(HWND window, RECT rect) noexcept
+SizeWindowToRect(
+    HWND window,
+    RECT rect) noexcept
 {
     WINDOWPLACEMENT placement{};
-    GetWindowPlacement(window, &placement);
+    placement.length = sizeof(placement);
 
-    // Wait if SW_SHOWMINIMIZED would be removed from window (Issue #1685)
-    for (int i = 0; i < 5 && (placement.showCmd == SW_SHOWMINIMIZED); ++i)
+    if (!GetWindowPlacement(
+            window,
+            &placement))
     {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        GetWindowPlacement(window, &placement);
+        return;
     }
 
+    //
+    // Wait if the app is still starting minimized.
+    //
+    for (int i = 0;
+         i < 5 &&
+         placement.showCmd == SW_SHOWMINIMIZED;
+         ++i)
+    {
+        std::this_thread::sleep_for(
+            std::chrono::milliseconds(100));
+
+        GetWindowPlacement(
+            window,
+            &placement);
+    }
+
+    const bool wasMaximized =
+        IsZoomed(window) ||
+        placement.showCmd == SW_SHOWMAXIMIZED;
+
+    ScreenToWorkAreaCoords(
+        window,
+        rect);
+
+    //
+    // Update the restore rectangle.
+    //
+    placement.rcNormalPosition = rect;
+    placement.flags |= WPF_ASYNCWINDOWPLACEMENT;
+
+    //
+    // Preserve current window state.
+    //
     if (!IsWindowVisible(window))
     {
         placement.showCmd = SW_HIDE;
     }
-    else
+    else if (wasMaximized)
     {
-        // Do not restore minimized windows. We change their placement though so they restore to the correct zone.
-        if ((placement.showCmd != SW_SHOWMINIMIZED) && (placement.showCmd != SW_MINIMIZE))
-        {
-            placement.showCmd = SW_RESTORE;
-        }
-
-        // Remove maximized show command to make sure window is moved to the correct zone.
-        if (placement.showCmd == SW_SHOWMAXIMIZED)
-        {
-            placement.showCmd = SW_RESTORE;
-            placement.flags &= ~WPF_RESTORETOMAXIMIZED;
-        }
+        placement.showCmd = SW_SHOWMAXIMIZED;
+    }
+    else if (placement.showCmd != SW_SHOWMINIMIZED &&
+            placement.showCmd != SW_MINIMIZE)
+    {
+        placement.showCmd = SW_RESTORE;
     }
 
-    ScreenToWorkAreaCoords(window, rect);
+    if (!SetWindowPlacement(
+            window,
+            &placement))
+    {
+        return;
+    }
 
-    placement.rcNormalPosition = rect;
-    placement.flags |= WPF_ASYNCWINDOWPLACEMENT;
+    //
+    // Some applications ignore the first placement.
+    //
+    SetWindowPlacement(
+        window,
+        &placement);
 
-    SetWindowPlacement(window, &placement);
-
-    // Do it again, allowing Windows to resize the window and set correct scaling
-    // This fixes Issue #365
-    SetWindowPlacement(window, &placement);
+    //
+    // Force re-maximization on the destination monitor.
+    //
+    if (wasMaximized)
+    {
+        ShowWindow(
+            window,
+            SW_MAXIMIZE);
+    }
 }
 
 inline static int
@@ -225,20 +267,33 @@ FitOnScreen(const RECT &windowRect, const RECT &originMonitorRect, const RECT &d
     int W = RectWidth(windowRect);
     int H = RectHeight(windowRect);
 
-    if ((left < destMonitorRect.left) || (left + W > destMonitorRect.right))
+    if (left < destMonitorRect.left)
     {
-        // Set left window border to left border of screen (add padding). Resize window width if needed.
         left = destMonitorRect.left + CUSTOM_POSITIONING_LEFT_TOP_PADDING;
-        W = min(W, RectWidth(destMonitorRect) - CUSTOM_POSITIONING_LEFT_TOP_PADDING);
-    }
-    if ((top < destMonitorRect.top) || (top + H > destMonitorRect.bottom))
-    {
-        // Set top window border to top border of screen (add padding). Resize window height if needed.
-        top = destMonitorRect.top + CUSTOM_POSITIONING_LEFT_TOP_PADDING;
-        H = min(H, RectHeight(destMonitorRect) - CUSTOM_POSITIONING_LEFT_TOP_PADDING);
     }
 
-    return {left, top, left + W, top + H};
+    if (left + W > destMonitorRect.right)
+    {
+        left =
+            destMonitorRect.right -
+            W -
+            CUSTOM_POSITIONING_LEFT_TOP_PADDING;
+    }
+
+    if (top < destMonitorRect.top)
+    {
+        top = destMonitorRect.top + CUSTOM_POSITIONING_LEFT_TOP_PADDING;
+    }
+
+    if (top + H > destMonitorRect.bottom)
+    {
+        top =
+            destMonitorRect.bottom -
+            H -
+            CUSTOM_POSITIONING_LEFT_TOP_PADDING;
+    }
+
+    return { left, top, left + W, top + H };
 }
 
 static void
@@ -247,6 +302,35 @@ OpenWindowOnActiveMonitor(HWND window, HMONITOR monitor) noexcept
     // By default Windows opens new window on primary monitor.
     // Try to preserve window width and height, adjust top-left corner if needed.
     HMONITOR origin = MonitorFromWindow(window, MONITOR_DEFAULTTOPRIMARY);
+
+    MONITORINFOEX originInfo{};
+    originInfo.cbSize = sizeof(originInfo);
+
+    MONITORINFOEX targetInfo{};
+    targetInfo.cbSize = sizeof(targetInfo);
+
+    GetMonitorInfo(origin, &originInfo);
+    GetMonitorInfo(monitor, &targetInfo);
+
+    char buf[512];
+
+    sprintf_s(
+        buf,
+        "MOVE origin=%p (%ld,%ld,%ld,%ld) "
+        "target=%p (%ld,%ld,%ld,%ld)\n",
+        origin,
+        originInfo.rcMonitor.left,
+        originInfo.rcMonitor.top,
+        originInfo.rcMonitor.right,
+        originInfo.rcMonitor.bottom,
+        monitor,
+        targetInfo.rcMonitor.left,
+        targetInfo.rcMonitor.top,
+        targetInfo.rcMonitor.right,
+        targetInfo.rcMonitor.bottom);
+
+    printf(buf);
+
     if (origin == monitor)
     {
         // Certain applications by design open in last known position, regardless of FancyZones.
@@ -255,18 +339,81 @@ OpenWindowOnActiveMonitor(HWND window, HMONITOR monitor) noexcept
     }
 
     WINDOWPLACEMENT placement{};
+    placement.length = sizeof(placement);
+
     if (GetWindowPlacement(window, &placement))
     {
         MONITORINFOEX originMi;
         originMi.cbSize = sizeof(originMi);
-        if (GetMonitorInfo(origin, &originMi))
+
+        MONITORINFOEX destMi;
+        destMi.cbSize = sizeof(destMi);
+
+        if (GetMonitorInfo(origin, &originMi) &&
+            GetMonitorInfo(monitor, &destMi))
         {
-            MONITORINFOEX destMi;
-            destMi.cbSize = sizeof(destMi);
-            if (GetMonitorInfo(monitor, &destMi))
+            const bool isMaximized =
+                IsZoomed(window) ||
+                placement.showCmd == SW_SHOWMAXIMIZED;
+            if (isMaximized)
             {
-                RECT newPosition = FitOnScreen(placement.rcNormalPosition, originMi.rcWork, destMi.rcWork);
-                SizeWindowToRect(window, newPosition);
+                MONITORINFOEX target{};
+                target.cbSize = sizeof(target);
+            
+                if (!GetMonitorInfo(
+                        monitor,
+                        &target))
+                {
+                    return;
+                }
+            
+                RECT restore =
+                    placement.rcNormalPosition;
+            
+                restore.left =
+                    target.rcWork.left + 100;
+            
+                restore.top =
+                    target.rcWork.top + 100;
+            
+                restore.right =
+                    restore.left +
+                    RectWidth(
+                        placement.rcNormalPosition);
+                    
+                restore.bottom =
+                    restore.top +
+                    RectHeight(
+                        placement.rcNormalPosition);
+                    
+                placement.rcNormalPosition =
+                    restore;
+                    
+                SetWindowPlacement(
+                    window,
+                    &placement);
+                
+                ShowWindow(
+                    window,
+                    SW_RESTORE);
+                
+                ShowWindow(
+                    window,
+                    SW_MAXIMIZE);
+                
+                return;
+            }
+            else
+            {
+                RECT newPosition =
+                    FitOnScreen(
+                        placement.rcNormalPosition,
+                        originMi.rcWork,
+                        destMi.rcWork);
+
+                SizeWindowToRect(
+                    window,
+                    newPosition);
             }
         }
     }
@@ -461,9 +608,9 @@ IsExcludedByDefault(const HWND &hwnd, std::wstring &processPath) noexcept
 inline static std::wstring
 get_process_path(DWORD pid) noexcept
 {
-    auto process = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, TRUE, pid);
+    auto process = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
     std::wstring name;
-    if (process != INVALID_HANDLE_VALUE)
+    if (process != NULL)
     {
         name.resize(MAX_PATH);
         DWORD name_length = static_cast<DWORD>(name.length());
@@ -606,6 +753,25 @@ IsProcessable(HWND window) noexcept
     return true;
 }
 
+static bool IsIgnoredForegroundWindow(HWND hwnd)
+{
+    char className[256]{};
+
+    GetClassNameA(
+        hwnd,
+        className,
+        sizeof(className));
+
+    return
+        !_stricmp(
+            className,
+            "ApplicationManager_DesktopShellWindow") ||
+
+        !_stricmp(
+            className,
+            "WinUIDesktopWin32WindowClass");
+}
+
 static void
 StampMovedOnOpeningProperty(HWND window)
 {
@@ -619,7 +785,291 @@ RetrieveMovedOnOpeningProperty(HWND window)
     return handle != nullptr;
 }
 
-static HMONITOR g_LastInteractionMonitor = nullptr;
+struct MonitorSignal
+{
+    HMONITOR Monitor{};
+    ULONGLONG Tick{};
+};
+
+static std::atomic<HMONITOR> g_LastInteractionMonitor{ nullptr };
+
+static MonitorSignal g_LastTaskbarMonitor{};
+static MonitorSignal g_LastMouseMonitor{};
+
+enum class LaunchSignalSource
+{
+    None,
+    Taskbar,
+    StartMenu,
+    Mouse
+};
+
+struct LaunchSignal
+{
+    HMONITOR Monitor{};
+    ULONGLONG Tick{};
+    LaunchSignalSource Source{};
+    bool Pending{};
+};
+
+static std::mutex g_SignalLock;
+static LaunchSignal g_LastLaunchSignal{};
+
+static ULONGLONG
+NowMs()
+{
+    return GetTickCount64();
+}
+
+static HMONITOR
+DetermineLaunchMonitor(HWND newWindow)
+{
+    LaunchSignal signal;
+
+    {
+        std::lock_guard<std::mutex> lock(
+            g_SignalLock);
+
+        signal = g_LastLaunchSignal;
+    }
+
+    printf(
+        "DEBUG launch monitor=%p tick=%llu source=%d\n",
+        signal.Monitor,
+        signal.Tick,
+        (int)signal.Source);
+
+    printf(
+        "DEBUG taskbar monitor=%p tick=%llu\n",
+        g_LastTaskbarMonitor.Monitor,
+        g_LastTaskbarMonitor.Tick);
+
+    printf(
+        "DEBUG mouse monitor=%p tick=%llu\n",
+        g_LastMouseMonitor.Monitor,
+        g_LastMouseMonitor.Tick);
+
+    const ULONGLONG now = NowMs();
+
+    printf(
+        "DEBUG launch age=%llu\n",
+        now - signal.Tick);
+
+    printf(
+        "signal.Monitor=%p age=%llu\n",
+        signal.Monitor,
+        now - signal.Tick);
+
+    //
+    // Start menu / launcher surface.
+    //
+    if (signal.Monitor)/* &&
+        (now - signal.Tick) < 1500)*/
+    {
+        printf(
+            "TAKING LaunchSignal branch\n");
+
+        const char* source = "Unknown";
+
+        switch (signal.Source)
+        {
+        case LaunchSignalSource::Taskbar:
+            source = "Taskbar";
+            break;
+
+        case LaunchSignalSource::StartMenu:
+            source = "StartMenu";
+            break;
+
+        case LaunchSignalSource::Mouse:
+            source = "Mouse";
+            break;
+        }
+
+        /*printf(
+            "LaunchMonitor source=%s monitor=%p age=%llu\n",
+            source,
+            signal.Monitor,
+            now - signal.Tick);*/
+
+        printf(
+            "LaunchMonitor source=%s monitor=%p\n",
+            source,
+            signal.Monitor);
+
+        return signal.Monitor;
+    }
+
+    //
+    // Explicit taskbar interaction.
+    //
+    if (g_LastTaskbarMonitor.Monitor &&
+        (now - g_LastTaskbarMonitor.Tick) < 1500)
+    {
+        printf(
+            "LaunchMonitor source=Taskbar monitor=%p age=%llu\n",
+            g_LastTaskbarMonitor.Monitor,
+            now - g_LastTaskbarMonitor.Tick);
+
+        return g_LastTaskbarMonitor.Monitor;
+    }
+
+    //
+    // Real mouse interaction.
+    //
+    if (g_LastMouseMonitor.Monitor &&
+        (now - g_LastMouseMonitor.Tick) < 1500)
+    {
+        printf(
+            "LaunchMonitor source=Mouse monitor=%p age=%llu\n",
+            g_LastMouseMonitor.Monitor,
+            now - g_LastMouseMonitor.Tick);
+
+        return g_LastMouseMonitor.Monitor;
+    }
+
+    HWND fg = GetForegroundWindow();
+
+    if (fg)
+    {
+        if (!IsIgnoredForegroundWindow(fg))
+        {
+            return MonitorFromWindow(
+                fg,
+                MONITOR_DEFAULTTONEAREST);
+        }
+
+        printf(
+            "Ignoring foreground class during launch\n");
+    }
+
+    POINT pt{};
+
+    if (GetCursorPos(&pt))
+    {
+        return MonitorFromPoint(
+            pt,
+            MONITOR_DEFAULTTOPRIMARY);
+    }
+
+    return MonitorFromWindow(
+        newWindow,
+        MONITOR_DEFAULTTOPRIMARY);
+}
+
+static LRESULT CALLBACK
+LowLevelMouseProc(
+    int nCode,
+    WPARAM wParam,
+    LPARAM lParam)
+{
+    if (nCode == HC_ACTION)
+    {
+        switch (wParam)
+        {
+        case WM_LBUTTONDOWN:
+        case WM_RBUTTONDOWN:
+        case WM_MBUTTONDOWN:
+        case WM_NCLBUTTONDOWN:
+        {
+            const MSLLHOOKSTRUCT* mouse =
+                (const MSLLHOOKSTRUCT*)lParam;
+
+                
+            MONITORINFOEX mi{};
+            mi.cbSize = sizeof(mi);
+
+            HMONITOR monitor =
+                MonitorFromPoint(
+                    mouse->pt,
+                    MONITOR_DEFAULTTOPRIMARY);
+
+            GetMonitorInfo(
+                monitor,
+                &mi);
+
+            char buf[256];
+
+            sprintf_s(
+                buf,
+                "CLICK MONITOR=%p (%ld,%ld)\n",
+                monitor,
+                mouse->pt.x,
+                mouse->pt.y);
+
+            printf(buf);
+
+            HWND hwnd =
+                WindowFromPoint(mouse->pt);
+
+            char cls[256]{};
+
+            GetClassNameA(
+                hwnd,
+                cls,
+                sizeof(cls));
+
+            printf(
+                "CLICK hwnd=%p class=%s monitor=%p\n",
+                hwnd,
+                cls,
+                monitor);
+
+
+            g_LastInteractionMonitor.store(
+                monitor,
+                std::memory_order_relaxed);
+
+            g_LastMouseMonitor.Monitor = monitor;
+            g_LastMouseMonitor.Tick = NowMs();
+
+            {
+                std::lock_guard<std::mutex> lock(
+                    g_SignalLock);
+
+                const bool isDesktopClick =
+                    !_stricmp(cls, "SysListView32");
+
+                if (isDesktopClick)
+                {
+                    g_LastLaunchSignal =
+                    {
+                        monitor,
+                        NowMs(),
+                        LaunchSignalSource::Mouse
+                    };
+
+                    printf(
+                        "DESKTOP LAUNCH SIGNAL=%p\n",
+                        monitor);
+                }
+                else if (g_LastLaunchSignal.Source != LaunchSignalSource::StartMenu &&
+                        g_LastLaunchSignal.Source != LaunchSignalSource::Taskbar)
+                {
+                    printf(
+                        "MOUSE SIGNAL=%p class=%s\n",
+                        monitor,
+                        cls);
+                    g_LastLaunchSignal =
+                    {
+                        monitor,
+                        NowMs(),
+                        LaunchSignalSource::Mouse
+                    };
+                }
+            }
+
+            break;
+        }
+        }
+    }
+
+    return CallNextHookEx(
+        nullptr,
+        nCode,
+        wParam,
+        lParam);
+}
 
 static void
 WindowCreated(HWND window) noexcept
@@ -629,26 +1079,142 @@ WindowCreated(HWND window) noexcept
         return;
     }
 
-    // window is recreated after switching virtual desktop
-    // avoid moving already opened windows after switching vd
-    bool isMoved = RetrieveMovedOnOpeningProperty(window);
-    if (!isMoved)
+    if (RetrieveMovedOnOpeningProperty(window))
     {
-        StampMovedOnOpeningProperty(window);
-        HMONITOR activeMonitor =
-            g_LastInteractionMonitor;
-
-        m_dpiUnawareThread.submit(
-            OnThreadExecutor::task_t{
-                [window, activeMonitor]
-                {
-                    OpenWindowOnActiveMonitor(
-                        window,
-                        activeMonitor);
-                }
-            }).wait();
+        return;
     }
+
+    StampMovedOnOpeningProperty(window);
+
+    HMONITOR activeMonitor =
+        DetermineLaunchMonitor(
+            window);
+
+    {
+        std::lock_guard<std::mutex> lock(
+            g_SignalLock);
+
+        printf(
+            "CLEARING launch signal source=%d monitor=%p\n",
+            (int)g_LastLaunchSignal.Source,
+            g_LastLaunchSignal.Monitor);
+
+        g_LastLaunchSignal = {};
+    }
+
+    char buf[256];
+
+    sprintf_s(
+        buf,
+        "DetermineLaunchMonitor returned=%p\n",
+        activeMonitor);
+
+    printf(buf);
+
+    if (!activeMonitor)
+    {
+        activeMonitor =
+            MonitorFromPoint(
+                POINT{ 0, 0 },
+                MONITOR_DEFAULTTOPRIMARY);
+    }
+
+    m_dpiUnawareThread.submit(
+        OnThreadExecutor::task_t{
+            [window, activeMonitor]
+            {
+                RECT previous{};
+                RECT current{};
+
+                //
+                // Wait up to 1 second for the app to settle.
+                //
+                int stableCount = 0;
+
+                for (int i = 0; i < 20; i++)
+                {
+                    RECT current{};
+
+                    if (!GetWindowRect(
+                            window,
+                            &current))
+                    {
+                        return;
+                    }
+
+                    if (EqualRect(
+                            &previous,
+                            &current))
+                    {
+                        stableCount++;
+
+                        if (stableCount >= 3)
+                        {
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        stableCount = 0;
+                    }
+
+                    previous = current;
+
+                    Sleep(100);
+                }
+
+                RECT r{};
+                GetWindowRect(window, &r);
+
+                char buf[512];
+
+                sprintf_s(
+                    buf,
+                    "SETTLED hwnd=%p zoomed=%d monitor=%p rect=(%ld,%ld,%ld,%ld)\n",
+                    window,
+                    IsZoomed(window),
+                    MonitorFromWindow(
+                        window,
+                        MONITOR_DEFAULTTONEAREST),
+                    r.left,
+                    r.top,
+                    r.right,
+                    r.bottom);
+
+                printf(buf);
+
+                OpenWindowOnActiveMonitor(
+                    window,
+                    activeMonitor);
+
+                /*POINT cursor{};
+                GetCursorPos(&cursor);
+
+                HMONITOR cursorMonitor =
+                    MonitorFromPoint(
+                        cursor,
+                        MONITOR_DEFAULTTOPRIMARY);
+
+                char buf[512];
+
+                sprintf_s(
+                    buf,
+                    "CLICK=%p CURSOR=%p CURSORPOS=(%ld,%ld)\n",
+                    activeMonitor,
+                    cursorMonitor,
+                    cursor.x,
+                    cursor.y);
+
+                printf(buf);
+
+                OpenWindowOnActiveMonitor(
+                    window,
+                    cursorMonitor);*/
+            }
+        });
 }
+
+static HHOOK g_MouseHook = nullptr;
 
 static void CALLBACK
 WinHookProc(
@@ -667,30 +1233,6 @@ WinHookProc(
 
     switch (event)
     {
-    case EVENT_SYSTEM_FOREGROUND:
-    {
-        if (window)
-        {
-            g_LastInteractionMonitor =
-                MonitorFromWindow(
-                    window,
-                    MONITOR_DEFAULTTOPRIMARY);
-
-            MONITORINFOEX mi = { sizeof(mi) };
-
-            if (GetMonitorInfo(
-                    g_LastInteractionMonitor,
-                    &mi))
-            {
-                wprintf(
-                    L"Foreground changed: hwnd=0x%p monitor=%s\n",
-                    window,
-                    mi.szDevice);
-            }
-        }
-
-        break;
-    }
     case EVENT_OBJECT_NAMECHANGE:
         // The accessibility name of the desktop window changes whenever the user
         // switches virtual desktops.
@@ -705,11 +1247,129 @@ WinHookProc(
     case EVENT_OBJECT_CREATE:
         if (object == OBJID_WINDOW)
         {
-            const auto wparam = reinterpret_cast<WPARAM>(window);
-            auto hwnd = reinterpret_cast<HWND>(wparam);
-            WindowCreated(hwnd);
+            WindowCreated(window);
         }
         break;
+    case EVENT_SYSTEM_FOREGROUND:
+    {
+        char className[256]{};
+        wchar_t title[256]{};
+
+        GetClassNameA(
+            window,
+            className,
+            sizeof(className));
+
+        GetWindowTextW(
+            window,
+            title,
+            ARRAYSIZE(title));
+
+        HMONITOR monitor =
+            MonitorFromWindow(
+                window,
+                MONITOR_DEFAULTTONEAREST);
+
+        if (!_stricmp(className, "Shell_TrayWnd") ||
+            !_stricmp(className, "Shell_SecondaryTrayWnd"))
+        {
+            g_LastTaskbarMonitor.Monitor = monitor;
+            g_LastTaskbarMonitor.Tick = NowMs();
+
+            char taskbarBuf[256];
+
+            sprintf_s(
+                taskbarBuf,
+                "TASKBAR MONITOR UPDATED=%p\n",
+                monitor);
+
+            printf("%s", taskbarBuf);
+        }
+
+        if (!_stricmp(className, "Shell_TrayWnd") ||
+            !_stricmp(className, "Shell_SecondaryTrayWnd"))
+        {
+            std::lock_guard<std::mutex> lock(
+                g_SignalLock);
+
+            if (g_LastLaunchSignal.Source !=
+                LaunchSignalSource::Taskbar)
+            {
+                g_LastLaunchSignal =
+                {
+                    monitor,
+                    NowMs(),
+                    LaunchSignalSource::Taskbar
+                };
+
+                printf(
+                    "TASKBAR LAUNCH SIGNAL=%p\n",
+                    monitor);
+            }
+        }
+
+        if (!_stricmp(className, "Windows.UI.Core.CoreWindow"))
+        {
+            if (!_wcsicmp(title, L"Start"))
+            {
+                {
+                    std::lock_guard<std::mutex> lock(
+                        g_SignalLock);
+
+                    g_LastLaunchSignal =
+                    {
+                        monitor,
+                        NowMs(),
+                        LaunchSignalSource::StartMenu
+                    };
+                }
+
+                printf(
+                    "START MONITOR UPDATED=%p\n",
+                    monitor);
+            }
+        }
+
+        if (!_stricmp(className, "Windows.UI.Core.CoreWindow"))
+        {
+            char buf[1024];
+
+            sprintf_s(
+                buf,
+                "COREWINDOW hwnd=%p monitor=%p title=%ws\n",
+                window,
+                monitor,
+                title);
+
+            printf("%s", buf);
+        }
+
+        MONITORINFOEX mi{};
+        mi.cbSize = sizeof(mi);
+
+        GetMonitorInfo(
+            monitor,
+            &mi);
+
+        char buf[2048];
+
+        sprintf_s(
+            buf,
+            "FOREGROUND hwnd=%p class=%s "
+            "monitor=%p "
+            "monitorRect=(%ld,%ld,%ld,%ld)\n",
+            window,
+            className,
+            monitor,
+            mi.rcMonitor.left,
+            mi.rcMonitor.top,
+            mi.rcMonitor.right,
+            mi.rcMonitor.bottom);
+
+        printf("%s", buf);
+
+        break;
+    }
     }
 }
 
@@ -722,10 +1382,18 @@ ActiveMonitorWindowHandlerMain()
 
     POINT pt = { 0, 0 };
 
-    g_LastInteractionMonitor =
+    g_LastInteractionMonitor.store(
         MonitorFromPoint(
             pt,
-            MONITOR_DEFAULTTOPRIMARY);
+            MONITOR_DEFAULTTOPRIMARY),
+        std::memory_order_relaxed);
+
+    g_MouseHook =
+    SetWindowsHookEx(
+        WH_MOUSE_LL,
+        LowLevelMouseProc,
+        GetModuleHandle(NULL),
+        0);
 
     std::array<DWORD, 5> events_to_subscribe =
     {
@@ -769,6 +1437,12 @@ ActiveMonitorWindowHandlerMain()
             end(m_staticWinEventHooks),
             [](const HWINEVENTHOOK hook) { return UnhookWinEvent(hook); }),
         end(m_staticWinEventHooks));
+
+    if (g_MouseHook)
+    {
+        UnhookWindowsHookEx(g_MouseHook);
+        g_MouseHook = NULL;
+    }
 
     CoUninitialize();
 }
