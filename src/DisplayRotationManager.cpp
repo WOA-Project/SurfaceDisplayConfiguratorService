@@ -27,459 +27,14 @@
 #include "WorkAreas.h"
 #include "DisplayRotationManager.h"
 #include <tchar.h>
+#include "DisplayTopology.h"
+#include "DisplayMode.h"
+#include "DisplayLayout.h"
 
-static VOID
-DumpProperty(HDEVINFO DeviceInfoSet, PSP_DEVINFO_DATA DeviceInfoData, PCWSTR Name, const DEVPROPKEY *Key)
-{
-    BYTE Buffer[512] = {};
-    DEVPROPTYPE Type = 0;
-    DWORD Size = 0;
+#include "DisplayIdentityCache.h"
 
-    if (!SetupDiGetDevicePropertyW(DeviceInfoSet, DeviceInfoData, Key, &Type, Buffer, sizeof(Buffer), &Size, 0))
-    {
-        wprintf(L"%s : <not present>\n", Name);
-        return;
-    }
-
-    wprintf(L"%s\n", Name);
-    wprintf(L"    Type=%08X Size=%u\n", Type, Size);
-
-    if (Type == DEVPROP_TYPE_STRING)
-    {
-        wprintf(L"    Value=%s\n", (PCWSTR)Buffer);
-    }
-    else if (Type == DEVPROP_TYPE_UINT32)
-    {
-        wprintf(L"    Value=%u (0x%08X)\n", *(ULONG *)Buffer, *(ULONG *)Buffer);
-    }
-    else
-    {
-        wprintf(L"    Raw=");
-        for (DWORD i = 0; i < Size; ++i)
-        {
-            wprintf(L"%02X ", Buffer[i]);
-        }
-        wprintf(L"\n");
-    }
-}
-
-static VOID
-DumpPanelProperties(HDEVINFO DeviceInfoSet, PSP_DEVINFO_DATA DeviceInfoData, PCWSTR DeviceName)
-{
-    wprintf(L"\n");
-    wprintf(L"=====================================================\n");
-    wprintf(L"%s\n", DeviceName);
-    wprintf(L"=====================================================\n");
-
-    DumpProperty(DeviceInfoSet, DeviceInfoData, L"DEVPKEY_Device_PanelId", &DEVPKEY_Device_PanelId);
-
-    DumpProperty(DeviceInfoSet, DeviceInfoData, L"DEVPKEY_Device_PanelGroup", &DEVPKEY_Device_PanelGroup);
-
-    DumpProperty(DeviceInfoSet, DeviceInfoData, L"DEVPKEY_Device_PanelSide", &DEVPKEY_Device_PanelSide);
-
-    DumpProperty(
-        DeviceInfoSet,
-        DeviceInfoData,
-        L"DEVPKEY_Device_PhysicalDeviceLocation",
-        &DEVPKEY_Device_PhysicalDeviceLocation);
-
-    DumpProperty(
-        DeviceInfoSet,
-        DeviceInfoData,
-        L"DEVPKEY_Device_PhysicalDeviceLocationPanel",
-        &DEVPKEY_Device_PhysicalDeviceLocationPanel);
-
-    DumpProperty(
-        DeviceInfoSet,
-        DeviceInfoData,
-        L"DEVPKEY_Device_PhysicalDeviceLocationJoint",
-        &DEVPKEY_Device_PhysicalDeviceLocationJoint);
-
-    DumpProperty(
-        DeviceInfoSet,
-        DeviceInfoData,
-        L"DEVPKEY_Device_PhysicalDeviceLocationSpatial",
-        &DEVPKEY_Device_PhysicalDeviceLocationSpatial);
-
-    wprintf(L"\n");
-}
-
-//
-// Subject: Gets a display device
-//
-// Parameters:
-//
-//			   PanelId: The Panel ID (0, 1, etc)
-//
-//             DisplayDevice: The corresponding display device
-//
-// Returns: ERROR_SUCCESS if successful
-//
-HRESULT WINAPI
-GetDisplayDeviceById(DWORD PanelId, PDISPLAY_DEVICE DisplayDevice, PDISPLAY_DEVICE DisplayDevice2)
-{
-    RtlZeroMemory(DisplayDevice, sizeof(DISPLAY_DEVICE));
-    RtlZeroMemory(DisplayDevice2, sizeof(DISPLAY_DEVICE));
-
-    DisplayDevice->cb = sizeof(DISPLAY_DEVICE);
-    DisplayDevice2->cb = sizeof(DISPLAY_DEVICE);
-
-    if (!EnumDisplayDevices(NULL, PanelId, DisplayDevice, 0))
-    {
-        return ERROR_NOT_FOUND;
-    }
-
-    if (!EnumDisplayDevices(DisplayDevice->DeviceName, 0, DisplayDevice2, 0))
-    {
-        return ERROR_NOT_FOUND;
-    }
-
-    return ERROR_SUCCESS;
-}
-
-BOOLEAN WINAPI
-IsDeviceBoundToPanelId(CONST WCHAR *DeviceName, CONST WCHAR *DevicePanelId)
-{
-    HDEVINFO devInfo;
-    DWORD dwBuffersize;
-    SP_DEVINFO_DATA devData{};
-    DEVPROPTYPE devProptype;
-    LPWSTR devBuffer;
-    DWORD i = 0;
-    SP_CLASSINSTALL_HEADER ciHeader{};
-    SP_PROPCHANGE_PARAMS pcParams{};
-
-    if ((devInfo = SetupDiGetClassDevs(NULL, NULL, NULL, DIGCF_ALLCLASSES)) == NULL)
-    {
-        return FALSE;
-    }
-
-    devData.cbSize = sizeof(SP_DEVINFO_DATA);
-
-    while (TRUE)
-    {
-        SetupDiEnumDeviceInfo(devInfo, i++, &devData);
-        if (GetLastError() == ERROR_NO_MORE_ITEMS)
-        {
-            break;
-        }
-
-        SetupDiGetDeviceProperty(
-            devInfo, &devData, &DEVPKEY_Device_HardwareIds, &devProptype, NULL, 0, &dwBuffersize, 0);
-
-        if ((devBuffer = (LPWSTR)HeapAlloc(GetProcessHeap(), 0, dwBuffersize)) == NULL)
-        {
-            continue;
-        }
-
-        if (!SetupDiGetDeviceProperty(
-                devInfo, &devData, &DEVPKEY_Device_HardwareIds, &devProptype, (PBYTE)devBuffer, dwBuffersize, NULL, 0))
-        {
-            continue;
-        }
-
-        SIZE_T index = 0;
-        SIZE_T length = wcslen(devBuffer);
-        SIZE_T lengthDeviceName = wcslen(DeviceName);
-        BOOLEAN match = FALSE;
-
-        while (length > 0)
-        {
-            if (index >= dwBuffersize)
-            {
-                break;
-            }
-
-            match = memcmp(DeviceName, devBuffer + index, std::min(lengthDeviceName, length) * sizeof(WCHAR)) == 0;
-
-            if (match)
-            {
-                break;
-            }
-
-            index += length + 1;
-
-            if (index >= dwBuffersize)
-            {
-                break;
-            }
-
-            length = wcslen(devBuffer + index);
-        }
-
-        if (!HeapFree(GetProcessHeap(), 0, devBuffer))
-        {
-            continue;
-        }
-
-        if (!match)
-        {
-            continue;
-        }
-
-        SIZE_T DeviceNameOffset = length + 1;
-
-        SetupDiGetDeviceProperty(devInfo, &devData, &DEVPKEY_Device_Driver, &devProptype, NULL, 0, &dwBuffersize, 0);
-
-        if ((devBuffer = (LPWSTR)HeapAlloc(GetProcessHeap(), 0, dwBuffersize)) == NULL)
-        {
-            continue;
-        }
-
-        if (!SetupDiGetDeviceProperty(
-                devInfo, &devData, &DEVPKEY_Device_Driver, &devProptype, (PBYTE)devBuffer, dwBuffersize, NULL, 0))
-        {
-            continue;
-        }
-
-        index = 0;
-        length = wcslen(devBuffer);
-        match = FALSE;
-
-        while (length > 0)
-        {
-            if (index >= dwBuffersize)
-            {
-                break;
-            }
-
-            match = memcmp(
-                        DeviceName + DeviceNameOffset,
-                        devBuffer + index,
-                        std::min(lengthDeviceName - DeviceNameOffset, length) * sizeof(WCHAR)) == 0;
-
-            if (match)
-            {
-                break;
-            }
-
-            index += length + 1;
-
-            if (index >= dwBuffersize)
-            {
-                break;
-            }
-
-            length = wcslen(devBuffer + index);
-        }
-
-        if (!HeapFree(GetProcessHeap(), 0, devBuffer))
-        {
-            continue;
-        }
-
-        if (!match)
-        {
-            continue;
-        }
-
-        SetupDiGetDeviceProperty(devInfo, &devData, &DEVPKEY_Device_PanelId, &devProptype, NULL, 0, &dwBuffersize, 0);
-
-        if ((devBuffer = (LPWSTR)HeapAlloc(GetProcessHeap(), 0, dwBuffersize)) == NULL)
-        {
-            continue;
-        }
-
-        if (!SetupDiGetDeviceProperty(
-                devInfo, &devData, &DEVPKEY_Device_PanelId, &devProptype, (PBYTE)devBuffer, dwBuffersize, NULL, 0))
-        {
-            continue;
-        }
-
-        if (lstrcmp(devBuffer, DevicePanelId))
-        {
-            if (!HeapFree(GetProcessHeap(), 0, devBuffer))
-            {
-                continue;
-            }
-
-            continue;
-        }
-
-        if (!HeapFree(GetProcessHeap(), 0, devBuffer))
-        {
-            continue;
-        }
-
-        if (!SetupDiDestroyDeviceInfoList(devInfo))
-        {
-            return FALSE;
-        }
-
-        return TRUE;
-    }
-
-    if (!SetupDiDestroyDeviceInfoList(devInfo))
-    {
-        return FALSE;
-    }
-
-    return FALSE;
-}
-
-//
-// Subject: Gets a display device
-//
-// Parameters:
-//
-//			   DevicePanelId: The Panel Container Identifier
-//
-//             DisplayDevice: The corresponding display device
-//
-// Returns: ERROR_SUCCESS if successful
-//
-HRESULT WINAPI
-GetDisplayDeviceByPanelId(CONST WCHAR *DevicePanelId, PDISPLAY_DEVICE DisplayDevice)
-{
-    DWORD i = 0;
-    DISPLAY_DEVICE DisplayDevice2 = {0};
-
-    while (SUCCEEDED(GetDisplayDeviceById(i++, DisplayDevice, &DisplayDevice2)))
-    {
-        if (IsDeviceBoundToPanelId(DisplayDevice2.DeviceID, DevicePanelId))
-        {
-            return ERROR_SUCCESS;
-        }
-    }
-
-    return ERROR_NOT_FOUND;
-}
-
-HRESULT WINAPI
-GetDisplayDeviceBestDisplayMode(PDISPLAY_DEVICE DisplayDevice, PDEVMODE deviceMode)
-{
-    DWORD i = 0;
-    DWORD maxHeightSeen = 0;
-    DEVMODE deviceMode2;
-
-    RtlZeroMemory(deviceMode, sizeof(DEVMODE));
-    deviceMode->dmSize = sizeof(DEVMODE);
-
-    RtlZeroMemory(&deviceMode2, sizeof(DEVMODE));
-    deviceMode2.dmSize = sizeof(DEVMODE);
-
-    if (DisplayDevice->StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP)
-    {
-        if (!EnumDisplaySettings(DisplayDevice->DeviceName, ENUM_CURRENT_SETTINGS, deviceMode))
-        {
-            return ERROR_NOT_FOUND;
-        }
-
-        return ERROR_SUCCESS;
-    }
-    else
-    {
-        while (TRUE)
-        {
-            if (!EnumDisplaySettings(DisplayDevice->DeviceName, i, &deviceMode2))
-            {
-                break;
-            }
-
-            if (deviceMode2.dmPelsHeight > maxHeightSeen)
-            {
-                maxHeightSeen = deviceMode2.dmPelsHeight;
-                printf("dmFields=0x%08X\n", deviceMode2.dmFields);
-                memcpy(deviceMode, &deviceMode2, sizeof(DEVMODE));
-            }
-
-            i++;
-        }
-
-        if (maxHeightSeen == 0)
-        {
-            return ERROR_NOT_FOUND;
-        }
-
-        return ERROR_SUCCESS;
-    }
-}
-
-HRESULT WINAPI
-GetDisplayDevicePLD(CONST WCHAR *DevicePanelId, PACPI_PLD_V2_BUFFER Pld)
-{
-    HDEVINFO devInfo;
-    SP_DEVINFO_DATA devData{};
-    DWORD i = 0;
-
-    if (!Pld)
-    {
-        return E_INVALIDARG;
-    }
-
-    ZeroMemory(Pld, sizeof(*Pld));
-
-    devInfo = SetupDiGetClassDevs(NULL, NULL, NULL, DIGCF_ALLCLASSES);
-
-    if (devInfo == INVALID_HANDLE_VALUE)
-    {
-        return HRESULT_FROM_WIN32(GetLastError());
-    }
-
-    devData.cbSize = sizeof(devData);
-
-    while (SetupDiEnumDeviceInfo(devInfo, i++, &devData))
-    {
-        DEVPROPTYPE propType;
-        DWORD bufferSize;
-
-        //
-        // Read PanelId
-        //
-        SetupDiGetDevicePropertyW(devInfo, &devData, &DEVPKEY_Device_PanelId, &propType, NULL, 0, &bufferSize, 0);
-
-        std::vector<BYTE> panelBuffer(bufferSize);
-
-        if (!SetupDiGetDevicePropertyW(
-                devInfo, &devData, &DEVPKEY_Device_PanelId, &propType, panelBuffer.data(), bufferSize, NULL, 0))
-        {
-            continue;
-        }
-
-        if (_wcsicmp(reinterpret_cast<PCWSTR>(panelBuffer.data()), DevicePanelId) != 0)
-        {
-            continue;
-        }
-
-        wprintf(L"\n");
-        wprintf(L"============================================================\n");
-        wprintf(L"MATCHED PANEL: %s\n", DevicePanelId);
-        wprintf(L"============================================================\n");
-
-        DumpPanelProperties(devInfo, &devData, DevicePanelId);
-
-        //
-        // Read PLD
-        //
-        DWORD requiredSize = 0;
-
-        if (!SetupDiGetDevicePropertyW(
-                devInfo,
-                &devData,
-                &DEVPKEY_Device_PhysicalDeviceLocation,
-                &propType,
-                reinterpret_cast<PBYTE>(Pld),
-                sizeof(*Pld),
-                &requiredSize,
-                0))
-        {
-            continue;
-        }
-
-        if (propType != DEVPROP_TYPE_BINARY)
-        {
-            continue;
-        }
-
-        SetupDiDestroyDeviceInfoList(devInfo);
-
-        return ERROR_SUCCESS;
-    }
-
-    SetupDiDestroyDeviceInfoList(devInfo);
-
-    return ERROR_NOT_FOUND;
-}
+#include "DisplayActivation.h"
+#include "DisplayConfiguration.h"
 
 //
 // Subject: Sets a device enablement state based on its panel id attachment
@@ -506,7 +61,7 @@ SetHardwareEnabledStateForPanel(CONST WCHAR *devicePanelId, CONST WCHAR *deviceH
     SP_CLASSINSTALL_HEADER ciHeader{};
     SP_PROPCHANGE_PARAMS pcParams{};
 
-    if ((devInfo = SetupDiGetClassDevs(NULL, NULL, NULL, DIGCF_ALLCLASSES)) == NULL)
+    if ((devInfo = SetupDiGetClassDevs(NULL, NULL, NULL, DIGCF_ALLCLASSES)) == INVALID_HANDLE_VALUE)
     {
         return HRESULT_FROM_WIN32(GetLastError());
     }
@@ -515,10 +70,14 @@ SetHardwareEnabledStateForPanel(CONST WCHAR *devicePanelId, CONST WCHAR *deviceH
 
     while (TRUE)
     {
-        SetupDiEnumDeviceInfo(devInfo, i++, &devData);
-        if (GetLastError() == ERROR_NO_MORE_ITEMS)
+        if (!SetupDiEnumDeviceInfo(devInfo, i++, &devData))
         {
-            break;
+            if (GetLastError() == ERROR_NO_MORE_ITEMS)
+            {
+                break;
+            }
+
+            continue;
         }
 
         SetupDiGetDeviceProperty(
@@ -532,6 +91,8 @@ SetHardwareEnabledStateForPanel(CONST WCHAR *devicePanelId, CONST WCHAR *deviceH
         if (!SetupDiGetDeviceProperty(
                 devInfo, &devData, &DEVPKEY_Device_HardwareIds, &devProptype, (PBYTE)devBuffer, dwBuffersize, NULL, 0))
         {
+            HeapFree(GetProcessHeap(), 0, devBuffer);
+
             continue;
         }
 
@@ -571,6 +132,8 @@ SetHardwareEnabledStateForPanel(CONST WCHAR *devicePanelId, CONST WCHAR *deviceH
         if (!SetupDiGetDeviceProperty(
                 devInfo, &devData, &DEVPKEY_Device_PanelId, &devProptype, (PBYTE)devBuffer, dwBuffersize, NULL, 0))
         {
+            HeapFree(GetProcessHeap(), 0, devBuffer);
+
             continue;
         }
 
@@ -625,44 +188,29 @@ SetDisplayStates(
     BOOLEAN DisplayState1,
     BOOLEAN DisplayState2)
 {
-    ACPI_PLD_V2_BUFFER PLD1 = {0};
-    ACPI_PLD_V2_BUFFER PLD2 = {0};
-    HRESULT Status = ERROR_SUCCESS;
+    const DisplayIdentity *Panel1 = g_DisplayIdentityCache.FindByPanelId(DisplayPanelId1);
 
-    Status = GetDisplayDevicePLD(DisplayPanelId1, &PLD1);
-    if (FAILED(Status))
+    const DisplayIdentity *Panel2 = g_DisplayIdentityCache.FindByPanelId(DisplayPanelId2);
+
+    if (!Panel1 || !Panel2)
     {
-        return Status;
+        return ERROR_NOT_FOUND;
     }
 
-    Status = GetDisplayDevicePLD(DisplayPanelId2, &PLD2);
-    if (FAILED(Status))
-    {
-        return Status;
-    }
-
-    if (PLD1.CabinetNumber == PLD2.CabinetNumber || PLD1.CabinetNumber > 1 || PLD2.CabinetNumber > 1)
-    {
-        return STATUS_INVALID_PARAMETER;
-    }
-
-    BOOLEAN PLD1IsLeftDisplay = PLD1.CabinetNumber == 1;
-    BOOLEAN PLD2IsRightDisplay = PLD2.CabinetNumber == 0;
-
-    CONST WCHAR *LeftDisplayPanelId = PLD1IsLeftDisplay ? DisplayPanelId1 : DisplayPanelId2;
-    CONST WCHAR *RightDisplayPanelId = PLD2IsRightDisplay ? DisplayPanelId2 : DisplayPanelId1;
-    INT LeftDisplayOrientation = PLD1IsLeftDisplay ? DisplayOrientation1 : DisplayOrientation2;
-    INT RightDisplayOrientation = PLD2IsRightDisplay ? DisplayOrientation2 : DisplayOrientation1;
-    BOOLEAN LeftDisplayState = PLD1IsLeftDisplay ? DisplayState1 : DisplayState2;
-    BOOLEAN RightDisplayState = PLD2IsRightDisplay ? DisplayState2 : DisplayState1;
+    BOOLEAN Panel1IsLeft = Panel1->IsLeft;
 
     return SetDisplayStatesInternal(
-        LeftDisplayPanelId,
-        RightDisplayPanelId,
-        LeftDisplayOrientation,
-        RightDisplayOrientation,
-        LeftDisplayState,
-        RightDisplayState);
+        Panel1IsLeft ? DisplayPanelId1 : DisplayPanelId2,
+
+        Panel1IsLeft ? DisplayPanelId2 : DisplayPanelId1,
+
+        Panel1IsLeft ? DisplayOrientation1 : DisplayOrientation2,
+
+        Panel1IsLeft ? DisplayOrientation2 : DisplayOrientation1,
+
+        Panel1IsLeft ? DisplayState1 : DisplayState2,
+
+        Panel1IsLeft ? DisplayState2 : DisplayState1);
 }
 
 HRESULT WINAPI
@@ -698,17 +246,19 @@ SetDisplayStatesInternal(
         LeftDisplayState,
         RightDisplayState);
 
-    Status = GetDisplayDeviceByPanelId(LeftDisplayPanelId, &LeftDisplayDevice);
-    if (FAILED(Status))
+    const DisplayIdentity *LeftIdentity = g_DisplayIdentityCache.FindByPanelId(LeftDisplayPanelId);
+
+    const DisplayIdentity *RightIdentity = g_DisplayIdentityCache.FindByPanelId(RightDisplayPanelId);
+
+    if (!LeftIdentity || !RightIdentity)
     {
+        Status = ERROR_NOT_FOUND;
         goto exit;
     }
 
-    Status = GetDisplayDeviceByPanelId(RightDisplayPanelId, &RightDisplayDevice);
-    if (FAILED(Status))
-    {
-        goto exit;
-    }
+    LeftDisplayDevice = LeftIdentity->DisplayDevice;
+
+    RightDisplayDevice = RightIdentity->DisplayDevice;
 
     if (_wcsicmp(LeftDisplayDevice.DeviceName, L"\\\\.\\DISPLAY2") == 0)
     {
@@ -753,28 +303,17 @@ SetDisplayStatesInternal(
     lastLeftDisplayState = (LeftDisplayDevice.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP);
     lastRightDisplayState = (RightDisplayDevice.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP);
 
-    if (LeftDisplayState == FALSE && lastLeftDisplayState)
-    {
-        // First make sure matching sensors are off to avoid init issues
-        Status = SetHardwareEnabledStateForPanel(LeftDisplayPanelId, _T("HID_DEVICE_UP:000D_U:000F"), FALSE);
-        if (FAILED(Status))
-        {
-            // goto exit;
-            //  Non fatal for now
-            Status = ERROR_SUCCESS;
-        }
-    }
+    Status = SynchronizePanelHardwareState(
+        LeftDisplayPanelId,
+        RightDisplayPanelId,
+        LeftDisplayState,
+        RightDisplayState,
+        lastLeftDisplayState,
+        lastRightDisplayState);
 
-    if (RightDisplayState == FALSE && lastRightDisplayState)
+    if (FAILED(Status))
     {
-        // First make sure matching sensors are off to avoid init issues
-        Status = SetHardwareEnabledStateForPanel(RightDisplayPanelId, _T("HID_DEVICE_UP:000D_U:000F"), FALSE);
-        if (FAILED(Status))
-        {
-            // goto exit;
-            //  Non fatal for now
-            Status = ERROR_SUCCESS;
-        }
+        goto exit;
     }
 
     LeftDevMode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION | DM_DISPLAYORIENTATION;
@@ -811,77 +350,7 @@ SetDisplayStatesInternal(
     if (LeftDisplayState && RightDisplayState)
     {
         // Orientation shouldn't differ between both displays unless we are in tent mode
-        switch (LeftDisplayOrientation)
-        {
-        case DMDO_DEFAULT: {
-            //
-            // X---- | Y----
-            // | L | | | R |
-            // ----- | -----
-            //
-            // X: (0,0); Y: (1350,0)
-            LeftDevMode.dmPosition.x = 0;
-            LeftDevMode.dmPosition.y = 0;
-            RightDevMode.dmPosition.x = LeftDevMode.dmPelsWidth;
-            RightDevMode.dmPosition.y = 0;
-            break;
-        }
-        case DMDO_90: {
-            //
-            //  +------
-            //  | CCW
-            //  v 90°
-            //
-            // Y-------|
-            // |   R   |
-            // |-------|
-            // ---------
-            // X-------|
-            // |   L   |
-            // |-------|
-            //
-            // X: (0,1350); Y: (0,0)
-            LeftDevMode.dmPosition.x = 0;
-            LeftDevMode.dmPosition.y = RightDevMode.dmPelsHeight;
-            RightDevMode.dmPosition.x = 0;
-            RightDevMode.dmPosition.y = 0;
-            break;
-        }
-        case DMDO_180: {
-            //
-            // Y---- | X----
-            // | R | | | L |
-            // ----- | -----
-            //
-            // X: (1350,0); Y: (0,0)
-            LeftDevMode.dmPosition.x = RightDevMode.dmPelsWidth;
-            LeftDevMode.dmPosition.y = 0;
-            RightDevMode.dmPosition.x = 0;
-            RightDevMode.dmPosition.y = 0;
-            break;
-        }
-        case DMDO_270: {
-            //
-            //   -----+
-            //   CCW  |
-            //   270° v
-            //
-            // X-------|
-            // |   L   |
-            // |-------|
-            // ---------
-            // Y-------|
-            // |   R   |
-            // |-------|
-            //
-            // X: (0,0); Y: (0,1350)
-            LeftDevMode.dmPosition.x = 0;
-            LeftDevMode.dmPosition.y = 0;
-            RightDevMode.dmPosition.x = 0;
-            RightDevMode.dmPosition.y = LeftDevMode.dmPelsHeight;
-            break;
-        }
-        }
+        BuildExtendedDisplayLayout(LeftDisplayOrientation, &LeftDevMode, &RightDevMode);
 
         wprintf(
             L"LEFTDEVMODE[%s]: fields=0x%08X pos=(%ld,%ld) res=%lux%lu orient=%lu freq=%lu bpp=%lu flags=0x%08X\n",
@@ -909,35 +378,11 @@ SetDisplayStatesInternal(
             RightDevMode.dmBitsPerPel,
             RightDevMode.dmDisplayFlags);
 
-        BOOLEAN IsLeftDisplayPrimary = LeftDevMode.dmPosition.x == 0 && LeftDevMode.dmPosition.y == 0;
+        Status =
+            ApplyExtendedDisplayConfiguration(&LeftDisplayDevice, &RightDisplayDevice, &LeftDevMode, &RightDevMode);
 
-        LONG rc = ChangeDisplaySettingsEx(
-            IsLeftDisplayPrimary ? LeftDisplayDevice.DeviceName : RightDisplayDevice.DeviceName,
-            IsLeftDisplayPrimary ? &LeftDevMode : &RightDevMode,
-            NULL,
-            CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET | CDS_SET_PRIMARY,
-            NULL);
-
-        printf("CDSEx rc=%ld\n", rc);
-
-        if (rc != DISP_CHANGE_SUCCESSFUL)
+        if (FAILED(Status))
         {
-            Status = HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
-            goto exit;
-        }
-
-        rc = ChangeDisplaySettingsEx(
-            IsLeftDisplayPrimary ? RightDisplayDevice.DeviceName : LeftDisplayDevice.DeviceName,
-            IsLeftDisplayPrimary ? &RightDevMode : &LeftDevMode,
-            NULL,
-            CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET,
-            NULL);
-
-        printf("CDSEx rc=%ld\n", rc);
-
-        if (rc != DISP_CHANGE_SUCCESSFUL)
-        {
-            Status = HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
             goto exit;
         }
     }
@@ -954,33 +399,8 @@ SetDisplayStatesInternal(
         }
         else
         {
-            if (ChangeDisplaySettingsEx(
-                    LeftDisplayDevice.DeviceName,
-                    &LeftDevMode,
-                    NULL,
-                    CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET | CDS_SET_PRIMARY,
-                    NULL) != DISP_CHANGE_SUCCESSFUL)
-            {
-                Status = HRESULT_FROM_WIN32(GetLastError());
-                goto exit;
-            }
-
-            if (lastRightDisplayState)
-            {
-                RightDevMode.dmPelsWidth = 0;
-                RightDevMode.dmPelsHeight = 0;
-
-                if (ChangeDisplaySettingsEx(
-                        RightDisplayDevice.DeviceName,
-                        &RightDevMode,
-                        NULL,
-                        CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET,
-                        NULL) != DISP_CHANGE_SUCCESSFUL)
-                {
-                    Status = HRESULT_FROM_WIN32(GetLastError());
-                    goto exit;
-                }
-            }
+            Status = ApplySingleLeftDisplayConfiguration(
+                &LeftDisplayDevice, &RightDisplayDevice, &LeftDevMode, &RightDevMode, lastRightDisplayState);
         }
     }
     // Left off, Right on
@@ -996,45 +416,17 @@ SetDisplayStatesInternal(
         }
         else
         {
-            if (ChangeDisplaySettingsEx(
-                    RightDisplayDevice.DeviceName,
-                    &RightDevMode,
-                    NULL,
-                    CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET | CDS_SET_PRIMARY,
-                    NULL) != DISP_CHANGE_SUCCESSFUL)
-            {
-                Status = HRESULT_FROM_WIN32(GetLastError());
-                goto exit;
-            }
-
-            if (lastLeftDisplayState)
-            {
-                LeftDevMode.dmPelsWidth = 0;
-                LeftDevMode.dmPelsHeight = 0;
-
-                if (ChangeDisplaySettingsEx(
-                        LeftDisplayDevice.DeviceName,
-                        &LeftDevMode,
-                        NULL,
-                        CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET,
-                        NULL) != DISP_CHANGE_SUCCESSFUL)
-                {
-                    Status = HRESULT_FROM_WIN32(GetLastError());
-                    goto exit;
-                }
-            }
+            Status = ApplySingleRightDisplayConfiguration(
+                &LeftDisplayDevice, &RightDisplayDevice, &LeftDevMode, &RightDevMode, lastLeftDisplayState);
         }
     }
 
     {
         // Commit changes now
-        LONG rc = ChangeDisplaySettingsEx(NULL, NULL, NULL, 0, NULL);
+        Status = CommitDisplayConfiguration();
 
-        printf("CDSEx rc=%ld\n", rc);
-
-        if (rc != DISP_CHANGE_SUCCESSFUL)
+        if (FAILED(Status))
         {
-            Status = HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
             goto exit;
         }
     }
@@ -1052,30 +444,17 @@ SetDisplayStatesInternal(
         }
     }
 
-    // Display needs to be turned on but was not currently attached
-    if (LeftDisplayState == TRUE && !lastLeftDisplayState)
-    {
-        // First make sure matching sensors are on to avoid init issues
-        Status = SetHardwareEnabledStateForPanel(LeftDisplayPanelId, _T("HID_DEVICE_UP:000D_U:000F"), TRUE);
-        if (FAILED(Status))
-        {
-            // goto exit;
-            //  Non fatal for now
-            Status = ERROR_SUCCESS;
-        }
-    }
+    Status = RestorePanelHardwareState(
+        LeftDisplayPanelId,
+        RightDisplayPanelId,
+        LeftDisplayState,
+        RightDisplayState,
+        lastLeftDisplayState,
+        lastRightDisplayState);
 
-    // Display needs to be turned on but was not currently attached
-    if (RightDisplayState == TRUE && !lastRightDisplayState)
+    if (FAILED(Status))
     {
-        // First make sure matching sensors are on to avoid init issues
-        Status = SetHardwareEnabledStateForPanel(RightDisplayPanelId, _T("HID_DEVICE_UP:000D_U:000F"), TRUE);
-        if (FAILED(Status))
-        {
-            // goto exit;
-            //  Non fatal for now
-            Status = ERROR_SUCCESS;
-        }
+        goto exit;
     }
 
 exit:

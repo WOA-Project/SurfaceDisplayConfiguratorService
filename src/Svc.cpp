@@ -26,6 +26,7 @@
 
 #include "AutoRotate.h"
 #include "ActiveMonitorWindowHandler.h"
+#include "PowerManager.h"
 
 TCHAR SVCNAME[] = TEXT("SurfaceDisplayConfiguratorService");
 
@@ -243,7 +244,8 @@ SvcCtrlHandler(DWORD dwCtrl, DWORD, LPVOID lpEventData, LPVOID lpContext)
 
     case SERVICE_CONTROL_POWEREVENT:
         broadCastSetting = (PPOWERBROADCAST_SETTING)lpEventData;
-        OnPowerEvent(broadCastSetting->PowerSetting, broadCastSetting->Data, broadCastSetting->DataLength, lpContext);
+
+        HandleDisplayPowerEvent(broadCastSetting->PowerSetting, broadCastSetting->Data, broadCastSetting->DataLength);
 
         break;
 

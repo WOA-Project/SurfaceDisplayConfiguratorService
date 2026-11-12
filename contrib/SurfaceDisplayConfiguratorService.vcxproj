@@ -154,9 +154,9 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateWindowsMetadata>false</GenerateWindowsMetadata>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">onecoreuap.lib;setupapi.lib;mincore.lib;mincore_downlevel.lib;ntdll.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">onecoreuap.lib;setupapi.lib;mincore.lib;mincore_downlevel.lib;ntdll.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">onecoreuap.lib;setupapi.lib;mincore.lib;mincore_downlevel.lib;ntdll.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">onecoreuap.lib;setupapi.lib;mincore.lib;mincore_downlevel.lib;ntdll.lib;powrprof.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">onecoreuap.lib;setupapi.lib;mincore.lib;mincore_downlevel.lib;ntdll.lib;powrprof.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">onecoreuap.lib;setupapi.lib;mincore.lib;mincore_downlevel.lib;ntdll.lib;powrprof.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
       <IgnoreSpecificDefaultLibraries>kernel32.lib</IgnoreSpecificDefaultLibraries>
     </Link>
@@ -177,10 +177,10 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateWindowsMetadata>false</GenerateWindowsMetadata>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">onecoreuap.lib;setupapi.lib;mincore.lib;mincore_downlevel.lib;ntdll.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">onecoreuap.lib;setupapi.lib;mincore.lib;mincore_downlevel.lib;ntdll.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">onecoreuap.lib;setupapi.lib;mincore.lib;mincore_downlevel.lib;ntdll.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Release|x64'">onecoreuap.lib;setupapi.lib;mincore.lib;mincore_downlevel.lib;ntdll.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">onecoreuap.lib;setupapi.lib;mincore.lib;mincore_downlevel.lib;ntdll.lib;powrprof.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">onecoreuap.lib;setupapi.lib;mincore.lib;mincore_downlevel.lib;ntdll.lib;powrprof.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">onecoreuap.lib;setupapi.lib;mincore.lib;mincore_downlevel.lib;ntdll.lib;powrprof.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Release|x64'">onecoreuap.lib;setupapi.lib;mincore.lib;mincore_downlevel.lib;ntdll.lib;powrprof.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
       <IgnoreSpecificDefaultLibraries>kernel32.lib</IgnoreSpecificDefaultLibraries>
     </Link>
@@ -222,6 +222,27 @@
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="..\src\VirtualDesktop.cpp" />
+
+    <ClCompile Include="..\src\AutoRotateContext.cpp" />
+    <ClCompile Include="..\src\AutoRotateService.cpp" />
+
+    <ClCompile Include="..\src\DisplayActivation.cpp" />
+    <ClCompile Include="..\src\DisplayConfiguration.cpp" />
+    <ClCompile Include="..\src\DisplayIdentityCache.cpp" />
+
+    <ClCompile Include="..\src\OrientationManager.cpp" />
+    <ClCompile Include="..\src\PostureProcessor.cpp" />
+
+    <ClCompile Include="..\src\PowerManager.cpp" />
+
+    <ClCompile Include="..\src\SensorCallbacks.cpp" />
+    <ClCompile Include="..\src\SensorManager.cpp" />
+    <ClCompile Include="..\src\SensorSubscriptionManager.cpp" />
+
+    <ClCompile Include="..\src\DisplayLayout.cpp" />
+    <ClCompile Include="..\src\DisplayMode.cpp" />
+    <ClCompile Include="..\src\DisplayTopology.cpp" />
+    <ClCompile Include="..\src\DevicePanel.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
@@ -279,6 +300,22 @@
     <ClInclude Include="..\include\pch.h" />
     <ClInclude Include="..\include\resource.h" />
     <ClInclude Include="..\include\VirtualDesktop.h" />
+
+    <ClInclude Include="..\include\AutoRotateContext.h" />
+    <ClInclude Include="..\include\AutoRotateService.h" />
+
+    <ClInclude Include="..\include\DisplayActivation.h" />
+    <ClInclude Include="..\include\DisplayConfiguration.h" />
+    <ClInclude Include="..\include\DisplayIdentityCache.h" />
+
+    <ClInclude Include="..\include\OrientationManager.h" />
+    <ClInclude Include="..\include\PostureProcessor.h" />
+
+    <ClInclude Include="..\include\PowerManager.h" />
+
+    <ClInclude Include="..\include\SensorCallbacks.h" />
+    <ClInclude Include="..\include\SensorManager.h" />
+    <ClInclude Include="..\include\SensorSubscriptionManager.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
