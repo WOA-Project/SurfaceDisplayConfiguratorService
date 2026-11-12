@@ -59,11 +59,7 @@ LaunchMonitorResolver::RecordMouseClick(const POINT &point, HWND targetWindow)
         return;
     }
 
-    if (m_lastLaunchSignal.Source != LaunchSignalSource::Taskbar &&
-        m_lastLaunchSignal.Source != LaunchSignalSource::StartMenu)
-    {
-        m_lastLaunchSignal = {monitor, now, LaunchSignalSource::Mouse};
-    }
+    m_lastLaunchSignal = {monitor, now, LaunchSignalSource::Mouse};
 }
 
 void
@@ -91,11 +87,7 @@ LaunchMonitorResolver::RecordForegroundWindow(HWND window)
 
         m_lastTaskbarMonitor = {monitor, now};
 
-        if (m_lastLaunchSignal.Source != LaunchSignalSource::Taskbar &&
-            m_lastLaunchSignal.Source != LaunchSignalSource::StartMenu)
-        {
-            m_lastLaunchSignal = {monitor, now, LaunchSignalSource::Taskbar};
-        }
+        m_lastLaunchSignal = {monitor, now, LaunchSignalSource::Taskbar};
 
         return;
     }
@@ -148,8 +140,7 @@ LaunchMonitorResolver::DetermineLaunchMonitor(HWND newWindow)
     //
     // Recent taskbar interaction.
     //
-    if (taskbarSignal.Monitor && MonitorHelpers::IsMonitorValid(taskbarSignal.Monitor) &&
-        (now - taskbarSignal.Tick) < SignalTimeoutMs)
+    if (taskbarSignal.Monitor && MonitorHelpers::IsMonitorValid(taskbarSignal.Monitor))
     {
         return taskbarSignal.Monitor;
     }
@@ -157,8 +148,7 @@ LaunchMonitorResolver::DetermineLaunchMonitor(HWND newWindow)
     //
     // Recent mouse interaction.
     //
-    if (mouseSignal.Monitor && MonitorHelpers::IsMonitorValid(mouseSignal.Monitor) &&
-        (now - mouseSignal.Tick) < SignalTimeoutMs)
+    if (mouseSignal.Monitor && MonitorHelpers::IsMonitorValid(mouseSignal.Monitor))
     {
         return mouseSignal.Monitor;
     }

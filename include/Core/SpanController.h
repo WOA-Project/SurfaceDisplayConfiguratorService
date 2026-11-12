@@ -36,7 +36,7 @@ public:
 
     void OnWindowDestroyed(HWND hwnd);
 
-    void OnMouseClick(POINT point);
+    void OnMouseClick(POINT point, HWND hwnd);
 
 private:
     bool ShouldShowPreview(POINT cursor) const;

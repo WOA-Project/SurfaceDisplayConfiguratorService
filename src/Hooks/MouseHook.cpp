@@ -72,7 +72,9 @@ MouseHook::HookProc(int nCode, WPARAM wParam, LPARAM lParam)
     case WM_NCLBUTTONDOWN: {
         const auto *mouse = reinterpret_cast<const MSLLHOOKSTRUCT *>(lParam);
 
-        hook->m_controller.OnMouseClick(mouse->pt);
+        HWND hwnd = WindowFromPoint(mouse->pt);
+
+        hook->m_controller.OnMouseClick(mouse->pt, hwnd);
 
         break;
     }

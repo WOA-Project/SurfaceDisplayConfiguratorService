@@ -67,9 +67,7 @@ SpanController::OnWindowCreated(HWND window)
 
     SetProp(window, ProcessedProperty, (HANDLE)1);
 
-    HMONITOR monitor = m_launchMonitorResolver.DetermineLaunchMonitor(window);
-
-    std::thread([this, window, monitor] {
+    std::thread([this, window] {
         RECT previous{};
         RECT current{};
 
@@ -108,6 +106,8 @@ SpanController::OnWindowCreated(HWND window)
             return;
         }
 
+        HMONITOR monitor = m_launchMonitorResolver.DetermineLaunchMonitor(window);
+
         m_windowPlacementService.PlaceWindow(window, monitor);
 
         m_launchMonitorResolver.ClearLaunchSignal();
@@ -115,10 +115,8 @@ SpanController::OnWindowCreated(HWND window)
 }
 
 void
-SpanController::OnMouseClick(POINT point)
+SpanController::OnMouseClick(POINT point, HWND hwnd)
 {
-    HWND hwnd = WindowFromPoint(point);
-
     if (!hwnd)
     {
         return;
