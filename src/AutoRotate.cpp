@@ -91,6 +91,13 @@ SetPanelsOrientationState(TwoPanelHingedDevicePostureReading reading)
     CONST WCHAR *panel1Id = reading.Panel1Id().c_str();
     CONST WCHAR *panel2Id = reading.Panel2Id().c_str();
 
+    wprintf(
+        L"Posture API:\n"
+        L"    Panel1Id=%s\n"
+        L"    Panel2Id=%s\n",
+        panel1Id,
+        panel2Id);
+
     BOOLEAN Display1State = TRUE;
     BOOLEAN Display2State = TRUE;
 
@@ -128,32 +135,33 @@ SetPanelsOrientationState(TwoPanelHingedDevicePostureReading reading)
 }
 
 VOID WINAPI
-ToggleFavoriteSingleScreenDisplay()
+ToggleFavoriteSingleScreenDisplay(TwoPanelHingedDevicePostureReading reading)
 {
     EnterCriticalSection(&g_AutoRotationCriticalSection);
     IsDisplay1SingleScreenFavorite = IsDisplay1SingleScreenFavorite ? FALSE : TRUE;
-    SetPanelsOrientationState(g_PostureSensor.GetCurrentPostureAsync().get());
+    SetPanelsOrientationState(reading);
     LeaveCriticalSection(&g_AutoRotationCriticalSection);
 }
 
 VOID WINAPI
-TogglePostureScreenOrientationState()
+TogglePostureScreenOrientationState(TwoPanelHingedDevicePostureReading reading)
 {
     EnterCriticalSection(&g_AutoRotationCriticalSection);
-    SetPanelsOrientationState(g_PostureSensor.GetCurrentPostureAsync().get());
+    SetPanelsOrientationState(reading);
     LeaveCriticalSection(&g_AutoRotationCriticalSection);
 }
 
 VOID
 OnPostureChanged(
     TwoPanelHingedDevicePosture const & /*sender*/,
-    TwoPanelHingedDevicePostureReadingChangedEventArgs const & /*args*/)
+    TwoPanelHingedDevicePostureReadingChangedEventArgs const &args)
 {
     printf("OnPostureChanged Entry\n");
 
     SetWallpaperSpanStyle();
 
-    TogglePostureScreenOrientationState();
+    TwoPanelHingedDevicePostureReading reading = args.Reading();
+    TogglePostureScreenOrientationState(reading);
 }
 
 VOID
@@ -171,7 +179,7 @@ OnFlipSensorReadingChanged(FlipSensor const & /*sender*/, FlipSensorReadingChang
     FlipSensorReading reading = args.Reading();
     if (reading.GestureState() == GestureState::Started)
     {
-        ToggleFavoriteSingleScreenDisplay();
+        ToggleFavoriteSingleScreenDisplay(g_PostureSensor.GetCurrentPostureAsync().get());
     }
 }
 
@@ -384,7 +392,7 @@ AutoRotateMain()
     InitializeCriticalSectionAndSpinCount(&g_AutoRotationCriticalSection, 0x00000400);
 
     // Set initial state
-    TogglePostureScreenOrientationState();
+    TogglePostureScreenOrientationState(g_PostureSensor.GetCurrentPostureAsync().get());
 
     {
         DEVICE_NOTIFY_SUBSCRIBE_PARAMETERS powerParams{};

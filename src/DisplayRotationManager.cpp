@@ -28,6 +28,82 @@
 #include "DisplayRotationManager.h"
 #include <tchar.h>
 
+static VOID
+DumpProperty(HDEVINFO DeviceInfoSet, PSP_DEVINFO_DATA DeviceInfoData, PCWSTR Name, const DEVPROPKEY *Key)
+{
+    BYTE Buffer[512] = {};
+    DEVPROPTYPE Type = 0;
+    DWORD Size = 0;
+
+    if (!SetupDiGetDevicePropertyW(DeviceInfoSet, DeviceInfoData, Key, &Type, Buffer, sizeof(Buffer), &Size, 0))
+    {
+        wprintf(L"%s : <not present>\n", Name);
+        return;
+    }
+
+    wprintf(L"%s\n", Name);
+    wprintf(L"    Type=%08X Size=%u\n", Type, Size);
+
+    if (Type == DEVPROP_TYPE_STRING)
+    {
+        wprintf(L"    Value=%s\n", (PCWSTR)Buffer);
+    }
+    else if (Type == DEVPROP_TYPE_UINT32)
+    {
+        wprintf(L"    Value=%u (0x%08X)\n", *(ULONG *)Buffer, *(ULONG *)Buffer);
+    }
+    else
+    {
+        wprintf(L"    Raw=");
+        for (DWORD i = 0; i < Size; ++i)
+        {
+            wprintf(L"%02X ", Buffer[i]);
+        }
+        wprintf(L"\n");
+    }
+}
+
+static VOID
+DumpPanelProperties(HDEVINFO DeviceInfoSet, PSP_DEVINFO_DATA DeviceInfoData, PCWSTR DeviceName)
+{
+    wprintf(L"\n");
+    wprintf(L"=====================================================\n");
+    wprintf(L"%s\n", DeviceName);
+    wprintf(L"=====================================================\n");
+
+    DumpProperty(DeviceInfoSet, DeviceInfoData, L"DEVPKEY_Device_PanelId", &DEVPKEY_Device_PanelId);
+
+    DumpProperty(DeviceInfoSet, DeviceInfoData, L"DEVPKEY_Device_PanelGroup", &DEVPKEY_Device_PanelGroup);
+
+    DumpProperty(DeviceInfoSet, DeviceInfoData, L"DEVPKEY_Device_PanelSide", &DEVPKEY_Device_PanelSide);
+
+    DumpProperty(
+        DeviceInfoSet,
+        DeviceInfoData,
+        L"DEVPKEY_Device_PhysicalDeviceLocation",
+        &DEVPKEY_Device_PhysicalDeviceLocation);
+
+    DumpProperty(
+        DeviceInfoSet,
+        DeviceInfoData,
+        L"DEVPKEY_Device_PhysicalDeviceLocationPanel",
+        &DEVPKEY_Device_PhysicalDeviceLocationPanel);
+
+    DumpProperty(
+        DeviceInfoSet,
+        DeviceInfoData,
+        L"DEVPKEY_Device_PhysicalDeviceLocationJoint",
+        &DEVPKEY_Device_PhysicalDeviceLocationJoint);
+
+    DumpProperty(
+        DeviceInfoSet,
+        DeviceInfoData,
+        L"DEVPKEY_Device_PhysicalDeviceLocationSpatial",
+        &DEVPKEY_Device_PhysicalDeviceLocationSpatial);
+
+    wprintf(L"\n");
+}
+
 //
 // Subject: Gets a display device
 //
@@ -320,37 +396,89 @@ GetDisplayDeviceBestDisplayMode(PDISPLAY_DEVICE DisplayDevice, PDEVMODE deviceMo
 }
 
 HRESULT WINAPI
-GetDisplayDevicePLD(CONST WCHAR *DeviceName, PACPI_PLD_V2_BUFFER Pld)
+GetDisplayDevicePLD(CONST WCHAR *DevicePanelId, PACPI_PLD_V2_BUFFER Pld)
 {
-    HDEVINFO DeviceInfo = INVALID_HANDLE_VALUE;
-    SP_DEVINFO_DATA devData = {0};
-    DEVPROPTYPE devProptype;
+    HDEVINFO devInfo;
+    SP_DEVINFO_DATA devData{};
+    DWORD i = 0;
 
-    if (!SetupDiOpenDeviceInfo(DeviceInfo, DeviceName, NULL, 0, NULL))
+    if (!Pld)
     {
-        return ERROR_NOT_FOUND;
+        return E_INVALIDARG;
     }
 
-    devData.cbSize = sizeof(SP_DEVINFO_DATA);
+    ZeroMemory(Pld, sizeof(*Pld));
 
-    if (!SetupDiGetDeviceProperty(
-            DeviceInfo,
-            &devData,
-            &DEVPKEY_Device_PhysicalDeviceLocation,
-            &devProptype,
-            (PBYTE)Pld,
-            sizeof(ACPI_PLD_V2_BUFFER),
-            NULL,
-            0))
+    devInfo = SetupDiGetClassDevs(NULL, NULL, NULL, DIGCF_ALLCLASSES);
+
+    if (devInfo == INVALID_HANDLE_VALUE)
     {
-        SetupDiDestroyDeviceInfoList(DeviceInfo);
-
-        return ERROR_NOT_ENOUGH_MEMORY;
+        return HRESULT_FROM_WIN32(GetLastError());
     }
 
-    SetupDiDestroyDeviceInfoList(DeviceInfo);
+    devData.cbSize = sizeof(devData);
 
-    return ERROR_SUCCESS;
+    while (SetupDiEnumDeviceInfo(devInfo, i++, &devData))
+    {
+        DEVPROPTYPE propType;
+        DWORD bufferSize;
+
+        //
+        // Read PanelId
+        //
+        SetupDiGetDevicePropertyW(devInfo, &devData, &DEVPKEY_Device_PanelId, &propType, NULL, 0, &bufferSize, 0);
+
+        std::vector<BYTE> panelBuffer(bufferSize);
+
+        if (!SetupDiGetDevicePropertyW(
+                devInfo, &devData, &DEVPKEY_Device_PanelId, &propType, panelBuffer.data(), bufferSize, NULL, 0))
+        {
+            continue;
+        }
+
+        if (_wcsicmp(reinterpret_cast<PCWSTR>(panelBuffer.data()), DevicePanelId) != 0)
+        {
+            continue;
+        }
+
+        wprintf(L"\n");
+        wprintf(L"============================================================\n");
+        wprintf(L"MATCHED PANEL: %s\n", DevicePanelId);
+        wprintf(L"============================================================\n");
+
+        DumpPanelProperties(devInfo, &devData, DevicePanelId);
+
+        //
+        // Read PLD
+        //
+        DWORD requiredSize = 0;
+
+        if (!SetupDiGetDevicePropertyW(
+                devInfo,
+                &devData,
+                &DEVPKEY_Device_PhysicalDeviceLocation,
+                &propType,
+                reinterpret_cast<PBYTE>(Pld),
+                sizeof(*Pld),
+                &requiredSize,
+                0))
+        {
+            continue;
+        }
+
+        if (propType != DEVPROP_TYPE_BINARY)
+        {
+            continue;
+        }
+
+        SetupDiDestroyDeviceInfoList(devInfo);
+
+        return ERROR_SUCCESS;
+    }
+
+    SetupDiDestroyDeviceInfoList(devInfo);
+
+    return ERROR_NOT_FOUND;
 }
 
 //
@@ -497,7 +625,7 @@ SetDisplayStates(
     BOOLEAN DisplayState1,
     BOOLEAN DisplayState2)
 {
-    /*ACPI_PLD_V2_BUFFER PLD1 = {0};
+    ACPI_PLD_V2_BUFFER PLD1 = {0};
     ACPI_PLD_V2_BUFFER PLD2 = {0};
     HRESULT Status = ERROR_SUCCESS;
 
@@ -507,7 +635,7 @@ SetDisplayStates(
         return Status;
     }
 
-    Status = GetDisplayDevicePLD(DisplayPanelId1, &PLD2);
+    Status = GetDisplayDevicePLD(DisplayPanelId2, &PLD2);
     if (FAILED(Status))
     {
         return Status;
@@ -516,10 +644,10 @@ SetDisplayStates(
     if (PLD1.CabinetNumber == PLD2.CabinetNumber || PLD1.CabinetNumber > 1 || PLD2.CabinetNumber > 1)
     {
         return STATUS_INVALID_PARAMETER;
-    }*/
+    }
 
-    BOOLEAN PLD1IsLeftDisplay = TRUE;  // PLD1.CabinetNumber == 1;
-    BOOLEAN PLD2IsRightDisplay = TRUE; // PLD2.CabinetNumber == 0;
+    BOOLEAN PLD1IsLeftDisplay = PLD1.CabinetNumber == 1;
+    BOOLEAN PLD2IsRightDisplay = PLD2.CabinetNumber == 0;
 
     CONST WCHAR *LeftDisplayPanelId = PLD1IsLeftDisplay ? DisplayPanelId1 : DisplayPanelId2;
     CONST WCHAR *RightDisplayPanelId = PLD2IsRightDisplay ? DisplayPanelId2 : DisplayPanelId1;

@@ -21,42 +21,137 @@
  */
 #pragma once
 
+#include <devpropdef.h>
+
 #define DEFINE_DEVPROPKEY2(name, l, w1, w2, b1, b2, b3, b4, b5, b6, b7, b8, pid) \
     EXTERN_C \
     const DEVPROPKEY DECLSPEC_SELECTANY name = {{l, w1, w2, {b1, b2, b3, b4, b5, b6, b7, b8}}, pid}
 
-#ifndef DEVPKEY_Device_PanelId
-DEFINE_DEVPROPKEY2(
-    DEVPKEY_Device_PanelId,
-    0x8dbc9c86,
-    0x97a9,
-    0x4bff,
-    0x9b,
-    0xc6,
-    0xbf,
-    0xe9,
-    0x5d,
-    0x3e,
-    0x6d,
-    0xad,
-    2); // DEVPROP_TYPE_STRING
-#endif
+// ============================================================================
+// Physical Device Location
+// ============================================================================
 
 #ifndef DEVPKEY_Device_PhysicalDeviceLocation
 DEFINE_DEVPROPKEY2(
     DEVPKEY_Device_PhysicalDeviceLocation,
-    0x540b947e,
-    0x8b40,
-    0x45bc,
-    0xa8,
-    0xa2,
-    0x6a,
-    0x0b,
+    0x540B947E,
+    0x8B40,
+    0x45BC,
+    0xA8,
+    0xA2,
+    0x6A,
+    0x0B,
     0x89,
-    0x4c,
-    0xbd,
-    0xa2,
-    9); // DEVPROP_TYPE_BINARY
+    0x4C,
+    0xBD,
+    0xA2,
+    9);
+#endif
+
+#ifndef DEVPKEY_Device_PhysicalDeviceLocationSpatial
+DEFINE_DEVPROPKEY2(
+    DEVPKEY_Device_PhysicalDeviceLocationSpatial,
+    0xE585291F,
+    0x53AF,
+    0x48AF,
+    0x72,
+    0x52,
+    0x24,
+    0x5A,
+    0x68,
+    0xC7,
+    0x41,
+    0x02,
+    2);
+#endif
+
+#ifndef DEVPKEY_Device_PhysicalDeviceLocationJoint
+DEFINE_DEVPROPKEY2(
+    DEVPKEY_Device_PhysicalDeviceLocationJoint,
+    0x52ACC9AE,
+    0x7867,
+    0x445E,
+    0xA9,
+    0x15,
+    0x5C,
+    0x68,
+    0xAE,
+    0xEA,
+    0xC8,
+    0x63,
+    2);
+#endif
+
+#ifndef DEVPKEY_Device_PhysicalDeviceLocationPanel
+DEFINE_DEVPROPKEY2(
+    DEVPKEY_Device_PhysicalDeviceLocationPanel,
+    0x24DAEB80,
+    0x9823,
+    0x4FF8,
+    0x92,
+    0xA6,
+    0x3A,
+    0x4C,
+    0x61,
+    0x89,
+    0xF8,
+    0x2C,
+    2);
+#endif
+
+// ============================================================================
+// Device Panel
+// ============================================================================
+
+#ifndef DEVPKEY_Device_PanelId
+DEFINE_DEVPROPKEY2(
+    DEVPKEY_Device_PanelId,
+    0x8DBC9C86,
+    0x97A9,
+    0x4BFF,
+    0x9B,
+    0xC6,
+    0xBF,
+    0xE9,
+    0x5D,
+    0x3E,
+    0x6D,
+    0xAD,
+    2);
+#endif
+
+#ifndef DEVPKEY_Device_PanelGroup
+DEFINE_DEVPROPKEY2(
+    DEVPKEY_Device_PanelGroup,
+    0x8DBC9C86,
+    0x97A9,
+    0x4BFF,
+    0x9B,
+    0xC6,
+    0xBF,
+    0xE9,
+    0x5D,
+    0x3E,
+    0x6D,
+    0xAD,
+    3);
+#endif
+
+#ifndef DEVPKEY_Device_PanelSide
+DEFINE_DEVPROPKEY2(
+    DEVPKEY_Device_PanelSide,
+    0x8DBC9C86,
+    0x97A9,
+    0x4BFF,
+    0x9B,
+    0xC6,
+    0xBF,
+    0xE9,
+    0x5D,
+    0x3E,
+    0x6D,
+    0xAD,
+    4);
 #endif
 
 typedef struct _ACPI_PLD_V2_BUFFER
