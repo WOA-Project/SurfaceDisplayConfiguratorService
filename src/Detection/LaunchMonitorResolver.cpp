@@ -87,7 +87,10 @@ LaunchMonitorResolver::RecordForegroundWindow(HWND window)
 
         m_lastTaskbarMonitor = {monitor, now};
 
-        m_lastLaunchSignal = {monitor, now, LaunchSignalSource::Taskbar};
+        if (m_lastLaunchSignal.Source != LaunchSignalSource::Taskbar)
+        {
+            m_lastLaunchSignal = {monitor, now, LaunchSignalSource::Taskbar};
+        }
 
         return;
     }
