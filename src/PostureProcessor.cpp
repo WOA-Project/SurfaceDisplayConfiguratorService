@@ -6,12 +6,14 @@
 
 #include "OrientationManager.h"
 #include "DisplayRotationManager.h"
+#include "FlipConfirmationManager.h"
+
+static bool s_LastWasFullHinge = false;
 
 HRESULT WINAPI
 ApplyPostureReading(TwoPanelHingedDevicePostureReading Reading)
 {
     const WCHAR *Panel1Id = Reading.Panel1Id().c_str();
-
     const WCHAR *Panel2Id = Reading.Panel2Id().c_str();
 
     wprintf(
@@ -30,26 +32,60 @@ ApplyPostureReading(TwoPanelHingedDevicePostureReading Reading)
         &g_AutoRotateContext.Panel1Orientation,
         &g_AutoRotateContext.Panel2Orientation);
 
-    //
-    // Full hinge angle.
-    // Only one screen active.
-    //
-    if (Reading.HingeState() == Windows::Internal::System::HingeState::Full)
-    {
-        Display1State = g_AutoRotateContext.IsDisplay1SingleScreenFavorite;
+    bool IsFullHinge = Reading.HingeState() == Windows::Internal::System::HingeState::Full;
 
-        Display2State = !g_AutoRotateContext.IsDisplay1SingleScreenFavorite;
+    //
+    // Entering Full posture
+    //
+    if (IsFullHinge && !s_LastWasFullHinge)
+    {
+        BOOLEAN FinalDisplay1State = g_AutoRotateContext.IsDisplay1SingleScreenFavorite;
+        BOOLEAN FinalDisplay2State = !g_AutoRotateContext.IsDisplay1SingleScreenFavorite;
+
+        s_LastWasFullHinge = true;
+
+        BeginPendingFlip(
+            Panel1Id,
+            Panel2Id,
+            g_AutoRotateContext.Panel1Orientation,
+            g_AutoRotateContext.Panel2Orientation,
+            FinalDisplay1State,
+            FinalDisplay2State);
     }
 
+    //
+    // Remaining in Full posture.
+    //
+    if (IsFullHinge)
+    {
+        //
+        // Do not keep reapplying topology.
+        // Let the pending flip manager own the transition.
+        //
+        return ERROR_SUCCESS;
+    }
+
+    //
+    // Leaving Full posture.
+    //
+    if (!IsFullHinge && s_LastWasFullHinge)
+    {
+        CancelPendingFlip();
+
+        s_LastWasFullHinge = false;
+    }
+
+    //
+    // Normal dual-screen operation.
+    //
     return SetDisplayStates(
         Panel1Id,
         Panel2Id,
-
         g_AutoRotateContext.Panel1Orientation,
         g_AutoRotateContext.Panel2Orientation,
-
         Display1State,
-        Display2State);
+        Display2State,
+        DISPLAY_PRIMARY_OVERRIDE::DisplayPrimaryAuto);
 }
 
 VOID WINAPI
@@ -68,6 +104,17 @@ TogglePreferredSingleScreen(TwoPanelHingedDevicePostureReading Reading)
     EnterCriticalSection(&g_AutoRotateContext.CriticalSection);
 
     g_AutoRotateContext.IsDisplay1SingleScreenFavorite = !g_AutoRotateContext.IsDisplay1SingleScreenFavorite;
+
+    //
+    // If we're currently folded,
+    // restart the preview process immediately.
+    //
+    if (s_LastWasFullHinge)
+    {
+        CancelPendingFlip();
+
+        s_LastWasFullHinge = false;
+    }
 
     ApplyPostureReading(Reading);
 

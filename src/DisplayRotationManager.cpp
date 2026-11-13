@@ -61,6 +61,8 @@ SetHardwareEnabledStateForPanel(CONST WCHAR *devicePanelId, CONST WCHAR *deviceH
     SP_CLASSINSTALL_HEADER ciHeader{};
     SP_PROPCHANGE_PARAMS pcParams{};
 
+    wprintf(L"%s %s\n", enabledState ? L"ENABLE" : L"DISABLE", devicePanelId);
+
     if ((devInfo = SetupDiGetClassDevs(NULL, NULL, NULL, DIGCF_ALLCLASSES)) == INVALID_HANDLE_VALUE)
     {
         return HRESULT_FROM_WIN32(GetLastError());
@@ -165,6 +167,9 @@ SetHardwareEnabledStateForPanel(CONST WCHAR *devicePanelId, CONST WCHAR *deviceH
             continue;
         }
 
+        wprintf(
+            L"HW %s Panel=%s Hardware=%s\n", enabledState ? L"ENABLE" : L"DISABLE", devicePanelId, deviceHardwareId);
+
         if (!SetupDiChangeState(devInfo, &devData))
         {
             continue;
@@ -179,6 +184,26 @@ SetHardwareEnabledStateForPanel(CONST WCHAR *devicePanelId, CONST WCHAR *deviceH
     return ERROR_SUCCESS;
 }
 
+static VOID
+ApplyPrimaryOverride(DISPLAY_PRIMARY_OVERRIDE Override, PDEVMODE Left, PDEVMODE Right)
+{
+    if (Override == DisplayPrimaryAuto)
+    {
+        return;
+    }
+
+    PDEVMODE DesiredPrimary = Override == DisplayPrimary1 ? Left : Right;
+
+    LONG OriginX = DesiredPrimary->dmPosition.x;
+    LONG OriginY = DesiredPrimary->dmPosition.y;
+
+    Left->dmPosition.x -= OriginX;
+    Left->dmPosition.y -= OriginY;
+
+    Right->dmPosition.x -= OriginX;
+    Right->dmPosition.y -= OriginY;
+}
+
 HRESULT WINAPI
 SetDisplayStates(
     CONST WCHAR *DisplayPanelId1,
@@ -186,10 +211,10 @@ SetDisplayStates(
     INT DisplayOrientation1,
     INT DisplayOrientation2,
     BOOLEAN DisplayState1,
-    BOOLEAN DisplayState2)
+    BOOLEAN DisplayState2,
+    DISPLAY_PRIMARY_OVERRIDE PrimaryOverride)
 {
     const DisplayIdentity *Panel1 = g_DisplayIdentityCache.FindByPanelId(DisplayPanelId1);
-
     const DisplayIdentity *Panel2 = g_DisplayIdentityCache.FindByPanelId(DisplayPanelId2);
 
     if (!Panel1 || !Panel2)
@@ -199,18 +224,26 @@ SetDisplayStates(
 
     BOOLEAN Panel1IsLeft = Panel1->IsLeft;
 
+    if (PrimaryOverride != DISPLAY_PRIMARY_OVERRIDE::DisplayPrimaryAuto && !Panel1IsLeft)
+    {
+        if (PrimaryOverride == DISPLAY_PRIMARY_OVERRIDE::DisplayPrimary1)
+        {
+            PrimaryOverride = DISPLAY_PRIMARY_OVERRIDE::DisplayPrimary2;
+        }
+        else
+        {
+            PrimaryOverride = DISPLAY_PRIMARY_OVERRIDE::DisplayPrimary1;
+        }
+    }
+
     return SetDisplayStatesInternal(
         Panel1IsLeft ? DisplayPanelId1 : DisplayPanelId2,
-
         Panel1IsLeft ? DisplayPanelId2 : DisplayPanelId1,
-
         Panel1IsLeft ? DisplayOrientation1 : DisplayOrientation2,
-
         Panel1IsLeft ? DisplayOrientation2 : DisplayOrientation1,
-
         Panel1IsLeft ? DisplayState1 : DisplayState2,
-
-        Panel1IsLeft ? DisplayState2 : DisplayState1);
+        Panel1IsLeft ? DisplayState2 : DisplayState1,
+        PrimaryOverride);
 }
 
 HRESULT WINAPI
@@ -220,7 +253,8 @@ SetDisplayStatesInternal(
     INT LeftDisplayOrientation,
     INT RightDisplayOrientation,
     BOOLEAN LeftDisplayState,
-    BOOLEAN RightDisplayState)
+    BOOLEAN RightDisplayState,
+    DISPLAY_PRIMARY_OVERRIDE PrimaryOverride)
 {
     DISPLAY_DEVICE LeftDisplayDevice = {0};
     DISPLAY_DEVICE RightDisplayDevice = {0};
@@ -228,14 +262,22 @@ SetDisplayStatesInternal(
     DEVMODE RightDevMode = {0};
     BOOLEAN lastLeftDisplayState = FALSE;
     BOOLEAN lastRightDisplayState = FALSE;
+    DISPLAY_DEVICE LeftVerify{};
+    DISPLAY_DEVICE RightVerify{};
+    DISPLAY_DEVICE VerifyLeft{};
+    DISPLAY_DEVICE VerifyRight{};
+    DISPLAY_DEVICE FinalLeft{};
+    DISPLAY_DEVICE FinalRight{};
+    BOOLEAN LeftAttached = FALSE;
+    BOOLEAN RightAttached = FALSE;
     HRESULT Status = ERROR_SUCCESS;
 
-    /*BOOLEAN IsSingleScreen = (!LeftDisplayState && RightDisplayState) || (!LeftDisplayState && RightDisplayState);
-
-    if (IsSingleScreen && (lastLeftDisplayState == LeftDisplayState) && (lastRightDisplayState == RightDisplayState))
+    BOOLEAN IsSingleScreen = (LeftDisplayState != RightDisplayState);
+    if (!LeftDisplayState && !RightDisplayState)
     {
-        goto exit;
-    }*/
+        wprintf(L"ERROR: Both displays requested off\n");
+        return E_INVALIDARG;
+    }
 
     wprintf(
         L"SetDisplayStatesInternal Entry: LeftPanel='%s' RightPanel='%s' LeftOrientation=%d RightOrientation=%d LeftState=%d RightState=%d\n",
@@ -247,7 +289,6 @@ SetDisplayStatesInternal(
         RightDisplayState);
 
     const DisplayIdentity *LeftIdentity = g_DisplayIdentityCache.FindByPanelId(LeftDisplayPanelId);
-
     const DisplayIdentity *RightIdentity = g_DisplayIdentityCache.FindByPanelId(RightDisplayPanelId);
 
     if (!LeftIdentity || !RightIdentity)
@@ -256,9 +297,30 @@ SetDisplayStatesInternal(
         goto exit;
     }
 
-    LeftDisplayDevice = LeftIdentity->DisplayDevice;
+    if (IsSingleScreen && lastLeftDisplayState == LeftDisplayState && lastRightDisplayState == RightDisplayState)
+    {
+        wprintf(L"Skipping redundant single-screen transition\n");
+        goto exit;
+    }
 
-    RightDisplayDevice = RightIdentity->DisplayDevice;
+    Status = GetDisplayDeviceByPanelId(LeftDisplayPanelId, &LeftDisplayDevice);
+    if (FAILED(Status))
+    {
+        goto exit;
+    }
+
+    Status = GetDisplayDeviceByPanelId(RightDisplayPanelId, &RightDisplayDevice);
+    if (FAILED(Status))
+    {
+        goto exit;
+    }
+
+    wprintf(
+        L"PRE-SWAP: LeftPanel=%s LeftDevice=%s RightPanel=%s RightDevice=%s\n",
+        LeftDisplayPanelId,
+        LeftDisplayDevice.DeviceName,
+        RightDisplayPanelId,
+        RightDisplayDevice.DeviceName);
 
     if (_wcsicmp(LeftDisplayDevice.DeviceName, L"\\\\.\\DISPLAY2") == 0)
     {
@@ -288,6 +350,13 @@ SetDisplayStatesInternal(
         RightDisplayPanelId = TempPanelId;
     }
 
+    wprintf(
+        L"POST-SWAP: LeftPanel=%s LeftDevice=%s RightPanel=%s RightDevice=%s\n",
+        LeftDisplayPanelId,
+        LeftDisplayDevice.DeviceName,
+        RightDisplayPanelId,
+        RightDisplayDevice.DeviceName);
+
     Status = GetDisplayDeviceBestDisplayMode(&LeftDisplayDevice, &LeftDevMode);
     if (FAILED(Status))
     {
@@ -303,6 +372,25 @@ SetDisplayStatesInternal(
     lastLeftDisplayState = (LeftDisplayDevice.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP);
     lastRightDisplayState = (RightDisplayDevice.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP);
 
+    wprintf(
+        L"Current: L=%d R=%d  Desired: L=%d R=%d\n",
+        lastLeftDisplayState,
+        lastRightDisplayState,
+        LeftDisplayState,
+        RightDisplayState);
+
+    wprintf(L"ACTUAL: L=%d R=%d\n", lastLeftDisplayState, lastRightDisplayState);
+
+    wprintf(L"LEFT Device=%s Flags=0x%08X\n", LeftDisplayDevice.DeviceName, LeftDisplayDevice.StateFlags);
+    wprintf(L"RIGHT Device=%s Flags=0x%08X\n", RightDisplayDevice.DeviceName, RightDisplayDevice.StateFlags);
+
+    wprintf(
+        L"SYNC HW START: Desired L=%d R=%d Actual L=%d R=%d\n",
+        LeftDisplayState,
+        RightDisplayState,
+        lastLeftDisplayState,
+        lastRightDisplayState);
+
     Status = SynchronizePanelHardwareState(
         LeftDisplayPanelId,
         RightDisplayPanelId,
@@ -311,9 +399,41 @@ SetDisplayStatesInternal(
         lastLeftDisplayState,
         lastRightDisplayState);
 
+    wprintf(L"SYNC HW DONE hr=0x%08X\n", Status);
+
     if (FAILED(Status))
     {
         goto exit;
+    }
+
+    VerifyLeft.cb = sizeof(DISPLAY_DEVICE);
+    VerifyRight.cb = sizeof(DISPLAY_DEVICE);
+
+    HRESULT VerifyStatus;
+    VerifyStatus = GetDisplayDeviceByPanelId(LeftDisplayPanelId, &VerifyLeft);
+    if (SUCCEEDED(VerifyStatus))
+    {
+        wprintf(
+            L"AFTER HW SYNC LEFT: %s Flags=0x%08X Attached=%d\n",
+            VerifyLeft.DeviceName,
+            VerifyLeft.StateFlags,
+            (VerifyLeft.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) != 0);
+    }
+
+    VerifyStatus = GetDisplayDeviceByPanelId(RightDisplayPanelId, &VerifyRight);
+    if (SUCCEEDED(VerifyStatus))
+    {
+        wprintf(
+            L"AFTER HW SYNC RIGHT: %s Flags=0x%08X Attached=%d\n",
+            VerifyRight.DeviceName,
+            VerifyRight.StateFlags,
+            (VerifyRight.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) != 0);
+    }
+
+    if ((VerifyLeft.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) == 0 &&
+        (VerifyRight.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) == 0)
+    {
+        wprintf(L"!!! BOTH DISPLAYS DETACHED AFTER HW SYNC !!!\n");
     }
 
     LeftDevMode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION | DM_DISPLAYORIENTATION;
@@ -351,6 +471,8 @@ SetDisplayStatesInternal(
     {
         // Orientation shouldn't differ between both displays unless we are in tent mode
         BuildExtendedDisplayLayout(LeftDisplayOrientation, &LeftDevMode, &RightDevMode);
+
+        ApplyPrimaryOverride(PrimaryOverride, &LeftDevMode, &RightDevMode);
 
         wprintf(
             L"LEFTDEVMODE[%s]: fields=0x%08X pos=(%ld,%ld) res=%lux%lu orient=%lu freq=%lu bpp=%lu flags=0x%08X\n",
@@ -422,6 +544,11 @@ SetDisplayStatesInternal(
     }
 
     {
+        wprintf(
+            L"PRE-COMMIT FLAGS: Left=0x%08X Right=0x%08X\n",
+            LeftDisplayDevice.StateFlags,
+            RightDisplayDevice.StateFlags);
+
         // Commit changes now
         Status = CommitDisplayConfiguration();
 
@@ -431,8 +558,43 @@ SetDisplayStatesInternal(
         }
     }
 
+    LeftVerify.cb = sizeof(DISPLAY_DEVICE);
+    RightVerify.cb = sizeof(DISPLAY_DEVICE);
+
+    GetDisplayDeviceByPanelId(LeftDisplayPanelId, &LeftVerify);
+    GetDisplayDeviceByPanelId(RightDisplayPanelId, &RightVerify);
+
+    wprintf(L"POST-COMMIT FLAGS: Left=0x%08X Right=0x%08X\n", LeftVerify.StateFlags, RightVerify.StateFlags);
+
+    LeftAttached = (LeftVerify.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) != 0;
+    RightAttached = (RightVerify.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) != 0;
+
+    wprintf(L"POST-COMMIT ATTACHED: Left=%d Right=%d\n", LeftAttached, RightAttached);
+
+    if (!LeftAttached && !RightAttached)
+    {
+        wprintf(L"!!! NO ACTIVE DISPLAYS AFTER COMMIT !!!\n");
+    }
+
+    wprintf(L"Sleeping after commit...\n");
+
     // Wait a second to make sure the display configuration is switched
     Sleep(1000);
+
+    wprintf(L"Awake after sleep\n");
+
+    FinalLeft.cb = sizeof(DISPLAY_DEVICE);
+    FinalRight.cb = sizeof(DISPLAY_DEVICE);
+
+    GetDisplayDeviceByPanelId(LeftDisplayPanelId, &FinalLeft);
+    GetDisplayDeviceByPanelId(RightDisplayPanelId, &FinalRight);
+
+    wprintf(L"AFTER SLEEP FLAGS: Left=0x%08X Right=0x%08X\n", FinalLeft.StateFlags, FinalRight.StateFlags);
+
+    wprintf(
+        L"AFTER SLEEP ATTACHED: Left=%d Right=%d\n",
+        (FinalLeft.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) != 0,
+        (FinalRight.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) != 0);
 
     // Need to fix work areas if multiple displays due to Windows Shy Taskbar bugs...
     if (LeftDisplayState && RightDisplayState)
@@ -444,6 +606,8 @@ SetDisplayStatesInternal(
         }
     }
 
+    wprintf(L"RESTORE HW START\n");
+
     Status = RestorePanelHardwareState(
         LeftDisplayPanelId,
         RightDisplayPanelId,
@@ -451,6 +615,8 @@ SetDisplayStatesInternal(
         RightDisplayState,
         lastLeftDisplayState,
         lastRightDisplayState);
+
+    wprintf(L"RESTORE HW DONE hr=0x%08X\n", Status);
 
     if (FAILED(Status))
     {

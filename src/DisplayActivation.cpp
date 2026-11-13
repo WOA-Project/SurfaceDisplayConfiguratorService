@@ -70,6 +70,8 @@ SynchronizePanelHardwareState(
 {
     HRESULT Status;
 
+    wprintf(L"Synchronize: Left=%d Right=%d\n", LeftDesiredState, RightDesiredState);
+
     Status = DisablePanelHardwareIfNeeded(LeftPanelId, LeftDesiredState, LeftCurrentState);
 
     if (FAILED(Status))
@@ -93,6 +95,13 @@ RestorePanelHardwareState(
 {
     HRESULT Status;
 
+    printf(
+        "RestorePanelHardwareState ENTRY LeftDesired=%d RightDesired=%d LeftCurrent=%d RightCurrent=%d\n",
+        LeftDesiredState,
+        RightDesiredState,
+        LeftCurrentState,
+        RightCurrentState);
+
     Status = EnablePanelHardwareIfNeeded(LeftPanelId, LeftDesiredState, LeftCurrentState);
 
     if (FAILED(Status))
@@ -101,6 +110,8 @@ RestorePanelHardwareState(
     }
 
     Status = EnablePanelHardwareIfNeeded(RightPanelId, RightDesiredState, RightCurrentState);
+
+    printf("RestorePanelHardwareState EXIT\n");
 
     return Status;
 }

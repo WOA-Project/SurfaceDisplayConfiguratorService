@@ -243,6 +243,9 @@
     <ClCompile Include="..\src\DisplayMode.cpp" />
     <ClCompile Include="..\src\DisplayTopology.cpp" />
     <ClCompile Include="..\src\DevicePanel.cpp" />
+    
+    <ClCompile Include="..\src\FlipConfirmationManager.cpp" />
+    <ClCompile Include="..\src\FlipPreviewOverlay.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
@@ -250,6 +253,7 @@
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="..\src\Resource.rc" />
+    <None Include="..\Assets\SurfaceAppFluentIcons.ttf" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Windows.Internal.Devices.Sensors">
@@ -316,6 +320,9 @@
     <ClInclude Include="..\include\SensorCallbacks.h" />
     <ClInclude Include="..\include\SensorManager.h" />
     <ClInclude Include="..\include\SensorSubscriptionManager.h" />
+
+    <ClInclude Include="..\include\FlipConfirmationManager.h" />
+    <ClInclude Include="..\include\FlipPreviewOverlay.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

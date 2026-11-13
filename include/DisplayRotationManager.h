@@ -1,5 +1,12 @@
 #pragma once
 
+enum DISPLAY_PRIMARY_OVERRIDE
+{
+    DisplayPrimaryAuto,
+    DisplayPrimary1,
+    DisplayPrimary2
+};
+
 HRESULT WINAPI
 SetHardwareEnabledStateForPanel(CONST WCHAR *devicePanelId, CONST WCHAR *deviceHardwareId, BOOLEAN enabledState);
 
@@ -13,7 +20,8 @@ SetDisplayStates(
     INT DisplayOrientation1,
     INT DisplayOrientation2,
     BOOLEAN DisplayState1,
-    BOOLEAN DisplayState2);
+    BOOLEAN DisplayState2,
+    DISPLAY_PRIMARY_OVERRIDE PrimaryOverride);
 
 HRESULT WINAPI
 SetDisplayStatesInternal(
@@ -22,4 +30,5 @@ SetDisplayStatesInternal(
     INT LeftDisplayOrientation,
     INT RightDisplayOrientation,
     BOOLEAN LeftDisplayState,
-    BOOLEAN RightDisplayState);
+    BOOLEAN RightDisplayState,
+    DISPLAY_PRIMARY_OVERRIDE PrimaryOverride);

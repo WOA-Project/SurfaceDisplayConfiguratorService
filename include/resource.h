@@ -2,6 +2,8 @@
 // Microsoft Visual C++ generated include file.
 // Used by Resource.rc
 
+#define IDR_SURFACE_APP_FLUENT_FONT 1001
+
 // Next default values for new objects
 //
 #ifdef APSTUDIO_INVOKED
