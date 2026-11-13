@@ -12,15 +12,7 @@
 
 #include "FlipConfirmationManager.h"
 
-#define IUnknown ::IUnknown
-
-#include <d2d1.h>
-#include <dwrite.h>
-
-#pragma comment(lib, "d2d1.lib")
-#pragma comment(lib, "dwrite.lib")
 #pragma comment(lib, "uxtheme.lib")
-#pragma comment(lib, "dwmapi.lib")
 
 #ifndef DWMWA_USE_HOSTBACKDROPBRUSH
 #    define DWMWA_USE_HOSTBACKDROPBRUSH 17
