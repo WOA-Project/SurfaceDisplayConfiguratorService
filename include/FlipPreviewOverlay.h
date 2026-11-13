@@ -10,5 +10,8 @@ ShowFlipPreviewOverlay(PCWSTR DisplayName);
 void
 HideFlipPreviewOverlay();
 
+void
+ForceHideFlipPreviewOverlay();
+
 bool
 IsFlipPreviewOverlayVisible();

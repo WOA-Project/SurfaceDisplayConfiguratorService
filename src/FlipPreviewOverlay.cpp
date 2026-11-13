@@ -416,6 +416,15 @@ HideFlipPreviewOverlay()
     g_OverlayThreadId = 0;
 }
 
+void
+ForceHideFlipPreviewOverlay()
+{
+    if (g_OverlayWindow)
+    {
+        PostMessage(g_OverlayWindow, WM_CLOSE, 0, 0);
+    }
+}
+
 HRESULT
 ShowFlipPreviewOverlay(PCWSTR DisplayName)
 {

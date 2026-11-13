@@ -28,7 +28,7 @@ CommitPendingFlip()
     g_PendingFlip.Active = false;
     g_FlipPreviewActive = false;
 
-    HideFlipPreviewOverlay();
+    ForceHideFlipPreviewOverlay();
 
     SetDisplayStates(
         g_PendingFlip.DisplayPanelId1,
