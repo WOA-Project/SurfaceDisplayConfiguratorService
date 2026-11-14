@@ -43,6 +43,7 @@
 #include "DisplayValidation.h"
 #include <AutoRotationPolicy.h>
 #include <DisplaySynchronization.h>
+#include <SdpPanelClient.h>
 
 //
 // Subject: Sets a device enablement state based on its panel id attachment
@@ -269,6 +270,27 @@ PrepareDisplayModeForOrientation(PDEVMODE DevMode, INT TargetOrientation)
     DevMode->dmDisplayOrientation = TargetOrientation;
 
     DevMode->dmFields |= DM_DISPLAYORIENTATION | DM_PELSWIDTH | DM_PELSHEIGHT;
+}
+
+void
+SetBrightnessViaDriverPath(UCHAR level)
+{
+    SdpPanelClient panelClient;
+    if (!panelClient.Open())
+    {
+        wprintf(L"Failed to open SDP panel device.\n");
+        return;
+    }
+
+    if (!panelClient.SetBrightness(SdpPanelClient::Primary, level))
+    {
+        wprintf(L"Failed to set primary brightness.\n");
+    }
+
+    if (!panelClient.SetBrightness(SdpPanelClient::Secondary, level))
+    {
+        wprintf(L"Failed to set secondary brightness.\n");
+    }
 }
 
 struct ValidationSuppressionGuard
@@ -738,6 +760,8 @@ SetDisplayStatesInternal(
     {
         brightnessMgr.SetBrightness(LeftDisplayDevice.DeviceName, brightnessValue);
         brightnessMgr.SetBrightness(RightDisplayDevice.DeviceName, brightnessValue);
+
+        SetBrightnessViaDriverPath(brightnessValue);
     }
 
     // Need to fix work areas if multiple displays due to Windows Shy Taskbar bugs...

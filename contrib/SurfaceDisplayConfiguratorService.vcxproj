@@ -254,6 +254,7 @@
     <ClCompile Include="..\src\DisplayValidation.cpp" />
     <ClCompile Include="..\src\AutoRotationPolicy.cpp" />
     <ClCompile Include="..\src\DisplaySynchronization.cpp" />
+    <ClCompile Include="..\src\SdpPanelClient.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
@@ -338,6 +339,7 @@
     <ClInclude Include="..\include\DisplayValidation.h" />
     <ClInclude Include="..\include\AutoRotationPolicy.h" />
     <ClInclude Include="..\include\DisplaySynchronization.h" />
+    <ClInclude Include="..\include\SdpPanelClient.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
