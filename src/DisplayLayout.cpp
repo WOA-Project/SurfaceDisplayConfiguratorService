@@ -127,6 +127,9 @@ BuildExtendedDisplayLayout(const DISPLAY_CONNECTION &Connection, PDEVMODE LeftDe
     //
     else if (Connection.LeftEdge == PanelEdgeBottom && Connection.RightEdge == PanelEdgeTop)
     {
+        //
+        // Right display physically above left display
+        //
         LeftDevMode->dmPosition.y = RightDevMode->dmPelsHeight;
     }
 
@@ -135,7 +138,10 @@ BuildExtendedDisplayLayout(const DISPLAY_CONNECTION &Connection, PDEVMODE LeftDe
     //
     else if (Connection.LeftEdge == PanelEdgeTop && Connection.RightEdge == PanelEdgeBottom)
     {
-        LeftDevMode->dmPosition.y = RightDevMode->dmPelsHeight;
+        //
+        // Left display physically above right display
+        //
+        RightDevMode->dmPosition.y = LeftDevMode->dmPelsHeight;
     }
 
     //
@@ -157,6 +163,12 @@ BuildExtendedDisplayLayout(const DISPLAY_CONNECTION &Connection, PDEVMODE LeftDe
     //
     else if (Connection.LeftEdge == PanelEdgeBottom && Connection.RightEdge == PanelEdgeBottom)
     {
+        //
+        // No uniquely correct answer.
+        //
+        // Choose a deterministic positive-coordinate
+        // layout with the left display as origin.
+        //
         RightDevMode->dmPosition.x = LeftDevMode->dmPelsWidth;
     }
 
@@ -165,6 +177,12 @@ BuildExtendedDisplayLayout(const DISPLAY_CONNECTION &Connection, PDEVMODE LeftDe
     //
     else if (Connection.LeftEdge == PanelEdgeLeft && Connection.RightEdge == PanelEdgeLeft)
     {
+        //
+        // No uniquely correct answer.
+        //
+        // Choose a deterministic positive-coordinate
+        // layout with the left display as origin.
+        //
         RightDevMode->dmPosition.y = LeftDevMode->dmPelsHeight;
     }
 
@@ -173,6 +191,12 @@ BuildExtendedDisplayLayout(const DISPLAY_CONNECTION &Connection, PDEVMODE LeftDe
     //
     else if (Connection.LeftEdge == PanelEdgeRight && Connection.RightEdge == PanelEdgeRight)
     {
+        //
+        // No uniquely correct answer.
+        //
+        // Choose a deterministic positive-coordinate
+        // layout with the left display as origin.
+        //
         RightDevMode->dmPosition.y = LeftDevMode->dmPelsHeight;
     }
     else
