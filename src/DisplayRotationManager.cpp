@@ -613,9 +613,13 @@ SetDisplayStatesInternal(
         }
         else
         {
-            ZeroMemory(&LeftDevMode, sizeof(LeftDevMode));
-            LeftDevMode.dmSize = sizeof(LeftDevMode);
-            LeftDevMode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION;
+            RightDevMode.dmSize = sizeof(DEVMODE);
+            RightDevMode.dmFields = DM_POSITION | DM_PELSWIDTH | DM_PELSHEIGHT;
+
+            RightDevMode.dmPosition.x = 0;
+            RightDevMode.dmPosition.y = 0;
+            RightDevMode.dmPelsWidth = 0;
+            RightDevMode.dmPelsHeight = 0;
 
             if (IsConfigurationSatisfied(
                     LeftDisplayPanelId,
@@ -664,9 +668,13 @@ SetDisplayStatesInternal(
         }
         else
         {
-            ZeroMemory(&RightDevMode, sizeof(RightDevMode));
-            RightDevMode.dmSize = sizeof(RightDevMode);
-            RightDevMode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION;
+            LeftDevMode.dmSize = sizeof(DEVMODE);
+            LeftDevMode.dmFields = DM_POSITION | DM_PELSWIDTH | DM_PELSHEIGHT;
+
+            LeftDevMode.dmPosition.x = 0;
+            LeftDevMode.dmPosition.y = 0;
+            LeftDevMode.dmPelsWidth = 0;
+            LeftDevMode.dmPelsHeight = 0;
 
             if (IsConfigurationSatisfied(
                     LeftDisplayPanelId,
