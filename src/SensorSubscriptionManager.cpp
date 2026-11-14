@@ -25,18 +25,36 @@ AreSensorEventsSubscribed()
 BOOL WINAPI
 SubscribeSensorEvents(TwoPanelHingedDevicePosture PostureSensor, FlipSensor FlipSensorInstance)
 {
+    if (!PostureSensor)
+    {
+        OutputDebugString(L"Posture sensor unavailable\n");
+        return FALSE;
+    }
+
+    if (!FlipSensorInstance)
+    {
+        OutputDebugString(L"Flip sensor unavailable\n");
+        return FALSE;
+    }
+
     if (!g_PostureSubscribed)
     {
-        postureEventToken = PostureSensor.PostureChanged(OnPostureChanged);
+        if (PostureSensor)
+        {
+            postureEventToken = PostureSensor.PostureChanged(OnPostureChanged);
 
-        g_PostureSubscribed = TRUE;
+            g_PostureSubscribed = TRUE;
+        }
     }
 
     if (!g_FlipSubscribed)
     {
-        flipEventToken = FlipSensorInstance.ReadingChanged(OnFlipSensorReadingChanged);
+        if (FlipSensorInstance)
+        {
+            flipEventToken = FlipSensorInstance.ReadingChanged(OnFlipSensorReadingChanged);
 
-        g_FlipSubscribed = TRUE;
+            g_FlipSubscribed = TRUE;
+        }
     }
 
     return TRUE;
@@ -45,14 +63,14 @@ SubscribeSensorEvents(TwoPanelHingedDevicePosture PostureSensor, FlipSensor Flip
 VOID WINAPI
 UnsubscribeSensorEvents(TwoPanelHingedDevicePosture PostureSensor, FlipSensor FlipSensorInstance)
 {
-    if (g_PostureSubscribed)
+    if (g_PostureSubscribed && PostureSensor)
     {
         PostureSensor.PostureChanged(postureEventToken);
 
         g_PostureSubscribed = FALSE;
     }
 
-    if (g_FlipSubscribed)
+    if (g_FlipSubscribed && FlipSensorInstance)
     {
         FlipSensorInstance.ReadingChanged(flipEventToken);
 

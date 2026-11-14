@@ -47,6 +47,11 @@ HandleDisplayPowerEvent(GUID SettingGuid, PVOID Value, ULONG ValueLength)
         return;
     }
 
+    if (!g_PostureSensorForPower || !g_FlipSensorForPower)
+    {
+        return;
+    }
+
     DWORD DisplayState = *(DWORD *)Value;
 
     switch (DisplayState)
