@@ -210,6 +210,8 @@
     <ClCompile Include="..\src\WindowPlacement\WindowMover.cpp" />
     <ClCompile Include="..\src\WindowPlacement\WindowPlacementService.cpp" />
 
+    <ClCompile Include="..\src\BrightnessManager.cpp" />
+
     <ClCompile Include="..\src\ActiveMonitorWindowHandler.cpp" />
     <ClCompile Include="..\src\AutoRotate.cpp" />
     <ClCompile Include="..\src\DisplayRotationManager.cpp" />
@@ -293,6 +295,7 @@
 
     <ClInclude Include="..\include\Configuration\Configuration.h" />
 
+    <ClInclude Include="..\include\BrightnessManager.h" />
     <ClInclude Include="..\include\ActiveMonitorWindowHandler.h" />
     <ClInclude Include="..\include\AutoRotate.h" />
     <ClInclude Include="..\include\DisplayRotationManager.h" />

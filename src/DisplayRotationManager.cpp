@@ -36,6 +36,8 @@
 #include "DisplayActivation.h"
 #include "DisplayConfiguration.h"
 
+#include "BrightnessManager.h"
+
 //
 // Subject: Sets a device enablement state based on its panel id attachment
 //
@@ -270,6 +272,10 @@ SetDisplayStatesInternal(
     DISPLAY_DEVICE FinalRight{};
     BOOLEAN LeftAttached = FALSE;
     BOOLEAN RightAttached = FALSE;
+    BrightnessManager brightnessMgr;
+    BOOL brightnessMgrInitialized = FALSE;
+    BYTE brightnessValue = 0;
+
     HRESULT Status = ERROR_SUCCESS;
 
     BOOLEAN IsSingleScreen = (LeftDisplayState != RightDisplayState);
@@ -356,6 +362,20 @@ SetDisplayStatesInternal(
         LeftDisplayDevice.DeviceName,
         RightDisplayPanelId,
         RightDisplayDevice.DeviceName);
+
+    brightnessMgrInitialized = brightnessMgr.Initialize();
+
+    if (brightnessMgrInitialized)
+    {
+        if (!brightnessMgr.GetBrightness(LeftDisplayDevice.DeviceName, brightnessValue) || brightnessValue == 0)
+        {
+            brightnessMgr.GetBrightness(RightDisplayDevice.DeviceName, brightnessValue);
+            if (brightnessValue == 0)
+            {
+                brightnessValue = 50; // Default
+            }
+        }
+    }
 
     Status = GetDisplayDeviceBestDisplayMode(&LeftDisplayDevice, &LeftDevMode);
     if (FAILED(Status))
@@ -595,6 +615,12 @@ SetDisplayStatesInternal(
         L"AFTER SLEEP ATTACHED: Left=%d Right=%d\n",
         (FinalLeft.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) != 0,
         (FinalRight.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) != 0);
+
+    if (brightnessMgrInitialized && brightnessValue != 0)
+    {
+        brightnessMgr.SetBrightness(LeftDisplayDevice.DeviceName, brightnessValue);
+        brightnessMgr.SetBrightness(RightDisplayDevice.DeviceName, brightnessValue);
+    }
 
     // Need to fix work areas if multiple displays due to Windows Shy Taskbar bugs...
     if (LeftDisplayState && RightDisplayState)
