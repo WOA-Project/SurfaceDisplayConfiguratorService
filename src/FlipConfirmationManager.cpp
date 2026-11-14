@@ -6,6 +6,7 @@
 #include <DisplayIdentityCache.h>
 #include <DisplayTopology.h>
 #include "AutoRotateContext.h"
+#include <PostureProcessor.h>
 
 static PendingFlip g_PendingFlip{};
 static HANDLE g_FlipTimer = nullptr;
@@ -65,7 +66,11 @@ CommitPendingFlip()
     if (FAILED(hr))
     {
         wprintf(L"Pending flip commit failed: 0x%08X\n", hr);
+        s_InSingleScreenMode.store(SingleScreenState::DualScreen);
+        return;
     }
+
+    s_InSingleScreenMode.store(SingleScreenState::SingleScreenCommitted);
 
     if (timer)
     {
@@ -118,8 +123,12 @@ BeginPendingFlip(
 
     DISPLAY_PRIMARY_OVERRIDE previewPrimary = DisplayState1 ? DisplayPrimary1 : DisplayPrimary2;
 
-    SetDisplayStates(
+    HRESULT hr = SetDisplayStates(
         DisplayPanelId1, DisplayPanelId2, DisplayOrientation1, DisplayOrientation2, TRUE, TRUE, previewPrimary);
+    if (FAILED(hr))
+    {
+        s_InSingleScreenMode.store(SingleScreenState::DualScreen);
+    }
 
     DISPLAY_DEVICE displayDevice1{};
     DISPLAY_DEVICE displayDevice2{};
@@ -158,6 +167,7 @@ BeginPendingFlip(
         g_FlipPreviewActive = false;
         LeaveCriticalSection(&g_FlipLock);
         HideFlipPreviewOverlay();
+        s_InSingleScreenMode.store(SingleScreenState::DualScreen);
         return;
     }
 
@@ -186,6 +196,8 @@ CancelPendingFlip()
     {
         DeleteTimerQueueTimer(nullptr, timer, INVALID_HANDLE_VALUE);
     }
+
+    s_InSingleScreenMode.store(SingleScreenState::DualScreen);
 }
 
 bool

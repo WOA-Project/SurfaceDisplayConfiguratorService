@@ -8,7 +8,7 @@
 #include "DisplayRotationManager.h"
 #include "FlipConfirmationManager.h"
 
-static bool s_InSingleScreenMode = false;
+std::atomic<SingleScreenState> s_InSingleScreenMode{SingleScreenState::DualScreen};
 
 HRESULT WINAPI
 ApplyPostureReading(TwoPanelHingedDevicePostureReading Reading)
@@ -34,9 +34,9 @@ ApplyPostureReading(TwoPanelHingedDevicePostureReading Reading)
     //
     // Entering single-screen posture.
     //
-    if (IsSingleScreen && !s_InSingleScreenMode)
+    if (IsSingleScreen && s_InSingleScreenMode.load() == SingleScreenState::DualScreen)
     {
-        s_InSingleScreenMode = true;
+        s_InSingleScreenMode.store(SingleScreenState::PreviewPending);
 
         BeginPendingFlip(
             Panel1Id,
@@ -52,17 +52,15 @@ ApplyPostureReading(TwoPanelHingedDevicePostureReading Reading)
     //
     // Leaving single-screen mode.
     //
-    if (!IsSingleScreen && s_InSingleScreenMode)
+    if (!IsSingleScreen && s_InSingleScreenMode.load() != SingleScreenState::DualScreen)
     {
         CancelPendingFlip();
-
-        s_InSingleScreenMode = false;
     }
 
     //
     // Remaining single-screen.
     //
-    if (IsSingleScreen && s_InSingleScreenMode)
+    if (IsSingleScreen && s_InSingleScreenMode.load() != SingleScreenState::DualScreen)
     {
         return ERROR_SUCCESS;
     }
@@ -101,11 +99,9 @@ TogglePreferredSingleScreen(TwoPanelHingedDevicePostureReading Reading)
     // If we're currently folded,
     // restart the preview process immediately.
     //
-    if (s_InSingleScreenMode)
+    if (s_InSingleScreenMode.load() != SingleScreenState::DualScreen)
     {
         CancelPendingFlip();
-
-        s_InSingleScreenMode = false;
     }
 
     ApplyPostureReading(Reading);
