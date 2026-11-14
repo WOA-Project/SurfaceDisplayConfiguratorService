@@ -37,6 +37,11 @@
 #include "DisplayConfiguration.h"
 
 #include "BrightnessManager.h"
+#include <OrientationManager.h>
+#include <AutoRotateContext.h>
+#include <AutoRotateService.h>
+#include "DisplayValidation.h"
+#include <AutoRotationPolicy.h>
 
 //
 // Subject: Sets a device enablement state based on its panel id attachment
@@ -248,6 +253,23 @@ SetDisplayStates(
         PrimaryOverride);
 }
 
+static VOID
+PrepareDisplayModeForOrientation(PDEVMODE DevMode, INT TargetOrientation)
+{
+    bool CurrentPortrait = DevMode->dmDisplayOrientation == DMDO_90 || DevMode->dmDisplayOrientation == DMDO_270;
+
+    bool TargetPortrait = TargetOrientation == DMDO_90 || TargetOrientation == DMDO_270;
+
+    if (CurrentPortrait != TargetPortrait)
+    {
+        std::swap(DevMode->dmPelsWidth, DevMode->dmPelsHeight);
+    }
+
+    DevMode->dmDisplayOrientation = TargetOrientation;
+
+    DevMode->dmFields |= DM_DISPLAYORIENTATION | DM_PELSWIDTH | DM_PELSHEIGHT;
+}
+
 HRESULT WINAPI
 SetDisplayStatesInternal(
     CONST WCHAR *LeftDisplayPanelId,
@@ -264,26 +286,27 @@ SetDisplayStatesInternal(
     DEVMODE RightDevMode = {0};
     BOOLEAN lastLeftDisplayState = FALSE;
     BOOLEAN lastRightDisplayState = FALSE;
-    DISPLAY_DEVICE LeftVerify{};
-    DISPLAY_DEVICE RightVerify{};
-    DISPLAY_DEVICE VerifyLeft{};
-    DISPLAY_DEVICE VerifyRight{};
-    DISPLAY_DEVICE FinalLeft{};
-    DISPLAY_DEVICE FinalRight{};
-    BOOLEAN LeftAttached = FALSE;
-    BOOLEAN RightAttached = FALSE;
     BrightnessManager brightnessMgr;
     BOOL brightnessMgrInitialized = FALSE;
     BYTE brightnessValue = 0;
+    BOOLEAN NoOp = FALSE;
+    BOOLEAN ConfigurationChanged = FALSE;
 
     HRESULT Status = ERROR_SUCCESS;
 
-    BOOLEAN IsSingleScreen = (LeftDisplayState != RightDisplayState);
+    static std::atomic_uint64_t Counter{};
+
+    wprintf(L"SetDisplayStatesInternal #%llu\n", ++Counter);
+
+    g_LastPolicyEvaluationTick.store(GetTickCount64());
+
     if (!LeftDisplayState && !RightDisplayState)
     {
         wprintf(L"ERROR: Both displays requested off\n");
         return E_INVALIDARG;
     }
+
+    g_SuppressValidation = true;
 
     wprintf(
         L"SetDisplayStatesInternal Entry: LeftPanel='%s' RightPanel='%s' LeftOrientation=%d RightOrientation=%d LeftState=%d RightState=%d\n",
@@ -303,12 +326,6 @@ SetDisplayStatesInternal(
         goto exit;
     }
 
-    if (IsSingleScreen && lastLeftDisplayState == LeftDisplayState && lastRightDisplayState == RightDisplayState)
-    {
-        wprintf(L"Skipping redundant single-screen transition\n");
-        goto exit;
-    }
-
     Status = GetDisplayDeviceByPanelId(LeftDisplayPanelId, &LeftDisplayDevice);
     if (FAILED(Status))
     {
@@ -321,47 +338,17 @@ SetDisplayStatesInternal(
         goto exit;
     }
 
-    wprintf(
-        L"PRE-SWAP: LeftPanel=%s LeftDevice=%s RightPanel=%s RightDevice=%s\n",
-        LeftDisplayPanelId,
-        LeftDisplayDevice.DeviceName,
-        RightDisplayPanelId,
-        RightDisplayDevice.DeviceName);
-
-    if (_wcsicmp(LeftDisplayDevice.DeviceName, L"\\\\.\\DISPLAY2") == 0)
+    Status = EnumDisplaySettingsExW(LeftDisplayDevice.DeviceName, ENUM_CURRENT_SETTINGS, &LeftDevMode, 0);
+    if (FAILED(Status))
     {
-        wprintf(L"DISPLAY2 detected as left display, swapping left/right devices and modes\n");
-
-        DISPLAY_DEVICE TempDisplayDevice;
-        DEVMODE TempDevMode;
-
-        TempDisplayDevice = LeftDisplayDevice;
-        LeftDisplayDevice = RightDisplayDevice;
-        RightDisplayDevice = TempDisplayDevice;
-
-        TempDevMode = LeftDevMode;
-        LeftDevMode = RightDevMode;
-        RightDevMode = TempDevMode;
-
-        INT TempOrientation = LeftDisplayOrientation;
-        LeftDisplayOrientation = RightDisplayOrientation;
-        RightDisplayOrientation = TempOrientation;
-
-        BOOLEAN TempState = LeftDisplayState;
-        LeftDisplayState = RightDisplayState;
-        RightDisplayState = TempState;
-
-        PCWSTR TempPanelId = LeftDisplayPanelId;
-        LeftDisplayPanelId = RightDisplayPanelId;
-        RightDisplayPanelId = TempPanelId;
+        goto exit;
     }
 
-    wprintf(
-        L"POST-SWAP: LeftPanel=%s LeftDevice=%s RightPanel=%s RightDevice=%s\n",
-        LeftDisplayPanelId,
-        LeftDisplayDevice.DeviceName,
-        RightDisplayPanelId,
-        RightDisplayDevice.DeviceName);
+    Status = EnumDisplaySettingsExW(RightDisplayDevice.DeviceName, ENUM_CURRENT_SETTINGS, &RightDevMode, 0);
+    if (FAILED(Status))
+    {
+        goto exit;
+    }
 
     brightnessMgrInitialized = brightnessMgr.Initialize();
 
@@ -387,6 +374,30 @@ SetDisplayStatesInternal(
     if (FAILED(Status))
     {
         goto exit;
+    }
+
+    if (LeftDisplayOrientation == DMDO_UNCHANGED)
+    {
+        if (g_DesiredState.Valid)
+        {
+            LeftDisplayOrientation = g_DesiredState.LeftOrientation;
+        }
+        else
+        {
+            LeftDisplayOrientation = LeftDevMode.dmDisplayOrientation;
+        }
+    }
+
+    if (RightDisplayOrientation == DMDO_UNCHANGED)
+    {
+        if (g_DesiredState.Valid)
+        {
+            RightDisplayOrientation = g_DesiredState.RightOrientation;
+        }
+        else
+        {
+            RightDisplayOrientation = RightDevMode.dmDisplayOrientation;
+        }
     }
 
     lastLeftDisplayState = (LeftDisplayDevice.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP);
@@ -426,35 +437,14 @@ SetDisplayStatesInternal(
         goto exit;
     }
 
-    VerifyLeft.cb = sizeof(DISPLAY_DEVICE);
-    VerifyRight.cb = sizeof(DISPLAY_DEVICE);
+    VerifyPreDisplayConfiguration(LeftDisplayPanelId, RightDisplayPanelId);
 
-    HRESULT VerifyStatus;
-    VerifyStatus = GetDisplayDeviceByPanelId(LeftDisplayPanelId, &VerifyLeft);
-    if (SUCCEEDED(VerifyStatus))
-    {
-        wprintf(
-            L"AFTER HW SYNC LEFT: %s Flags=0x%08X Attached=%d\n",
-            VerifyLeft.DeviceName,
-            VerifyLeft.StateFlags,
-            (VerifyLeft.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) != 0);
-    }
-
-    VerifyStatus = GetDisplayDeviceByPanelId(RightDisplayPanelId, &VerifyRight);
-    if (SUCCEEDED(VerifyStatus))
-    {
-        wprintf(
-            L"AFTER HW SYNC RIGHT: %s Flags=0x%08X Attached=%d\n",
-            VerifyRight.DeviceName,
-            VerifyRight.StateFlags,
-            (VerifyRight.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) != 0);
-    }
-
-    if ((VerifyLeft.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) == 0 &&
-        (VerifyRight.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) == 0)
-    {
-        wprintf(L"!!! BOTH DISPLAYS DETACHED AFTER HW SYNC !!!\n");
-    }
+    //
+    // In order to switch from portrait to landscape and vice versa we need to swap the resolution width and height
+    // So we check for that
+    //
+    PrepareDisplayModeForOrientation(&LeftDevMode, LeftDisplayOrientation);
+    PrepareDisplayModeForOrientation(&RightDevMode, RightDisplayOrientation);
 
     LeftDevMode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION | DM_DISPLAYORIENTATION;
     LeftDevMode.dmPosition.x = 0;
@@ -464,38 +454,56 @@ SetDisplayStatesInternal(
     RightDevMode.dmPosition.x = 0;
     RightDevMode.dmPosition.y = 0;
 
-    //
-    // In order to switch from portrait to landscape and vice versa we need to swap the resolution width and height
-    // So we check for that
-    //
-    if ((LeftDevMode.dmDisplayOrientation + LeftDisplayOrientation) % 2 == 1)
-    {
-        INT temp = LeftDevMode.dmPelsHeight;
-        LeftDevMode.dmPelsHeight = LeftDevMode.dmPelsWidth;
-        LeftDevMode.dmPelsWidth = temp;
-    }
-
-    LeftDevMode.dmDisplayOrientation = LeftDisplayOrientation;
-
-    if ((RightDevMode.dmDisplayOrientation + RightDisplayOrientation) % 2 == 1)
-    {
-        INT temp = RightDevMode.dmPelsHeight;
-        RightDevMode.dmPelsHeight = RightDevMode.dmPelsWidth;
-        RightDevMode.dmPelsWidth = temp;
-    }
-
-    RightDevMode.dmDisplayOrientation = RightDisplayOrientation;
-
     // Both displays on
     if (LeftDisplayState && RightDisplayState)
     {
         // Orientation shouldn't differ between both displays unless we are in tent mode
-        BuildExtendedDisplayLayout(LeftDisplayOrientation, &LeftDevMode, &RightDevMode);
+        DISPLAY_CONNECTION Connection = DetermineDisplayConnection(LeftDisplayOrientation, RightDisplayOrientation);
+
+        wprintf(
+            L"ORIENTATION PAIR: "
+            L"L=%u R=%u\n",
+            LeftDisplayOrientation,
+            RightDisplayOrientation);
+
+        BuildExtendedDisplayLayout(Connection, &LeftDevMode, &RightDevMode);
+
+        wprintf(
+            L"TOPOLOGY: "
+            L"L=(%ld,%ld %lux%lu) "
+            L"R=(%ld,%ld %lux%lu)\n",
+            LeftDevMode.dmPosition.x,
+            LeftDevMode.dmPosition.y,
+            LeftDevMode.dmPelsWidth,
+            LeftDevMode.dmPelsHeight,
+            RightDevMode.dmPosition.x,
+            RightDevMode.dmPosition.y,
+            RightDevMode.dmPelsWidth,
+            RightDevMode.dmPelsHeight);
 
         ApplyPrimaryOverride(PrimaryOverride, &LeftDevMode, &RightDevMode);
 
         wprintf(
-            L"LEFTDEVMODE[%s]: fields=0x%08X pos=(%ld,%ld) res=%lux%lu orient=%lu freq=%lu bpp=%lu flags=0x%08X\n",
+            L"=====================================================\n"
+            L"TOPOLOGY AFTER OVERRIDE:\n"
+            L"LEFT [%s]\n"
+            L"  fields=0x%08X\n"
+            L"  pos=(%ld,%ld)\n"
+            L"  res=%lux%lu\n"
+            L"  orient=%lu\n"
+            L"  freq=%lu\n"
+            L"  bpp=%lu\n"
+            L"  flags=0x%08X\n"
+            L"\n"
+            L"RIGHT [%s]\n"
+            L"  fields=0x%08X\n"
+            L"  pos=(%ld,%ld)\n"
+            L"  res=%lux%lu\n"
+            L"  orient=%lu\n"
+            L"  freq=%lu\n"
+            L"  bpp=%lu\n"
+            L"  flags=0x%08X\n"
+            L"=====================================================\n",
             LeftDisplayDevice.DeviceName,
             LeftDevMode.dmFields,
             LeftDevMode.dmPosition.x,
@@ -505,10 +513,7 @@ SetDisplayStatesInternal(
             LeftDevMode.dmDisplayOrientation,
             LeftDevMode.dmDisplayFrequency,
             LeftDevMode.dmBitsPerPel,
-            LeftDevMode.dmDisplayFlags);
-
-        wprintf(
-            L"RIGHTDEVMODE[%s]: fields=0x%08X pos=(%ld,%ld) res=%lux%lu orient=%lu freq=%lu bpp=%lu flags=0x%08X\n",
+            LeftDevMode.dmDisplayFlags,
             RightDisplayDevice.DeviceName,
             RightDevMode.dmFields,
             RightDevMode.dmPosition.x,
@@ -520,6 +525,33 @@ SetDisplayStatesInternal(
             RightDevMode.dmBitsPerPel,
             RightDevMode.dmDisplayFlags);
 
+        if (IsConfigurationSatisfied(
+                LeftDisplayPanelId,
+                RightDisplayPanelId,
+                LeftDisplayOrientation,
+                RightDisplayOrientation,
+                LeftDisplayState,
+                RightDisplayState,
+                LeftDevMode.dmPosition.x,
+                LeftDevMode.dmPosition.y,
+                RightDevMode.dmPosition.x,
+                RightDevMode.dmPosition.y,
+                LeftDevMode.dmPelsWidth,
+                LeftDevMode.dmPelsHeight,
+                RightDevMode.dmPelsWidth,
+                RightDevMode.dmPelsHeight))
+        {
+            wprintf(
+                L"No effective state change "
+                L"(actual configuration already matches)\n");
+
+            NoOp = TRUE;
+            Status = ERROR_SUCCESS;
+            goto exit;
+        }
+
+        UpdateAutoRotationPolicy(LeftDisplayOrientation, RightDisplayOrientation, LeftDisplayState, RightDisplayState);
+
         Status =
             ApplyExtendedDisplayConfiguration(&LeftDisplayDevice, &RightDisplayDevice, &LeftDevMode, &RightDevMode);
 
@@ -527,6 +559,8 @@ SetDisplayStatesInternal(
         {
             goto exit;
         }
+
+        ConfigurationChanged = TRUE;
     }
     // Left on, Right off
     else if (LeftDisplayState && !RightDisplayState)
@@ -541,8 +575,42 @@ SetDisplayStatesInternal(
         }
         else
         {
+            ZeroMemory(&LeftDevMode, sizeof(LeftDevMode));
+            LeftDevMode.dmSize = sizeof(LeftDevMode);
+            LeftDevMode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION;
+
+            if (IsConfigurationSatisfied(
+                    LeftDisplayPanelId,
+                    RightDisplayPanelId,
+                    LeftDisplayOrientation,
+                    RightDisplayOrientation,
+                    LeftDisplayState,
+                    RightDisplayState,
+                    LeftDevMode.dmPosition.x,
+                    LeftDevMode.dmPosition.y,
+                    RightDevMode.dmPosition.x,
+                    RightDevMode.dmPosition.y,
+                    LeftDevMode.dmPelsWidth,
+                    LeftDevMode.dmPelsHeight,
+                    RightDevMode.dmPelsWidth,
+                    RightDevMode.dmPelsHeight))
+            {
+                wprintf(
+                    L"No effective state change "
+                    L"(actual configuration already matches)\n");
+
+                NoOp = TRUE;
+                Status = ERROR_SUCCESS;
+                goto exit;
+            }
+
             Status = ApplySingleLeftDisplayConfiguration(
                 &LeftDisplayDevice, &RightDisplayDevice, &LeftDevMode, &RightDevMode, lastRightDisplayState);
+
+            if (SUCCEEDED(Status))
+            {
+                ConfigurationChanged = TRUE;
+            }
         }
     }
     // Left off, Right on
@@ -558,11 +626,46 @@ SetDisplayStatesInternal(
         }
         else
         {
+            ZeroMemory(&RightDevMode, sizeof(RightDevMode));
+            RightDevMode.dmSize = sizeof(RightDevMode);
+            RightDevMode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION;
+
+            if (IsConfigurationSatisfied(
+                    LeftDisplayPanelId,
+                    RightDisplayPanelId,
+                    LeftDisplayOrientation,
+                    RightDisplayOrientation,
+                    LeftDisplayState,
+                    RightDisplayState,
+                    LeftDevMode.dmPosition.x,
+                    LeftDevMode.dmPosition.y,
+                    RightDevMode.dmPosition.x,
+                    RightDevMode.dmPosition.y,
+                    LeftDevMode.dmPelsWidth,
+                    LeftDevMode.dmPelsHeight,
+                    RightDevMode.dmPelsWidth,
+                    RightDevMode.dmPelsHeight))
+            {
+                wprintf(
+                    L"No effective state change "
+                    L"(actual configuration already matches)\n");
+
+                NoOp = TRUE;
+                Status = ERROR_SUCCESS;
+                goto exit;
+            }
+
             Status = ApplySingleRightDisplayConfiguration(
                 &LeftDisplayDevice, &RightDisplayDevice, &LeftDevMode, &RightDevMode, lastLeftDisplayState);
+
+            if (SUCCEEDED(Status))
+            {
+                ConfigurationChanged = TRUE;
+            }
         }
     }
 
+    if (ConfigurationChanged)
     {
         wprintf(
             L"PRE-COMMIT FLAGS: Left=0x%08X Right=0x%08X\n",
@@ -578,43 +681,42 @@ SetDisplayStatesInternal(
         }
     }
 
-    LeftVerify.cb = sizeof(DISPLAY_DEVICE);
-    RightVerify.cb = sizeof(DISPLAY_DEVICE);
-
-    GetDisplayDeviceByPanelId(LeftDisplayPanelId, &LeftVerify);
-    GetDisplayDeviceByPanelId(RightDisplayPanelId, &RightVerify);
-
-    wprintf(L"POST-COMMIT FLAGS: Left=0x%08X Right=0x%08X\n", LeftVerify.StateFlags, RightVerify.StateFlags);
-
-    LeftAttached = (LeftVerify.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) != 0;
-    RightAttached = (RightVerify.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) != 0;
-
-    wprintf(L"POST-COMMIT ATTACHED: Left=%d Right=%d\n", LeftAttached, RightAttached);
-
-    if (!LeftAttached && !RightAttached)
+    if (VerifyDisplayConfiguration(
+            LeftDisplayPanelId,
+            RightDisplayPanelId,
+            LeftDisplayDevice,
+            RightDisplayDevice,
+            LeftDisplayOrientation,
+            RightDisplayOrientation,
+            LeftDevMode,
+            RightDevMode))
     {
-        wprintf(L"!!! NO ACTIVE DISPLAYS AFTER COMMIT !!!\n");
+        BOOLEAN Expected = FALSE;
+
+        if (g_ImmediateRepairRunning.compare_exchange_strong(Expected, TRUE))
+        {
+            g_LastRepairTick.store(0);
+
+            SaveDesiredState(
+                FALSE,
+                LeftDisplayPanelId,
+                RightDisplayPanelId,
+                LeftDisplayOrientation,
+                RightDisplayOrientation,
+                LeftDevMode,
+                RightDevMode,
+                LeftDisplayState,
+                RightDisplayState,
+                PrimaryOverride);
+
+            struct AutoResetRepairGuard
+            {
+                ~AutoResetRepairGuard() { g_ImmediateRepairRunning.store(FALSE); }
+            } Guard;
+
+            RepairDisplayConfiguration();
+        }
     }
-
-    wprintf(L"Sleeping after commit...\n");
-
-    // Wait a second to make sure the display configuration is switched
-    Sleep(1000);
-
-    wprintf(L"Awake after sleep\n");
-
-    FinalLeft.cb = sizeof(DISPLAY_DEVICE);
-    FinalRight.cb = sizeof(DISPLAY_DEVICE);
-
-    GetDisplayDeviceByPanelId(LeftDisplayPanelId, &FinalLeft);
-    GetDisplayDeviceByPanelId(RightDisplayPanelId, &FinalRight);
-
-    wprintf(L"AFTER SLEEP FLAGS: Left=0x%08X Right=0x%08X\n", FinalLeft.StateFlags, FinalRight.StateFlags);
-
-    wprintf(
-        L"AFTER SLEEP ATTACHED: Left=%d Right=%d\n",
-        (FinalLeft.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) != 0,
-        (FinalRight.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) != 0);
 
     if (brightnessMgrInitialized && brightnessValue != 0)
     {
@@ -650,6 +752,33 @@ SetDisplayStatesInternal(
     }
 
 exit:
+    if (SUCCEEDED(Status))
+    {
+        SaveDesiredState(
+            NoOp,
+            LeftDisplayPanelId,
+            RightDisplayPanelId,
+            LeftDisplayOrientation,
+            RightDisplayOrientation,
+            LeftDevMode,
+            RightDevMode,
+            LeftDisplayState,
+            RightDisplayState,
+            PrimaryOverride);
+
+        if (ConfigurationChanged)
+        {
+            g_LastRepairTick.store(GetTickCount64());
+        }
+    }
+
+    if (NoOp)
+    {
+        wprintf(L"Display state unchanged\n");
+    }
+
+    g_SuppressValidation = false;
+
     return Status;
 }
 

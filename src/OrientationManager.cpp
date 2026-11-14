@@ -10,73 +10,140 @@
 
 #include "OrientationManager.h"
 
-INT WINAPI
-ConvertSimpleOrientationToDMDO(SimpleOrientation Orientation)
+static bool
+TryConvertSimpleOrientationToDMDO(SimpleOrientation Orientation, INT *Dmdo)
 {
     switch (Orientation)
     {
     case SimpleOrientation::NotRotated:
-        return DMDO_DEFAULT;
+        *Dmdo = DMDO_DEFAULT;
+        return true;
 
     case SimpleOrientation::Rotated90DegreesCounterclockwise:
-        return DMDO_90;
+        *Dmdo = DMDO_90;
+        return true;
 
     case SimpleOrientation::Rotated180DegreesCounterclockwise:
-        return DMDO_180;
+        *Dmdo = DMDO_180;
+        return true;
 
     case SimpleOrientation::Rotated270DegreesCounterclockwise:
-        return DMDO_270;
+        *Dmdo = DMDO_270;
+        return true;
 
     default:
-        break;
-    }
-
-    return DMDO_DEFAULT;
-}
-
-VOID WINAPI
-NormalizePanelOrientations(SimpleOrientation *Panel1Orientation, SimpleOrientation *Panel2Orientation)
-{
-    BOOLEAN Panel1Unknown =
-        *Panel1Orientation == SimpleOrientation::Faceup || *Panel1Orientation == SimpleOrientation::Facedown;
-
-    BOOLEAN Panel2Unknown =
-        *Panel2Orientation == SimpleOrientation::Faceup || *Panel2Orientation == SimpleOrientation::Facedown;
-
-    if (Panel1Unknown && !Panel2Unknown)
-    {
-        *Panel1Orientation = *Panel2Orientation;
-    }
-    else if (Panel2Unknown && !Panel1Unknown)
-    {
-        *Panel2Orientation = *Panel1Orientation;
+        return false;
     }
 }
 
-VOID WINAPI
-BuildDisplayOrientations(
+DisplayPolicy
+BuildDisplayPolicy(
     BOOLEAN AutoRotationEnabled,
-    TwoPanelHingedDevicePostureReading Reading,
-    INT *Panel1Orientation,
-    INT *Panel2Orientation)
+    const TwoPanelHingedDevicePostureReading &Reading,
+    BOOLEAN PreferredDisplay1)
 {
-    if (!Panel1Orientation || !Panel2Orientation)
-    {
-        return;
-    }
+    DisplayPolicy Policy{};
+
+    Policy.Display1Enabled = TRUE;
+    Policy.Display2Enabled = TRUE;
+
+    Policy.Panel1Orientation = DMDO_UNCHANGED;
+    Policy.Panel2Orientation = DMDO_UNCHANGED;
 
     if (!AutoRotationEnabled)
     {
-        return;
+        return Policy;
     }
 
-    SimpleOrientation Panel1SimpleOrientation = Reading.Panel1Orientation();
+    const auto Hinge = Reading.HingeState();
+    const auto P1 = Reading.Panel1Orientation();
+    const auto P2 = Reading.Panel2Orientation();
 
-    SimpleOrientation Panel2SimpleOrientation = Reading.Panel2Orientation();
+    wprintf(L"Hinge=%u P1=%u P2=%u\n", (UINT)Hinge, (UINT)P1, (UINT)P2);
 
-    NormalizePanelOrientations(&Panel1SimpleOrientation, &Panel2SimpleOrientation);
+    INT Dmdo;
 
-    *Panel1Orientation = ConvertSimpleOrientationToDMDO(Panel1SimpleOrientation);
+    if (TryConvertSimpleOrientationToDMDO(P1, &Dmdo))
+    {
+        Policy.Panel1Orientation = Dmdo;
+    }
 
-    *Panel2Orientation = ConvertSimpleOrientationToDMDO(Panel2SimpleOrientation);
+    if (TryConvertSimpleOrientationToDMDO(P2, &Dmdo))
+    {
+        Policy.Panel2Orientation = Dmdo;
+    }
+
+    if (Hinge == Windows::Internal::System::HingeState::Flat)
+    {
+        Policy.Display1Enabled = TRUE;
+        Policy.Display2Enabled = TRUE;
+
+        return Policy;
+    }
+
+    if (Hinge == Windows::Internal::System::HingeState::Full)
+    {
+        //
+        // Tent
+        //
+        if ((P1 == SimpleOrientation::Rotated90DegreesCounterclockwise &&
+             P2 == SimpleOrientation::Rotated270DegreesCounterclockwise) ||
+
+            (P1 == SimpleOrientation::Rotated270DegreesCounterclockwise &&
+             P2 == SimpleOrientation::Rotated90DegreesCounterclockwise))
+        {
+            Policy.Display1Enabled = TRUE;
+            Policy.Display2Enabled = TRUE;
+
+            return Policy;
+        }
+
+        //
+        // Surface folded behind
+        //
+        if (P1 == SimpleOrientation::Faceup && P2 == SimpleOrientation::Facedown)
+        {
+            Policy.Display1Enabled = TRUE;
+            Policy.Display2Enabled = FALSE;
+
+            return Policy;
+        }
+
+        if (P1 == SimpleOrientation::Facedown && P2 == SimpleOrientation::Faceup)
+        {
+            Policy.Display1Enabled = FALSE;
+            Policy.Display2Enabled = TRUE;
+
+            return Policy;
+        }
+
+        //
+        // Full + 0/0 or 180/180.
+        //
+        Policy.Display1Enabled = PreferredDisplay1;
+        Policy.Display2Enabled = !PreferredDisplay1;
+
+        return Policy;
+    }
+
+    if (Hinge == Windows::Internal::System::HingeState::Convex)
+    {
+        if (P1 == SimpleOrientation::Faceup && P2 == SimpleOrientation::Facedown)
+        {
+            Policy.Display1Enabled = TRUE;
+            Policy.Display2Enabled = FALSE;
+
+            return Policy;
+        }
+
+        if (P1 == SimpleOrientation::Facedown && P2 == SimpleOrientation::Faceup)
+        {
+            Policy.Display1Enabled = FALSE;
+            Policy.Display2Enabled = TRUE;
+
+            return Policy;
+        }
+    }
+
+    return Policy;
 }

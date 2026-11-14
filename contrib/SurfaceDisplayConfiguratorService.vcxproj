@@ -248,6 +248,11 @@
     
     <ClCompile Include="..\src\FlipConfirmationManager.cpp" />
     <ClCompile Include="..\src\FlipPreviewOverlay.cpp" />
+
+    <ClCompile Include="..\src\DisplayChangeMonitor.cpp" />
+
+    <ClCompile Include="..\src\DisplayValidation.cpp" />
+    <ClCompile Include="..\src\AutoRotationPolicy.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
@@ -326,6 +331,11 @@
 
     <ClInclude Include="..\include\FlipConfirmationManager.h" />
     <ClInclude Include="..\include\FlipPreviewOverlay.h" />
+
+    <ClInclude Include="..\include\DisplayChangeMonitor.h" />
+
+    <ClInclude Include="..\include\DisplayValidation.h" />
+    <ClInclude Include="..\include\AutoRotationPolicy.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

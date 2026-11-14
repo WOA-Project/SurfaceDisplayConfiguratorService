@@ -32,3 +32,6 @@ SetDisplayStatesInternal(
     BOOLEAN LeftDisplayState,
     BOOLEAN RightDisplayState,
     DISPLAY_PRIMARY_OVERRIDE PrimaryOverride);
+
+VOID
+ValidateDisplayConfiguration();

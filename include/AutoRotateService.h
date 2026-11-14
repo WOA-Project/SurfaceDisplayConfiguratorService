@@ -40,3 +40,8 @@ private:
 
 AutoRotateService *WINAPI
 GetAutoRotateService();
+
+HRESULT
+DisableAutoRotation(VOID);
+HRESULT
+EnableAutoRotation(VOID);

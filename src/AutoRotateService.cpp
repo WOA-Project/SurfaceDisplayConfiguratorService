@@ -14,11 +14,16 @@
 #include "WorkAreas.h"
 
 #include "DisplayIdentityCache.h"
+#include "DisplayChangeMonitor.h"
 #include <tchar.h>
+
+static DisplayChangeMonitor g_DisplayChangeMonitor;
 
 constexpr PCWSTR WINDOWS_AUTO_ROTATION_KEY_PATH = L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\AutoRotation";
 
 static AutoRotateService *g_ServiceInstance = nullptr;
+
+static std::atomic_bool g_InternalAutoRotationChange = false;
 
 AutoRotateService *WINAPI
 GetAutoRotateService()
@@ -69,6 +74,11 @@ AutoRotateService::InitializeInfrastructure()
     if (FAILED(Status))
     {
         return Status;
+    }
+
+    if (!g_DisplayChangeMonitor.Start())
+    {
+        return HRESULT_FROM_WIN32(GetLastError());
     }
 
     InitializeTabletPostureSubscriptions();
@@ -144,6 +154,17 @@ AutoRotateService::UpdateAutoRotationState(HKEY AutoRotationKey)
 
     DWORD Enabled = 0;
 
+    if (g_InternalAutoRotationChange)
+    {
+        wprintf(
+            L"AUTO-ROTATION: ignoring internal "
+            L"registry update\n");
+
+        DisableAutoRotation();
+
+        return;
+    }
+
     RegQueryValueEx(AutoRotationKey, _T("Enable"), nullptr, &Type, reinterpret_cast<LPBYTE>(&Enabled), &Size);
 
     g_AutoRotateContext.AutoRotationEnabled = (Enabled != 0);
@@ -203,6 +224,8 @@ AutoRotateService::Shutdown()
         return;
     }
 
+    g_DisplayChangeMonitor.Stop();
+
     ShutdownPowerManagement();
 
     UnsubscribeSensorEvents(m_SensorManager.GetPostureSensor(), m_SensorManager.GetFlipSensor());
@@ -234,4 +257,44 @@ AutoRotateService::Shutdown()
     uninit_apartment();
 
     m_Initialized = FALSE;
+}
+
+HRESULT
+DisableAutoRotation(VOID)
+{
+    g_InternalAutoRotationChange = true;
+
+    typedef BOOL(WINAPI * SETAUTOROTATION)(BOOL bEnable);
+
+    SETAUTOROTATION SetAutoRotation =
+        (SETAUTOROTATION)GetProcAddress(GetModuleHandle(TEXT("user32.dll")), (LPCSTR)2507);
+    if (SetAutoRotation != NULL)
+    {
+        if (!SetAutoRotation(FALSE))
+        {
+            return HRESULT_FROM_WIN32(GetLastError());
+        }
+    }
+
+    return 0;
+}
+
+HRESULT
+EnableAutoRotation(VOID)
+{
+    g_InternalAutoRotationChange = false;
+
+    typedef BOOL(WINAPI * SETAUTOROTATION)(BOOL bEnable);
+
+    SETAUTOROTATION SetAutoRotation =
+        (SETAUTOROTATION)GetProcAddress(GetModuleHandle(TEXT("user32.dll")), (LPCSTR)2507);
+    if (SetAutoRotation != NULL)
+    {
+        if (!SetAutoRotation(TRUE))
+        {
+            return HRESULT_FROM_WIN32(GetLastError());
+        }
+    }
+
+    return 0;
 }

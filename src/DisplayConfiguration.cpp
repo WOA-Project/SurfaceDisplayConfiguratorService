@@ -7,6 +7,13 @@
 static HRESULT
 ApplyDisplaySettings(PCWSTR DeviceName, PDEVMODE DevMode, DWORD Flags)
 {
+    wprintf(
+        L"BUILD MODE: "
+        L"DISPLAY=%ls "
+        L"ORIENTATION=%u\n",
+        DeviceName,
+        DevMode->dmDisplayOrientation);
+
     LONG rc = ChangeDisplaySettingsEx(DeviceName, DevMode, NULL, Flags, NULL);
 
     printf("CDSEx rc=%ld\n", rc);
@@ -95,15 +102,8 @@ ApplySingleLeftDisplayConfiguration(
         wprintf(
             L"DISABLING RIGHT VIA 0x0 MODE: current=%lux%lu\n", RightDevMode->dmPelsWidth, RightDevMode->dmPelsHeight);
 
-        DEVMODE DevMode;
-        ZeroMemory(&DevMode, sizeof(DevMode));
-        DevMode.dmSize = sizeof(DevMode);
-        DevMode.dmFields =
-            DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION; // DM_PELSWIDTH | DM_PELSHEIGHT | DM_BITSPERPEL | DM_POSITION |
-                                                        // DM_DISPLAYFREQUENCY | DM_DISPLAYFLAGS;
-
         Status = ApplyDisplaySettings(
-            RightDisplayDevice->DeviceName, &DevMode, CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET);
+            RightDisplayDevice->DeviceName, RightDevMode, CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET);
 
         if (FAILED(Status))
         {
@@ -149,15 +149,8 @@ ApplySingleRightDisplayConfiguration(
     {
         wprintf(L"DISABLING LEFT VIA 0x0 MODE: current=%lux%lu\n", LeftDevMode->dmPelsWidth, LeftDevMode->dmPelsHeight);
 
-        DEVMODE DevMode;
-        ZeroMemory(&DevMode, sizeof(DevMode));
-        DevMode.dmSize = sizeof(DevMode);
-        DevMode.dmFields =
-            DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION; // DM_PELSWIDTH | DM_PELSHEIGHT | DM_BITSPERPEL | DM_POSITION |
-                                                        // DM_DISPLAYFREQUENCY | DM_DISPLAYFLAGS;
-
         Status = ApplyDisplaySettings(
-            LeftDisplayDevice->DeviceName, &DevMode, CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET);
+            LeftDisplayDevice->DeviceName, LeftDevMode, CDS_UPDATEREGISTRY | CDS_GLOBAL | CDS_NORESET);
 
         if (FAILED(Status))
         {

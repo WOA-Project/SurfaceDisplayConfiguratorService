@@ -5,6 +5,7 @@
 #include "FlipPreviewOverlay.h"
 #include <DisplayIdentityCache.h>
 #include <DisplayTopology.h>
+#include "AutoRotateContext.h"
 
 static PendingFlip g_PendingFlip{};
 
@@ -23,14 +24,11 @@ CommitPendingFlip()
     wprintf(L"CommitPendingFlip: P1=%d P2=%d\n", g_PendingFlip.DisplayState1, g_PendingFlip.DisplayState2);
 
     HANDLE Timer = g_FlipTimer;
-
     g_FlipTimer = nullptr;
-    g_PendingFlip.Active = false;
-    g_FlipPreviewActive = false;
 
     ForceHideFlipPreviewOverlay();
 
-    SetDisplayStates(
+    HRESULT hr = SetDisplayStates(
         g_PendingFlip.DisplayPanelId1,
         g_PendingFlip.DisplayPanelId2,
         g_PendingFlip.DisplayOrientation1,
@@ -38,6 +36,14 @@ CommitPendingFlip()
         g_PendingFlip.DisplayState1,
         g_PendingFlip.DisplayState2,
         DisplayPrimaryAuto);
+
+    g_PendingFlip.Active = false;
+    g_FlipPreviewActive = false;
+
+    if (FAILED(hr))
+    {
+        wprintf(L"Pending flip commit failed: 0x%08X\n", hr);
+    }
 
     if (Timer)
     {
@@ -105,20 +111,28 @@ BeginPendingFlip(
             return;
         }
 
-        if (PreviewPrimary == DisplayPrimary1)
+        if (g_PendingFlip.DisplayState1)
         {
             //
-            // Show overlay on WRONG display.
+            // Display1 will remain active.
+            // Show confirmation on Display2.
             //
             ShowFlipPreviewOverlay(DisplayDevice2.DeviceName);
         }
         else
         {
+            //
+            // Display2 will remain active.
+            // Show confirmation on Display1.
+            //
             ShowFlipPreviewOverlay(DisplayDevice1.DeviceName);
         }
     }
 
-    CreateTimerQueueTimer(&g_FlipTimer, nullptr, PendingFlipTimer, nullptr, 15000, 0, WT_EXECUTEDEFAULT);
+    if (!CreateTimerQueueTimer(&g_FlipTimer, nullptr, PendingFlipTimer, nullptr, 15000, 0, WT_EXECUTEDEFAULT))
+    {
+        wprintf(L"Failed to create flip timer: %u\n", GetLastError());
+    }
 }
 
 void
@@ -163,14 +177,18 @@ TogglePendingFlipPreview()
         return;
     }
 
-    std::swap(
-        g_PendingFlip.DisplayState1,
-        g_PendingFlip.DisplayState2);
+    std::swap(g_PendingFlip.DisplayState1, g_PendingFlip.DisplayState2);
 
-    DISPLAY_PRIMARY_OVERRIDE PreviewPrimary =
-        g_PendingFlip.DisplayState1
-            ? DisplayPrimary1
-            : DisplayPrimary2;
+    //
+    // Persist user's preferred single-screen target.
+    //
+    g_AutoRotateContext.IsDisplay1SingleScreenFavorite = g_PendingFlip.DisplayState1;
+
+    wprintf(L"Persisting preferred display: %u\n", g_AutoRotateContext.IsDisplay1SingleScreenFavorite);
+
+    DISPLAY_PRIMARY_OVERRIDE PreviewPrimary = g_PendingFlip.DisplayState1 ? DisplayPrimary1 : DisplayPrimary2;
+
+    ForceHideFlipPreviewOverlay();
 
     SetDisplayStates(
         g_PendingFlip.DisplayPanelId1,
@@ -184,24 +202,24 @@ TogglePendingFlipPreview()
     DISPLAY_DEVICE DisplayDevice1;
     DISPLAY_DEVICE DisplayDevice2;
 
-    if (SUCCEEDED(GetDisplayDeviceByPanelId(
-            g_PendingFlip.DisplayPanelId1,
-            &DisplayDevice1)) &&
-        SUCCEEDED(GetDisplayDeviceByPanelId(
-            g_PendingFlip.DisplayPanelId2,
-            &DisplayDevice2)))
+    if (SUCCEEDED(GetDisplayDeviceByPanelId(g_PendingFlip.DisplayPanelId1, &DisplayDevice1)) &&
+        SUCCEEDED(GetDisplayDeviceByPanelId(g_PendingFlip.DisplayPanelId2, &DisplayDevice2)))
     {
-        HideFlipPreviewOverlay();
-
-        if (PreviewPrimary == DisplayPrimary1)
+        if (g_PendingFlip.DisplayState1)
         {
-            ShowFlipPreviewOverlay(
-                DisplayDevice2.DeviceName);
+            //
+            // Display1 will remain active.
+            // Show confirmation on Display2.
+            //
+            ShowFlipPreviewOverlay(DisplayDevice2.DeviceName);
         }
         else
         {
-            ShowFlipPreviewOverlay(
-                DisplayDevice1.DeviceName);
+            //
+            // Display2 will remain active.
+            // Show confirmation on Display1.
+            //
+            ShowFlipPreviewOverlay(DisplayDevice1.DeviceName);
         }
     }
 }

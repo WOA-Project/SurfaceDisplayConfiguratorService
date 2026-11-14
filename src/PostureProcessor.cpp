@@ -8,7 +8,7 @@
 #include "DisplayRotationManager.h"
 #include "FlipConfirmationManager.h"
 
-static bool s_LastWasFullHinge = false;
+static bool s_InSingleScreenMode = false;
 
 HRESULT WINAPI
 ApplyPostureReading(TwoPanelHingedDevicePostureReading Reading)
@@ -23,56 +23,48 @@ ApplyPostureReading(TwoPanelHingedDevicePostureReading Reading)
         Panel1Id,
         Panel2Id);
 
-    BOOLEAN Display1State = TRUE;
-    BOOLEAN Display2State = TRUE;
+    DisplayPolicy Policy = BuildDisplayPolicy(
+        g_AutoRotateContext.AutoRotationEnabled, Reading, g_AutoRotateContext.IsDisplay1SingleScreenFavorite);
 
-    BuildDisplayOrientations(
-        g_AutoRotateContext.AutoRotationEnabled,
-        Reading,
-        &g_AutoRotateContext.Panel1Orientation,
-        &g_AutoRotateContext.Panel2Orientation);
+    g_AutoRotateContext.Panel1Orientation = Policy.Panel1Orientation;
+    g_AutoRotateContext.Panel2Orientation = Policy.Panel2Orientation;
 
-    bool IsFullHinge = Reading.HingeState() == Windows::Internal::System::HingeState::Full;
+    bool IsSingleScreen = (Policy.Display1Enabled != Policy.Display2Enabled);
 
     //
-    // Entering Full posture
+    // Entering single-screen posture.
     //
-    if (IsFullHinge && !s_LastWasFullHinge)
+    if (IsSingleScreen && !s_InSingleScreenMode)
     {
-        BOOLEAN FinalDisplay1State = g_AutoRotateContext.IsDisplay1SingleScreenFavorite;
-        BOOLEAN FinalDisplay2State = !g_AutoRotateContext.IsDisplay1SingleScreenFavorite;
-
-        s_LastWasFullHinge = true;
+        s_InSingleScreenMode = true;
 
         BeginPendingFlip(
             Panel1Id,
             Panel2Id,
-            g_AutoRotateContext.Panel1Orientation,
-            g_AutoRotateContext.Panel2Orientation,
-            FinalDisplay1State,
-            FinalDisplay2State);
-    }
+            Policy.Panel1Orientation,
+            Policy.Panel2Orientation,
+            Policy.Display1Enabled,
+            Policy.Display2Enabled);
 
-    //
-    // Remaining in Full posture.
-    //
-    if (IsFullHinge)
-    {
-        //
-        // Do not keep reapplying topology.
-        // Let the pending flip manager own the transition.
-        //
         return ERROR_SUCCESS;
     }
 
     //
-    // Leaving Full posture.
+    // Leaving single-screen mode.
     //
-    if (!IsFullHinge && s_LastWasFullHinge)
+    if (!IsSingleScreen && s_InSingleScreenMode)
     {
         CancelPendingFlip();
 
-        s_LastWasFullHinge = false;
+        s_InSingleScreenMode = false;
+    }
+
+    //
+    // Remaining single-screen.
+    //
+    if (IsSingleScreen && s_InSingleScreenMode)
+    {
+        return ERROR_SUCCESS;
     }
 
     //
@@ -81,10 +73,10 @@ ApplyPostureReading(TwoPanelHingedDevicePostureReading Reading)
     return SetDisplayStates(
         Panel1Id,
         Panel2Id,
-        g_AutoRotateContext.Panel1Orientation,
-        g_AutoRotateContext.Panel2Orientation,
-        Display1State,
-        Display2State,
+        Policy.Panel1Orientation,
+        Policy.Panel2Orientation,
+        Policy.Display1Enabled,
+        Policy.Display2Enabled,
         DISPLAY_PRIMARY_OVERRIDE::DisplayPrimaryAuto);
 }
 
@@ -109,11 +101,11 @@ TogglePreferredSingleScreen(TwoPanelHingedDevicePostureReading Reading)
     // If we're currently folded,
     // restart the preview process immediately.
     //
-    if (s_LastWasFullHinge)
+    if (s_InSingleScreenMode)
     {
         CancelPendingFlip();
 
-        s_LastWasFullHinge = false;
+        s_InSingleScreenMode = false;
     }
 
     ApplyPostureReading(Reading);
