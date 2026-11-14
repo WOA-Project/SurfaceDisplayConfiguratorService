@@ -12,6 +12,14 @@ static HANDLE g_FlipTimer = nullptr;
 static bool g_FlipPreviewActive = false;
 CRITICAL_SECTION g_FlipLock;
 
+struct FlipLockInitializer
+{
+    FlipLockInitializer() { InitializeCriticalSection(&g_FlipLock); }
+    ~FlipLockInitializer() { DeleteCriticalSection(&g_FlipLock); }
+};
+
+static FlipLockInitializer g_FlipLockInitializer;
+
 void
 CancelPendingFlipLocked()
 {
