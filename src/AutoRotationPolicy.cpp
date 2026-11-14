@@ -2,17 +2,16 @@
 #include "AutoRotationPolicy.h"
 #include <AutoRotateContext.h>
 #include <AutoRotateService.h>
+#include <DisplaySynchronization.h>
 
 static BOOLEAN g_DisabledAutoRotation = FALSE;
 static BOOLEAN g_OriginalAutoRotationEnabled = FALSE;
 static BOOLEAN g_HaveOriginalAutoRotationState = FALSE;
 
-static CRITICAL_SECTION g_AutoRotationPolicyLock;
-
 VOID
 UpdateAutoRotationPolicy(INT LeftOrientation, INT RightOrientation, BOOLEAN LeftEnabled, BOOLEAN RightEnabled)
 {
-    EnterCriticalSection(&g_AutoRotationPolicyLock);
+    EnterCriticalSection(&g_DisplayOperationLock);
 
     BOOLEAN MixedOrientation = LeftEnabled && RightEnabled && LeftOrientation != RightOrientation;
 
@@ -58,5 +57,5 @@ UpdateAutoRotationPolicy(INT LeftOrientation, INT RightOrientation, BOOLEAN Left
         }
     }
 
-    LeaveCriticalSection(&g_AutoRotationPolicyLock);
+    LeaveCriticalSection(&g_DisplayOperationLock);
 }
