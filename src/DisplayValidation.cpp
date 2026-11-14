@@ -5,6 +5,7 @@
 #include "DisplayValidation.h"
 
 #include <atomic>
+#include <DisplaySynchronization.h>
 
 AppliedDisplayState g_DesiredState{};
 
@@ -53,7 +54,7 @@ VerifyPreDisplayConfiguration(CONST WCHAR *LeftDisplayPanelId, CONST WCHAR *Righ
 }
 
 VOID
-SaveDesiredState(
+SaveDesiredStateLocked(
     BOOL NoOp,
     CONST WCHAR *LeftDisplayPanelId,
     CONST WCHAR *RightDisplayPanelId,
@@ -90,6 +91,36 @@ SaveDesiredState(
     g_DesiredState.Valid = TRUE;
 }
 
+VOID
+SaveDesiredState(
+    BOOL NoOp,
+    CONST WCHAR *LeftDisplayPanelId,
+    CONST WCHAR *RightDisplayPanelId,
+    INT LeftDisplayOrientation,
+    INT RightDisplayOrientation,
+    const DEVMODE &LeftDevMode,
+    const DEVMODE &RightDevMode,
+    BOOLEAN LeftDisplayState,
+    BOOLEAN RightDisplayState,
+    DISPLAY_PRIMARY_OVERRIDE PrimaryOverride)
+{
+    EnterCriticalSection(&g_DisplayOperationLock);
+
+    SaveDesiredStateLocked(
+        NoOp,
+        LeftDisplayPanelId,
+        RightDisplayPanelId,
+        LeftDisplayOrientation,
+        RightDisplayOrientation,
+        LeftDevMode,
+        RightDevMode,
+        LeftDisplayState,
+        RightDisplayState,
+        PrimaryOverride);
+
+    LeaveCriticalSection(&g_DisplayOperationLock);
+}
+
 BOOLEAN
 ReadCurrentDisplayState(const WCHAR *LeftPanelId, const WCHAR *RightPanelId, CurrentDisplayState *State)
 {
@@ -109,6 +140,9 @@ ReadCurrentDisplayState(const WCHAR *LeftPanelId, const WCHAR *RightPanelId, Cur
 
     DISPLAY_DEVICE LeftDisplay{};
     DISPLAY_DEVICE RightDisplay{};
+
+    LeftDisplay.cb = sizeof(DISPLAY_DEVICE);
+    RightDisplay.cb = sizeof(DISPLAY_DEVICE);
 
     HRESULT hr = GetDisplayDeviceByPanelId(LeftPanelId, &LeftDisplay);
 
@@ -318,7 +352,22 @@ VerifyDisplayConfiguration(
 VOID
 ValidateDisplayConfiguration()
 {
-    if (!g_DesiredState.Valid)
+    AppliedDisplayState DesiredCopy;
+
+    if (g_RepairInProgress.load())
+    {
+        return;
+    }
+
+    {
+        EnterCriticalSection(&g_DisplayOperationLock);
+
+        DesiredCopy = g_DesiredState;
+
+        LeaveCriticalSection(&g_DisplayOperationLock);
+    }
+
+    if (!DesiredCopy.Valid)
     {
         return;
     }
@@ -340,95 +389,92 @@ ValidateDisplayConfiguration()
     //
     CurrentDisplayState Actual{};
 
-    if (!ReadCurrentDisplayState(g_DesiredState.LeftPanelId.c_str(), g_DesiredState.RightPanelId.c_str(), &Actual))
+    if (!ReadCurrentDisplayState(DesiredCopy.LeftPanelId.c_str(), DesiredCopy.RightPanelId.c_str(), &Actual))
     {
         return;
     }
 
-    if (Actual.LeftOrientation != g_DesiredState.LeftOrientation)
+    if (Actual.LeftOrientation != DesiredCopy.LeftOrientation)
+    {
+        wprintf(L"DRIFT LeftOrientation expected=%d actual=%d\n", DesiredCopy.LeftOrientation, Actual.LeftOrientation);
+
+        RepairRequired = TRUE;
+    }
+
+    if (Actual.RightOrientation != DesiredCopy.RightOrientation)
     {
         wprintf(
-            L"DRIFT LeftOrientation expected=%d actual=%d\n", g_DesiredState.LeftOrientation, Actual.LeftOrientation);
+            L"DRIFT RightOrientation expected=%d actual=%d\n", DesiredCopy.RightOrientation, Actual.RightOrientation);
 
         RepairRequired = TRUE;
     }
 
-    if (Actual.RightOrientation != g_DesiredState.RightOrientation)
+    if (Actual.LeftEnabled != DesiredCopy.LeftEnabled)
     {
-        wprintf(
-            L"DRIFT RightOrientation expected=%d actual=%d\n",
-            g_DesiredState.RightOrientation,
-            Actual.RightOrientation);
+        wprintf(L"DRIFT LeftEnabled expected=%d actual=%d\n", DesiredCopy.LeftEnabled, Actual.LeftEnabled);
 
         RepairRequired = TRUE;
     }
 
-    if (Actual.LeftEnabled != g_DesiredState.LeftEnabled)
+    if (Actual.RightEnabled != DesiredCopy.RightEnabled)
     {
-        wprintf(L"DRIFT LeftEnabled expected=%d actual=%d\n", g_DesiredState.LeftEnabled, Actual.LeftEnabled);
+        wprintf(L"DRIFT RightEnabled expected=%d actual=%d\n", DesiredCopy.RightEnabled, Actual.RightEnabled);
 
         RepairRequired = TRUE;
     }
 
-    if (Actual.RightEnabled != g_DesiredState.RightEnabled)
+    if (Actual.LeftX != DesiredCopy.LeftX)
     {
-        wprintf(L"DRIFT RightEnabled expected=%d actual=%d\n", g_DesiredState.RightEnabled, Actual.RightEnabled);
+        wprintf(L"DRIFT LeftX expected=%d actual=%d\n", DesiredCopy.LeftX, Actual.LeftX);
 
         RepairRequired = TRUE;
     }
 
-    if (Actual.LeftX != g_DesiredState.LeftX)
+    if (Actual.LeftY != DesiredCopy.LeftY)
     {
-        wprintf(L"DRIFT LeftX expected=%d actual=%d\n", g_DesiredState.LeftX, Actual.LeftX);
+        wprintf(L"DRIFT LeftY expected=%d actual=%d\n", DesiredCopy.LeftY, Actual.LeftY);
 
         RepairRequired = TRUE;
     }
 
-    if (Actual.LeftY != g_DesiredState.LeftY)
+    if (Actual.RightX != DesiredCopy.RightX)
     {
-        wprintf(L"DRIFT LeftY expected=%d actual=%d\n", g_DesiredState.LeftY, Actual.LeftY);
+        wprintf(L"DRIFT RightX expected=%d actual=%d\n", DesiredCopy.RightX, Actual.RightX);
 
         RepairRequired = TRUE;
     }
 
-    if (Actual.RightX != g_DesiredState.RightX)
+    if (Actual.RightY != DesiredCopy.RightY)
     {
-        wprintf(L"DRIFT RightX expected=%d actual=%d\n", g_DesiredState.RightX, Actual.RightX);
+        wprintf(L"DRIFT RightY expected=%d actual=%d\n", DesiredCopy.RightY, Actual.RightY);
 
         RepairRequired = TRUE;
     }
 
-    if (Actual.RightY != g_DesiredState.RightY)
+    if (Actual.LeftWidth != DesiredCopy.LeftWidth)
     {
-        wprintf(L"DRIFT RightY expected=%d actual=%d\n", g_DesiredState.RightY, Actual.RightY);
+        wprintf(L"DRIFT LeftWidth expected=%d actual=%d\n", DesiredCopy.LeftWidth, Actual.LeftWidth);
 
         RepairRequired = TRUE;
     }
 
-    if (Actual.LeftWidth != g_DesiredState.LeftWidth)
+    if (Actual.LeftHeight != DesiredCopy.LeftHeight)
     {
-        wprintf(L"DRIFT LeftWidth expected=%d actual=%d\n", g_DesiredState.LeftWidth, Actual.LeftWidth);
+        wprintf(L"DRIFT LeftHeight expected=%d actual=%d\n", DesiredCopy.LeftHeight, Actual.LeftHeight);
 
         RepairRequired = TRUE;
     }
 
-    if (Actual.LeftHeight != g_DesiredState.LeftHeight)
+    if (Actual.RightWidth != DesiredCopy.RightWidth)
     {
-        wprintf(L"DRIFT LeftHeight expected=%d actual=%d\n", g_DesiredState.LeftHeight, Actual.LeftHeight);
+        wprintf(L"DRIFT RightWidth expected=%d actual=%d\n", DesiredCopy.RightWidth, Actual.RightWidth);
 
         RepairRequired = TRUE;
     }
 
-    if (Actual.RightWidth != g_DesiredState.RightWidth)
+    if (Actual.RightHeight != DesiredCopy.RightHeight)
     {
-        wprintf(L"DRIFT RightWidth expected=%d actual=%d\n", g_DesiredState.RightWidth, Actual.RightWidth);
-
-        RepairRequired = TRUE;
-    }
-
-    if (Actual.RightHeight != g_DesiredState.RightHeight)
-    {
-        wprintf(L"DRIFT RightHeight expected=%d actual=%d\n", g_DesiredState.RightHeight, Actual.RightHeight);
+        wprintf(L"DRIFT RightHeight expected=%d actual=%d\n", DesiredCopy.RightHeight, Actual.RightHeight);
 
         RepairRequired = TRUE;
     }
@@ -443,10 +489,10 @@ ValidateDisplayConfiguration()
     wprintf(
         L"Expected: "
         L"L=%d R=%d Enabled=(%d,%d)\n",
-        g_DesiredState.LeftOrientation,
-        g_DesiredState.RightOrientation,
-        g_DesiredState.LeftEnabled,
-        g_DesiredState.RightEnabled);
+        DesiredCopy.LeftOrientation,
+        DesiredCopy.RightOrientation,
+        DesiredCopy.LeftEnabled,
+        DesiredCopy.RightEnabled);
 
     wprintf(
         L"Actual: "
@@ -460,10 +506,10 @@ ValidateDisplayConfiguration()
         L"Expected Topology: "
         L"L=(%ld,%ld) "
         L"R=(%ld,%ld)\n",
-        g_DesiredState.LeftX,
-        g_DesiredState.LeftY,
-        g_DesiredState.RightX,
-        g_DesiredState.RightY);
+        DesiredCopy.LeftX,
+        DesiredCopy.LeftY,
+        DesiredCopy.RightX,
+        DesiredCopy.RightY);
 
     wprintf(
         L"Actual Topology: "
@@ -497,9 +543,19 @@ RepairDisplayConfiguration()
 
     g_LastRepairTick.store(Now);
 
+    AppliedDisplayState DesiredCopy;
+
+    {
+        EnterCriticalSection(&g_DisplayOperationLock);
+
+        DesiredCopy = g_DesiredState;
+
+        LeaveCriticalSection(&g_DisplayOperationLock);
+    }
+
     CurrentDisplayState Actual{};
 
-    if (ReadCurrentDisplayState(g_DesiredState.LeftPanelId.c_str(), g_DesiredState.RightPanelId.c_str(), &Actual))
+    if (ReadCurrentDisplayState(DesiredCopy.LeftPanelId.c_str(), DesiredCopy.RightPanelId.c_str(), &Actual))
     {
         wprintf(
             L"ACTUAL DURING REPAIR: "
@@ -511,21 +567,21 @@ RepairDisplayConfiguration()
     wprintf(
         L"REPAIR REQUESTED: "
         L"L=%d R=%d\n",
-        g_DesiredState.LeftOrientation,
-        g_DesiredState.RightOrientation);
+        DesiredCopy.LeftOrientation,
+        DesiredCopy.RightOrientation);
 
     wprintf(
         L"Display configuration drift detected. "
         L"Reapplying last known good state.\n");
 
     HRESULT hr = SetDisplayStatesInternal(
-        g_DesiredState.LeftPanelId.c_str(),
-        g_DesiredState.RightPanelId.c_str(),
-        g_DesiredState.LeftOrientation,
-        g_DesiredState.RightOrientation,
-        g_DesiredState.LeftEnabled,
-        g_DesiredState.RightEnabled,
-        g_DesiredState.PrimaryOverride);
+        DesiredCopy.LeftPanelId.c_str(),
+        DesiredCopy.RightPanelId.c_str(),
+        DesiredCopy.LeftOrientation,
+        DesiredCopy.RightOrientation,
+        DesiredCopy.LeftEnabled,
+        DesiredCopy.RightEnabled,
+        DesiredCopy.PrimaryOverride);
 
     wprintf(L"Repair result: 0x%08X\n", hr);
 

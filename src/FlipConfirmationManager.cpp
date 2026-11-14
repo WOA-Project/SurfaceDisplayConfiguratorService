@@ -8,16 +8,34 @@
 #include "AutoRotateContext.h"
 
 static PendingFlip g_PendingFlip{};
-
 static HANDLE g_FlipTimer = nullptr;
-
 static bool g_FlipPreviewActive = false;
+CRITICAL_SECTION g_FlipLock;
+
+void
+CancelPendingFlipLocked()
+{
+    HideFlipPreviewOverlay();
+
+    if (g_FlipTimer)
+    {
+        DeleteTimerQueueTimer(nullptr, g_FlipTimer, INVALID_HANDLE_VALUE);
+
+        g_FlipTimer = nullptr;
+    }
+
+    g_PendingFlip.Active = false;
+    g_FlipPreviewActive = false;
+}
 
 static void
 CommitPendingFlip()
 {
+    EnterCriticalSection(&g_FlipLock);
+
     if (!g_PendingFlip.Active)
     {
+        LeaveCriticalSection(&g_FlipLock);
         return;
     }
 
@@ -49,6 +67,8 @@ CommitPendingFlip()
     {
         DeleteTimerQueueTimer(nullptr, Timer, INVALID_HANDLE_VALUE);
     }
+
+    LeaveCriticalSection(&g_FlipLock);
 }
 
 static VOID CALLBACK
@@ -66,7 +86,9 @@ BeginPendingFlip(
     BOOLEAN DisplayState1,
     BOOLEAN DisplayState2)
 {
-    CancelPendingFlip();
+    EnterCriticalSection(&g_FlipLock);
+
+    CancelPendingFlipLocked();
 
     g_FlipPreviewActive = true;
     g_PendingFlip.Active = true;
@@ -98,16 +120,20 @@ BeginPendingFlip(
     {
         DISPLAY_DEVICE DisplayDevice1;
         DISPLAY_DEVICE DisplayDevice2;
+        DisplayDevice1.cb = sizeof(DISPLAY_DEVICE);
+        DisplayDevice2.cb = sizeof(DISPLAY_DEVICE);
 
         HRESULT Status = GetDisplayDeviceByPanelId(DisplayPanelId1, &DisplayDevice1);
         if (FAILED(Status))
         {
+            LeaveCriticalSection(&g_FlipLock);
             return;
         }
 
         Status = GetDisplayDeviceByPanelId(DisplayPanelId2, &DisplayDevice2);
         if (FAILED(Status))
         {
+            LeaveCriticalSection(&g_FlipLock);
             return;
         }
 
@@ -133,22 +159,18 @@ BeginPendingFlip(
     {
         wprintf(L"Failed to create flip timer: %u\n", GetLastError());
     }
+
+    LeaveCriticalSection(&g_FlipLock);
 }
 
 void
 CancelPendingFlip()
 {
-    HideFlipPreviewOverlay();
+    EnterCriticalSection(&g_FlipLock);
 
-    if (g_FlipTimer)
-    {
-        DeleteTimerQueueTimer(nullptr, g_FlipTimer, INVALID_HANDLE_VALUE);
+    CancelPendingFlipLocked();
 
-        g_FlipTimer = nullptr;
-    }
-
-    g_PendingFlip.Active = false;
-    g_FlipPreviewActive = false;
+    LeaveCriticalSection(&g_FlipLock);
 }
 
 bool
@@ -172,8 +194,11 @@ MarkFlipCommitted()
 void
 TogglePendingFlipPreview()
 {
+    EnterCriticalSection(&g_FlipLock);
+
     if (!g_PendingFlip.Active)
     {
+        LeaveCriticalSection(&g_FlipLock);
         return;
     }
 
@@ -202,6 +227,9 @@ TogglePendingFlipPreview()
     DISPLAY_DEVICE DisplayDevice1;
     DISPLAY_DEVICE DisplayDevice2;
 
+    DisplayDevice1.cb = sizeof(DISPLAY_DEVICE);
+    DisplayDevice2.cb = sizeof(DISPLAY_DEVICE);
+
     if (SUCCEEDED(GetDisplayDeviceByPanelId(g_PendingFlip.DisplayPanelId1, &DisplayDevice1)) &&
         SUCCEEDED(GetDisplayDeviceByPanelId(g_PendingFlip.DisplayPanelId2, &DisplayDevice2)))
     {
@@ -222,4 +250,6 @@ TogglePendingFlipPreview()
             ShowFlipPreviewOverlay(DisplayDevice1.DeviceName);
         }
     }
+
+    LeaveCriticalSection(&g_FlipLock);
 }

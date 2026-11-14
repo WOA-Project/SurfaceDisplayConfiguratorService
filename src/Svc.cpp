@@ -27,6 +27,7 @@
 #include "AutoRotate.h"
 #include "ActiveMonitorWindowHandler.h"
 #include "PowerManager.h"
+#include <DisplaySynchronization.h>
 
 TCHAR SVCNAME[] = TEXT("SurfaceDisplayConfiguratorService");
 
@@ -154,6 +155,8 @@ SvcInit(DWORD, LPTSTR *)
 
     ReportSvcStatus(SERVICE_RUNNING, NO_ERROR, 0);
 
+    InitializeCriticalSection(&g_DisplayOperationLock);
+
     // Perform work until service stops.
     std::thread t1(AutoRotateMain);
     std::thread t2(ActiveMonitorWindowHandlerMain);
@@ -166,6 +169,8 @@ SvcInit(DWORD, LPTSTR *)
 
         t1.detach();
         t2.detach();
+
+        DeleteCriticalSection(&g_DisplayOperationLock);
 
         ReportSvcStatus(SERVICE_STOPPED, NO_ERROR, 0);
         return;

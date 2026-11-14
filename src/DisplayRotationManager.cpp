@@ -42,6 +42,7 @@
 #include <AutoRotateService.h>
 #include "DisplayValidation.h"
 #include <AutoRotationPolicy.h>
+#include <DisplaySynchronization.h>
 
 //
 // Subject: Sets a device enablement state based on its panel id attachment
@@ -270,6 +271,12 @@ PrepareDisplayModeForOrientation(PDEVMODE DevMode, INT TargetOrientation)
     DevMode->dmFields |= DM_DISPLAYORIENTATION | DM_PELSWIDTH | DM_PELSHEIGHT;
 }
 
+struct ValidationSuppressionGuard
+{
+    ValidationSuppressionGuard() { g_SuppressValidation.store(true); }
+    ~ValidationSuppressionGuard() { g_SuppressValidation.store(false); }
+};
+
 HRESULT WINAPI
 SetDisplayStatesInternal(
     CONST WCHAR *LeftDisplayPanelId,
@@ -294,6 +301,14 @@ SetDisplayStatesInternal(
 
     HRESULT Status = ERROR_SUCCESS;
 
+    struct DisplayLockGuard
+    {
+        DisplayLockGuard() { EnterCriticalSection(&g_DisplayOperationLock); }
+        ~DisplayLockGuard() { LeaveCriticalSection(&g_DisplayOperationLock); }
+    } Guard;
+
+    ValidationSuppressionGuard Suppression;
+
     static std::atomic_uint64_t Counter{};
 
     wprintf(L"SetDisplayStatesInternal #%llu\n", ++Counter);
@@ -305,8 +320,6 @@ SetDisplayStatesInternal(
         wprintf(L"ERROR: Both displays requested off\n");
         return E_INVALIDARG;
     }
-
-    g_SuppressValidation = true;
 
     wprintf(
         L"SetDisplayStatesInternal Entry: LeftPanel='%s' RightPanel='%s' LeftOrientation=%d RightOrientation=%d LeftState=%d RightState=%d\n",
@@ -325,6 +338,9 @@ SetDisplayStatesInternal(
         Status = ERROR_NOT_FOUND;
         goto exit;
     }
+
+    LeftDisplayDevice.cb = sizeof(DISPLAY_DEVICE);
+    RightDisplayDevice.cb = sizeof(DISPLAY_DEVICE);
 
     Status = GetDisplayDeviceByPanelId(LeftDisplayPanelId, &LeftDisplayDevice);
     if (FAILED(Status))
@@ -697,7 +713,7 @@ SetDisplayStatesInternal(
         {
             g_LastRepairTick.store(0);
 
-            SaveDesiredState(
+            SaveDesiredStateLocked(
                 FALSE,
                 LeftDisplayPanelId,
                 RightDisplayPanelId,
@@ -754,7 +770,7 @@ SetDisplayStatesInternal(
 exit:
     if (SUCCEEDED(Status))
     {
-        SaveDesiredState(
+        SaveDesiredStateLocked(
             NoOp,
             LeftDisplayPanelId,
             RightDisplayPanelId,
@@ -776,8 +792,6 @@ exit:
     {
         wprintf(L"Display state unchanged\n");
     }
-
-    g_SuppressValidation = false;
 
     return Status;
 }

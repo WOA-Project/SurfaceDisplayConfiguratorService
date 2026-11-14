@@ -79,6 +79,18 @@ VOID SaveDesiredState(
     BOOLEAN RightDisplayState,
     DISPLAY_PRIMARY_OVERRIDE PrimaryOverride);
 
+VOID SaveDesiredStateLocked(
+    BOOL NoOp,
+    CONST WCHAR *LeftDisplayPanelId,
+    CONST WCHAR *RightDisplayPanelId,
+    INT LeftDisplayOrientation,
+    INT RightDisplayOrientation,
+    const DEVMODE& LeftDevMode,
+    const DEVMODE& RightDevMode,
+    BOOLEAN LeftDisplayState,
+    BOOLEAN RightDisplayState,
+    DISPLAY_PRIMARY_OVERRIDE PrimaryOverride);
+
 BOOLEAN ReadCurrentDisplayState(
     const WCHAR *LeftPanelId,
     const WCHAR *RightPanelId,

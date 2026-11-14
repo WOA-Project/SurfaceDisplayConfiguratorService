@@ -7,9 +7,13 @@ static BOOLEAN g_DisabledAutoRotation = FALSE;
 static BOOLEAN g_OriginalAutoRotationEnabled = FALSE;
 static BOOLEAN g_HaveOriginalAutoRotationState = FALSE;
 
+static CRITICAL_SECTION g_AutoRotationPolicyLock;
+
 VOID
 UpdateAutoRotationPolicy(INT LeftOrientation, INT RightOrientation, BOOLEAN LeftEnabled, BOOLEAN RightEnabled)
 {
+    EnterCriticalSection(&g_AutoRotationPolicyLock);
+
     BOOLEAN MixedOrientation = LeftEnabled && RightEnabled && LeftOrientation != RightOrientation;
 
     if (MixedOrientation)
@@ -18,7 +22,10 @@ UpdateAutoRotationPolicy(INT LeftOrientation, INT RightOrientation, BOOLEAN Left
         {
             if (!g_HaveOriginalAutoRotationState)
             {
+                EnterCriticalSection(&g_AutoRotateContext.CriticalSection);
                 g_OriginalAutoRotationEnabled = g_AutoRotateContext.AutoRotationEnabled;
+                LeaveCriticalSection(&g_AutoRotateContext.CriticalSection);
+
                 g_HaveOriginalAutoRotationState = TRUE;
             }
 
@@ -50,4 +57,6 @@ UpdateAutoRotationPolicy(INT LeftOrientation, INT RightOrientation, BOOLEAN Left
             wprintf(L"AUTO-ROTATION: restored\n");
         }
     }
+
+    LeaveCriticalSection(&g_AutoRotationPolicyLock);
 }
