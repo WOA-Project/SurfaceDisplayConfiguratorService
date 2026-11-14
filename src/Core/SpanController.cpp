@@ -16,7 +16,6 @@ bool
 SpanController::Initialize()
 {
     m_monitorTopology.Refresh();
-
     return m_overlay.Create(GetModuleHandle(nullptr));
 }
 
@@ -24,11 +23,8 @@ void
 SpanController::Shutdown()
 {
     m_overlay.Hide();
-
-    m_dragWindow = nullptr;
-    m_dragging = false;
     m_previewVisible = false;
-
+    ResetDragState();
     m_lastCursor = {LONG_MIN, LONG_MIN};
 }
 
@@ -36,12 +32,10 @@ void
 SpanController::OnDisplayConfigurationChanged()
 {
     m_monitorTopology.Refresh();
-
-    if (m_previewVisible)
-    {
-        m_overlay.Hide();
-        m_previewVisible = false;
-    }
+    m_overlay.Hide();
+    m_previewVisible = false;
+    SetRectEmpty(&m_lastPreviewRect);
+    m_lastCursor = {LONG_MIN, LONG_MIN};
 }
 
 void
@@ -107,9 +101,7 @@ SpanController::OnWindowCreated(HWND window)
         }
 
         HMONITOR monitor = m_launchMonitorResolver.DetermineLaunchMonitor(window);
-
         m_windowPlacementService.PlaceWindow(window, monitor);
-
         m_launchMonitorResolver.ClearLaunchSignal();
     }).detach();
 }
@@ -123,31 +115,47 @@ SpanController::OnMouseClick(POINT point, HWND hwnd)
     }
 
     m_launchMonitorResolver.RecordMouseClick(point, hwnd);
+}
 
-    HWND root = WindowHelpers::GetRootWindow(hwnd);
+void
+SpanController::ResetDragState()
+{
+    m_dragWindow = nullptr;
+    m_dragging = false;
+    m_dragMoved = false;
+    m_dragWindowWasSpanned = false;
+    SetRectEmpty(&m_lastPreviewRect);
+}
 
-    if (m_spanManager.IsSpanned(root))
+void
+SpanController::EnsureWindowUnspannedForDrag()
+{
+    if (!m_dragWindow)
     {
-        m_spanManager.RestoreWindow(root);
+        return;
     }
+
+    if (!m_dragWindowWasSpanned)
+    {
+        return;
+    }
+
+    m_spanManager.RestoreWindow(m_dragWindow);
+    m_dragWindowWasSpanned = false;
 }
 
 void
 SpanController::OnMoveSizeStart(HWND window)
 {
-    if (m_spanManager.IsSpanned(window))
-    {
-        m_spanManager.RestoreWindow(window);
-    }
-
     m_overlay.Hide();
-
     m_previewVisible = false;
-
     m_dragging = true;
     m_dragWindow = window;
-
+    m_dragMoved = false;
+    m_dragWindowWasSpanned = m_spanManager.IsSpanned(window);
+    GetWindowRect(window, &m_dragStartRect);
     m_lastCursor = {LONG_MIN, LONG_MIN};
+    SetRectEmpty(&m_lastPreviewRect);
 }
 
 void
@@ -161,20 +169,17 @@ SpanController::OnMoveSizeEnd(HWND window)
     }
 
     m_overlay.Hide();
-
     m_previewVisible = false;
 
     if (!m_dragWindow)
     {
-        m_dragWindow = nullptr;
-        m_dragging = false;
+        ResetDragState();
         return;
     }
 
     if (m_monitorTopology.GetSeam().Orientation == SeamOrientation::None)
     {
-        m_dragWindow = nullptr;
-        m_dragging = false;
+        ResetDragState();
         return;
     }
 
@@ -182,8 +187,7 @@ SpanController::OnMoveSizeEnd(HWND window)
 
     if (!GetCursorPos(&cursor))
     {
-        m_dragWindow = nullptr;
-        m_dragging = false;
+        ResetDragState();
         return;
     }
 
@@ -194,8 +198,7 @@ SpanController::OnMoveSizeEnd(HWND window)
         m_spanManager.SpanWindow(m_dragWindow, m_monitorTopology.GetCombinedWorkArea());
     }
 
-    m_dragWindow = nullptr;
-    m_dragging = false;
+    ResetDragState();
 }
 
 bool
@@ -237,43 +240,56 @@ SpanController::UpdateDragPreview()
 
     if (!IsWindow(m_dragWindow))
     {
-        m_dragWindow = nullptr;
-        m_dragging = false;
-
         m_overlay.Hide();
         m_previewVisible = false;
-
+        ResetDragState();
         return;
     }
 
     POINT cursor{};
-
     if (!GetCursorPos(&cursor))
     {
         return;
     }
 
-    if (cursor.x == m_lastCursor.x && cursor.y == m_lastCursor.y)
+    RECT combinedWorkArea = m_monitorTopology.GetCombinedWorkArea();
+    bool rectChanged = !EqualRect(&combinedWorkArea, &m_lastPreviewRect);
+    if (!rectChanged && cursor.x == m_lastCursor.x && cursor.y == m_lastCursor.y)
     {
         return;
     }
 
     m_lastCursor = cursor;
-
     if (ShouldShowPreview(cursor))
     {
-        if (!m_previewVisible)
+        if (!m_previewVisible || rectChanged)
         {
-            m_overlay.Show(m_monitorTopology.GetCombinedWorkArea(), m_dragWindow);
-
-            m_previewVisible = true;
+            m_overlay.Show(combinedWorkArea, m_dragWindow);
+            m_lastPreviewRect = combinedWorkArea;
         }
+
+        m_previewVisible = true;
     }
     else if (m_previewVisible)
     {
         m_overlay.Hide();
-
         m_previewVisible = false;
+    }
+
+    if (m_dragWindow && m_dragWindowWasSpanned && !m_dragMoved)
+    {
+        RECT currentRect{};
+        GetWindowRect(m_dragWindow, &currentRect);
+
+        LONG dx = abs(currentRect.left - m_dragStartRect.left);
+        LONG dy = abs(currentRect.top - m_dragStartRect.top);
+
+        constexpr LONG UnspanThreshold = 8;
+        if (dx > UnspanThreshold || dy > UnspanThreshold)
+        {
+            m_dragMoved = true;
+            EnsureWindowUnspannedForDrag();
+        }
     }
 }
 

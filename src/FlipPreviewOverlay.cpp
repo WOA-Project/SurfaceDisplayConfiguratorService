@@ -63,16 +63,32 @@ struct WINDOWCOMPOSITIONATTRIBDATA
 
 using SetWindowCompositionAttribute_t = BOOL(WINAPI *)(HWND, WINDOWCOMPOSITIONATTRIBDATA *);
 
-static HANDLE g_OverlayThread = nullptr;
-static DWORD g_OverlayThreadId = 0;
-static HWND g_OverlayWindow = nullptr;
-
 static HANDLE g_SurfaceFontResource = nullptr;
 
-static float g_AnimationPhase = 0.0f;
+struct OverlayInstance
+{
+    HWND Window = nullptr;
+    float AnimationPhase = 0.0f;
+    BYTE WindowAlpha = 0;
+    bool FadingOut = false;
+    RECT Rect{};
+};
 
-static BYTE g_WindowAlpha = 0;
-static bool g_FadingOut = false;
+static CRITICAL_SECTION g_OverlayLock;
+static std::vector<std::shared_ptr<OverlayInstance>> g_Overlays;
+
+struct OverlayLockInitializer
+{
+    OverlayLockInitializer() { InitializeCriticalSection(&g_OverlayLock); }
+
+    ~OverlayLockInitializer() { DeleteCriticalSection(&g_OverlayLock); }
+};
+static OverlayLockInitializer g_OverlayLockInitializer;
+
+struct OverlayCreateParams
+{
+    std::shared_ptr<OverlayInstance> Instance;
+};
 
 static bool
 LoadSurfaceAppFluentFont()
@@ -84,14 +100,12 @@ LoadSurfaceAppFluentFont()
 
     HMODULE module = GetModuleHandleW(nullptr);
     HRSRC resource = FindResourceW(module, MAKEINTRESOURCEW(IDR_SURFACE_APP_FLUENT_FONT), RT_RCDATA);
-
     if (!resource)
     {
         return false;
     }
 
     HGLOBAL resourceData = LoadResource(module, resource);
-
     if (!resourceData)
     {
         return false;
@@ -99,7 +113,6 @@ LoadSurfaceAppFluentFont()
 
     DWORD size = SizeofResource(module, resource);
     void *data = LockResource(resourceData);
-
     if (!data)
     {
         return false;
@@ -107,16 +120,28 @@ LoadSurfaceAppFluentFont()
 
     DWORD fontCount = 0;
     g_SurfaceFontResource = AddFontMemResourceEx(data, size, nullptr, &fontCount);
-
-    wprintf(L"Font loaded. Count=%lu Handle=%p\n", fontCount, g_SurfaceFontResource);
-
     return g_SurfaceFontResource != nullptr;
 }
 
-struct OverlayCreateParams
+static void
+UnloadSurfaceAppFluentFont()
 {
-    RECT Rect;
+    if (!g_SurfaceFontResource)
+    {
+        return;
+    }
+
+    RemoveFontMemResourceEx(g_SurfaceFontResource);
+    g_SurfaceFontResource = nullptr;
+}
+
+struct FontInitializer
+{
+    FontInitializer() { LoadSurfaceAppFluentFont(); }
+    ~FontInitializer() { UnloadSurfaceAppFluentFont(); }
 };
+
+static FontInitializer g_FontInitializer;
 
 static void
 ApplyBackdrop(HWND hwnd)
@@ -150,11 +175,23 @@ ApplyBackdrop(HWND hwnd)
     DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &backdrop, sizeof(backdrop));*/
 }
 
+static OverlayInstance *
+GetInstance(HWND hwnd)
+{
+    auto params = reinterpret_cast<OverlayCreateParams *>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+    return params ? params->Instance.get() : nullptr;
+}
+
 static LRESULT CALLBACK
 OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg)
     {
+    case WM_NCCREATE: {
+        auto cs = reinterpret_cast<CREATESTRUCTW *>(lParam);
+        SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(cs->lpCreateParams));
+        return TRUE;
+    }
     case WM_PAINT: {
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);
@@ -162,7 +199,15 @@ OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         RECT rc;
         GetClientRect(hwnd, &rc);
 
-        float breathing = (sinf(g_AnimationPhase) + 1.0f) * 0.5f;
+        auto *Instance = GetInstance(hwnd);
+
+        if (!Instance)
+        {
+            EndPaint(hwnd, &ps);
+            return 0;
+        }
+
+        float breathing = (sinf(Instance->AnimationPhase) + 1.0f) * 0.5f;
 
         LONG groupHeight = 520;
         LONG groupTop = (rc.bottom - groupHeight) / 2;
@@ -245,20 +290,26 @@ OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     }
 
     case WM_TIMER: {
-        g_AnimationPhase += 0.025f;
-        if (g_AnimationPhase > 6.2831853f)
+        auto *Instance = GetInstance(hwnd);
+        if (!Instance)
         {
-            g_AnimationPhase -= 6.2831853f;
+            return 0;
         }
 
-        if (g_FadingOut)
+        Instance->AnimationPhase += 0.025f;
+        if (Instance->AnimationPhase > 6.2831853f)
         {
-            if (g_WindowAlpha > 4)
+            Instance->AnimationPhase -= 6.2831853f;
+        }
+
+        if (Instance->FadingOut)
+        {
+            if (Instance->WindowAlpha > 4)
             {
-                float alpha = g_WindowAlpha / 255.0f;
+                float alpha = Instance->WindowAlpha / 255.0f;
                 alpha *= 0.93f;
-                g_WindowAlpha = (BYTE)(alpha * 255.0f);
-                SetLayeredWindowAttributes(hwnd, 0, g_WindowAlpha, LWA_ALPHA);
+                Instance->WindowAlpha = (BYTE)(alpha * 255.0f);
+                SetLayeredWindowAttributes(hwnd, 0, Instance->WindowAlpha, LWA_ALPHA);
             }
             else
             {
@@ -266,10 +317,10 @@ OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 return 0;
             }
         }
-        else if (g_WindowAlpha < 255)
+        else if (Instance->WindowAlpha < 255)
         {
-            g_WindowAlpha = (BYTE)std::min(255, g_WindowAlpha + 10);
-            SetLayeredWindowAttributes(hwnd, 0, g_WindowAlpha, LWA_ALPHA);
+            Instance->WindowAlpha = (BYTE)std::min(255, Instance->WindowAlpha + 10);
+            SetLayeredWindowAttributes(hwnd, 0, Instance->WindowAlpha, LWA_ALPHA);
         }
 
         RedrawWindow(hwnd, nullptr, nullptr, RDW_INVALIDATE | RDW_NOERASE);
@@ -283,10 +334,10 @@ OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 static DWORD WINAPI
 OverlayThreadProc(LPVOID Context)
 {
-    LoadSurfaceAppFluentFont();
-    BufferedPaintInit();
-
     OverlayCreateParams *Params = (OverlayCreateParams *)Context;
+    std::shared_ptr<OverlayInstance> Instance = Params->Instance;
+
+    BufferedPaintInit();
 
     //
     // Register class
@@ -297,36 +348,48 @@ OverlayThreadProc(LPVOID Context)
     wc.hInstance = GetModuleHandleW(nullptr);
     wc.lpszClassName = L"FlipPreviewOverlay";
 
-    RegisterClassW(&wc);
+    if (!RegisterClassW(&wc) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS)
+    {
+        EnterCriticalSection(&g_OverlayLock);
+        auto it = std::find(g_Overlays.begin(), g_Overlays.end(), Instance);
+        if (it != g_Overlays.end())
+        {
+            g_Overlays.erase(it);
+        }
+        LeaveCriticalSection(&g_OverlayLock);
+
+        delete Params;
+        return 0;
+    }
 
     //
     // Create window
     //
-    g_FadingOut = false;
-    g_WindowAlpha = 0;
+    Instance->FadingOut = false;
+    Instance->WindowAlpha = 0;
 
-    g_OverlayWindow = CreateWindowExW(
+    Instance->Window = CreateWindowExW(
         WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_LAYERED,
         wc.lpszClassName,
         L"",
         WS_POPUP | WS_VISIBLE,
-        Params->Rect.left,
-        Params->Rect.top,
-        Params->Rect.right - Params->Rect.left,
-        Params->Rect.bottom - Params->Rect.top,
+        Instance->Rect.left,
+        Instance->Rect.top,
+        Instance->Rect.right - Instance->Rect.left,
+        Instance->Rect.bottom - Instance->Rect.top,
         nullptr,
         nullptr,
         wc.hInstance,
-        nullptr);
+        Params);
 
-    if (g_OverlayWindow)
+    if (Instance->Window)
     {
-        SetLayeredWindowAttributes(g_OverlayWindow, 0, 0, LWA_ALPHA);
-        ApplyBackdrop(g_OverlayWindow);
+        SetLayeredWindowAttributes(Instance->Window, 0, 0, LWA_ALPHA);
+        ApplyBackdrop(Instance->Window);
 
-        ShowWindow(g_OverlayWindow, SW_SHOW);
-        SetTimer(g_OverlayWindow, 1, 16, nullptr);
-        InvalidateRect(g_OverlayWindow, nullptr, FALSE);
+        ShowWindow(Instance->Window, SW_SHOW);
+        SetTimer(Instance->Window, 1, 16, nullptr);
+        InvalidateRect(Instance->Window, nullptr, FALSE);
     }
 
     //
@@ -339,13 +402,15 @@ OverlayThreadProc(LPVOID Context)
         DispatchMessage(&msg);
     }
 
-    if (g_SurfaceFontResource)
-    {
-        RemoveFontMemResourceEx(g_SurfaceFontResource);
-        g_SurfaceFontResource = nullptr;
-    }
+    Instance->Window = nullptr;
 
-    g_OverlayWindow = nullptr;
+    EnterCriticalSection(&g_OverlayLock);
+    auto it = std::find(g_Overlays.begin(), g_Overlays.end(), Instance);
+    if (it != g_Overlays.end())
+    {
+        g_Overlays.erase(it);
+    }
+    LeaveCriticalSection(&g_OverlayLock);
     delete Params;
     BufferedPaintUnInit();
     return 0;
@@ -386,34 +451,27 @@ FindMonitorByDisplayName(HMONITOR monitor, HDC, LPRECT, LPARAM context)
 void
 HideFlipPreviewOverlay()
 {
-    if (g_OverlayWindow)
+    EnterCriticalSection(&g_OverlayLock);
+    auto overlays = g_Overlays;
+    LeaveCriticalSection(&g_OverlayLock);
+    for (auto overlay : overlays)
     {
-        g_FadingOut = true;
-        return;
+        overlay->FadingOut = true;
     }
-
-    if (g_OverlayThread)
-    {
-        WaitForSingleObject(g_OverlayThread, 3000);
-        CloseHandle(g_OverlayThread);
-        g_OverlayThread = nullptr;
-    }
-
-    if (g_SurfaceFontResource)
-    {
-        RemoveFontMemResourceEx(g_SurfaceFontResource);
-        g_SurfaceFontResource = nullptr;
-    }
-
-    g_OverlayThreadId = 0;
 }
 
 void
 ForceHideFlipPreviewOverlay()
 {
-    if (g_OverlayWindow)
+    EnterCriticalSection(&g_OverlayLock);
+    auto overlays = g_Overlays;
+    LeaveCriticalSection(&g_OverlayLock);
+    for (auto overlay : overlays)
     {
-        PostMessage(g_OverlayWindow, WM_CLOSE, 0, 0);
+        if (overlay->Window)
+        {
+            PostMessage(overlay->Window, WM_CLOSE, 0, 0);
+        }
     }
 }
 
@@ -438,15 +496,45 @@ ShowFlipPreviewOverlay(PCWSTR DisplayName)
         return HRESULT_FROM_WIN32(ERROR_NOT_FOUND);
     }
 
-    auto params = new OverlayCreateParams;
-    params->Rect = ctx.Rect;
-    g_OverlayThread = CreateThread(nullptr, 0, OverlayThreadProc, params, 0, &g_OverlayThreadId);
+    auto overlay = std::make_shared<OverlayInstance>();
 
-    return g_OverlayThread ? S_OK : HRESULT_FROM_WIN32(GetLastError());
+    overlay->Rect = ctx.Rect;
+
+    //
+    // Register ownership BEFORE starting the thread.
+    //
+    EnterCriticalSection(&g_OverlayLock);
+    g_Overlays.push_back(overlay);
+    LeaveCriticalSection(&g_OverlayLock);
+
+    auto params = new OverlayCreateParams();
+    params->Instance = overlay;
+
+    DWORD ThreadId = 0;
+    HANDLE Thread = CreateThread(nullptr, 0, OverlayThreadProc, params, 0, &ThreadId);
+
+    if (!Thread)
+    {
+        EnterCriticalSection(&g_OverlayLock);
+        auto it = std::find(g_Overlays.begin(), g_Overlays.end(), overlay);
+        if (it != g_Overlays.end())
+        {
+            g_Overlays.erase(it);
+        }
+        LeaveCriticalSection(&g_OverlayLock);
+        delete params;
+        return HRESULT_FROM_WIN32(GetLastError());
+    }
+
+    CloseHandle(Thread);
+    return S_OK;
 }
 
 bool
 IsFlipPreviewOverlayVisible()
 {
-    return g_OverlayWindow != nullptr;
+    EnterCriticalSection(&g_OverlayLock);
+    bool visible = !g_Overlays.empty();
+    LeaveCriticalSection(&g_OverlayLock);
+    return visible;
 }

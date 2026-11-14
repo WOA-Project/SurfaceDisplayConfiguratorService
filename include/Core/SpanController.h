@@ -43,27 +43,40 @@ private:
 
     LONG DistanceToSeam(POINT cursor) const;
 
+    void EnsureWindowUnspannedForDrag();
+
+    void ResetDragState();
+
 private:
     SpanManager m_spanManager;
-
     MonitorTopology m_monitorTopology;
-
     WindowPlacementService m_windowPlacementService;
-
     OverlayWindow m_overlay;
-
     WindowMover m_windowMover;
-
     WindowClassifier m_windowClassifier;
-
     LaunchMonitorResolver m_launchMonitorResolver;
 
-    POINT
-    m_lastCursor{};
+    POINT m_lastCursor{};
 
     HWND m_dragWindow{};
 
     bool m_dragging{};
-
     bool m_previewVisible{};
+
+    RECT m_lastPreviewRect{};
+
+    //
+    // Window position when drag operation began.
+    //
+    RECT m_dragStartRect{};
+
+    //
+    // True once we've detected meaningful movement.
+    //
+    bool m_dragMoved = false;
+
+    //
+    // Tracks whether the dragged window was originally spanned.
+    //
+    bool m_dragWindowWasSpanned = false;
 };

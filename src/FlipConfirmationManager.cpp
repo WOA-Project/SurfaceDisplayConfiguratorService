@@ -23,15 +23,6 @@ static FlipLockInitializer g_FlipLockInitializer;
 void
 CancelPendingFlipLocked()
 {
-    HideFlipPreviewOverlay();
-
-    if (g_FlipTimer)
-    {
-        DeleteTimerQueueTimer(nullptr, g_FlipTimer, INVALID_HANDLE_VALUE);
-
-        g_FlipTimer = nullptr;
-    }
-
     g_PendingFlip.Active = false;
     g_FlipPreviewActive = false;
 }
@@ -39,6 +30,9 @@ CancelPendingFlipLocked()
 static void
 CommitPendingFlip()
 {
+    PendingFlip flip{};
+    HANDLE timer = nullptr;
+
     EnterCriticalSection(&g_FlipLock);
 
     if (!g_PendingFlip.Active)
@@ -47,36 +41,36 @@ CommitPendingFlip()
         return;
     }
 
-    wprintf(L"CommitPendingFlip: P1=%d P2=%d\n", g_PendingFlip.DisplayState1, g_PendingFlip.DisplayState2);
+    flip = g_PendingFlip;
 
-    HANDLE Timer = g_FlipTimer;
+    timer = g_FlipTimer;
     g_FlipTimer = nullptr;
+
+    g_PendingFlip.Active = false;
+    g_FlipPreviewActive = false;
+
+    LeaveCriticalSection(&g_FlipLock);
 
     ForceHideFlipPreviewOverlay();
 
     HRESULT hr = SetDisplayStates(
-        g_PendingFlip.DisplayPanelId1,
-        g_PendingFlip.DisplayPanelId2,
-        g_PendingFlip.DisplayOrientation1,
-        g_PendingFlip.DisplayOrientation2,
-        g_PendingFlip.DisplayState1,
-        g_PendingFlip.DisplayState2,
+        flip.DisplayPanelId1,
+        flip.DisplayPanelId2,
+        flip.DisplayOrientation1,
+        flip.DisplayOrientation2,
+        flip.DisplayState1,
+        flip.DisplayState2,
         DisplayPrimaryAuto);
-
-    g_PendingFlip.Active = false;
-    g_FlipPreviewActive = false;
 
     if (FAILED(hr))
     {
         wprintf(L"Pending flip commit failed: 0x%08X\n", hr);
     }
 
-    if (Timer)
+    if (timer)
     {
-        DeleteTimerQueueTimer(nullptr, Timer, INVALID_HANDLE_VALUE);
+        DeleteTimerQueueTimer(nullptr, timer, INVALID_HANDLE_VALUE);
     }
-
-    LeaveCriticalSection(&g_FlipLock);
 }
 
 static VOID CALLBACK
@@ -94,7 +88,12 @@ BeginPendingFlip(
     BOOLEAN DisplayState1,
     BOOLEAN DisplayState2)
 {
+    HANDLE oldTimer = nullptr;
+
     EnterCriticalSection(&g_FlipLock);
+
+    oldTimer = g_FlipTimer;
+    g_FlipTimer = nullptr;
 
     CancelPendingFlipLocked();
 
@@ -106,52 +105,39 @@ BeginPendingFlip(
 
     g_PendingFlip.DisplayOrientation1 = DisplayOrientation1;
     g_PendingFlip.DisplayOrientation2 = DisplayOrientation2;
-
     g_PendingFlip.DisplayState1 = DisplayState1;
     g_PendingFlip.DisplayState2 = DisplayState2;
 
-    DISPLAY_PRIMARY_OVERRIDE PreviewPrimary =
-        DisplayState1 ? DISPLAY_PRIMARY_OVERRIDE::DisplayPrimary1 : DISPLAY_PRIMARY_OVERRIDE::DisplayPrimary2;
+    LeaveCriticalSection(&g_FlipLock);
+    HideFlipPreviewOverlay();
 
-    //
-    // Preview mode:
-    // always show BOTH displays
-    //
+    if (oldTimer)
+    {
+        DeleteTimerQueueTimer(nullptr, oldTimer, INVALID_HANDLE_VALUE);
+    }
+
+    DISPLAY_PRIMARY_OVERRIDE previewPrimary = DisplayState1 ? DisplayPrimary1 : DisplayPrimary2;
 
     SetDisplayStates(
-        DisplayPanelId1, DisplayPanelId2, DisplayOrientation1, DisplayOrientation2, TRUE, TRUE, PreviewPrimary);
+        DisplayPanelId1, DisplayPanelId2, DisplayOrientation1, DisplayOrientation2, TRUE, TRUE, previewPrimary);
 
-    const DisplayIdentity *Panel1 = g_DisplayIdentityCache.FindByPanelId(DisplayPanelId1);
-    const DisplayIdentity *Panel2 = g_DisplayIdentityCache.FindByPanelId(DisplayPanelId2);
+    DISPLAY_DEVICE displayDevice1{};
+    DISPLAY_DEVICE displayDevice2{};
 
-    if (Panel1 && Panel2)
+    displayDevice1.cb = sizeof(DISPLAY_DEVICE);
+    displayDevice2.cb = sizeof(DISPLAY_DEVICE);
+
+    HRESULT res1 = GetDisplayDeviceByPanelId(DisplayPanelId1, &displayDevice1);
+    HRESULT res2 = GetDisplayDeviceByPanelId(DisplayPanelId2, &displayDevice2);
+    if (SUCCEEDED(res1) && SUCCEEDED(res2))
     {
-        DISPLAY_DEVICE DisplayDevice1;
-        DISPLAY_DEVICE DisplayDevice2;
-        DisplayDevice1.cb = sizeof(DISPLAY_DEVICE);
-        DisplayDevice2.cb = sizeof(DISPLAY_DEVICE);
-
-        HRESULT Status = GetDisplayDeviceByPanelId(DisplayPanelId1, &DisplayDevice1);
-        if (FAILED(Status))
-        {
-            LeaveCriticalSection(&g_FlipLock);
-            return;
-        }
-
-        Status = GetDisplayDeviceByPanelId(DisplayPanelId2, &DisplayDevice2);
-        if (FAILED(Status))
-        {
-            LeaveCriticalSection(&g_FlipLock);
-            return;
-        }
-
-        if (g_PendingFlip.DisplayState1)
+        if (DisplayState1)
         {
             //
             // Display1 will remain active.
             // Show confirmation on Display2.
             //
-            ShowFlipPreviewOverlay(DisplayDevice2.DeviceName);
+            ShowFlipPreviewOverlay(displayDevice2.DeviceName);
         }
         else
         {
@@ -159,49 +145,81 @@ BeginPendingFlip(
             // Display2 will remain active.
             // Show confirmation on Display1.
             //
-            ShowFlipPreviewOverlay(DisplayDevice1.DeviceName);
+            ShowFlipPreviewOverlay(displayDevice1.DeviceName);
         }
     }
 
-    if (!CreateTimerQueueTimer(&g_FlipTimer, nullptr, PendingFlipTimer, nullptr, 15000, 0, WT_EXECUTEDEFAULT))
+    HANDLE newTimer = nullptr;
+    if (!CreateTimerQueueTimer(&newTimer, nullptr, PendingFlipTimer, nullptr, 15000, 0, WT_EXECUTEDEFAULT))
     {
         wprintf(L"Failed to create flip timer: %u\n", GetLastError());
+        EnterCriticalSection(&g_FlipLock);
+        g_PendingFlip.Active = false;
+        g_FlipPreviewActive = false;
+        LeaveCriticalSection(&g_FlipLock);
+        HideFlipPreviewOverlay();
+        return;
     }
 
+    EnterCriticalSection(&g_FlipLock);
+    g_FlipTimer = newTimer;
     LeaveCriticalSection(&g_FlipLock);
 }
 
 void
 CancelPendingFlip()
 {
+    HANDLE timer = nullptr;
+
     EnterCriticalSection(&g_FlipLock);
+
+    timer = g_FlipTimer;
+    g_FlipTimer = nullptr;
 
     CancelPendingFlipLocked();
 
     LeaveCriticalSection(&g_FlipLock);
+
+    HideFlipPreviewOverlay();
+
+    if (timer)
+    {
+        DeleteTimerQueueTimer(nullptr, timer, INVALID_HANDLE_VALUE);
+    }
 }
 
 bool
 HasPendingFlip()
 {
-    return g_PendingFlip.Active;
+    EnterCriticalSection(&g_FlipLock);
+    bool active = g_PendingFlip.Active;
+    LeaveCriticalSection(&g_FlipLock);
+    return active;
 }
 
 bool
 IsFlipPreviewActive()
 {
-    return g_FlipPreviewActive;
+    EnterCriticalSection(&g_FlipLock);
+    bool active = g_FlipPreviewActive;
+    LeaveCriticalSection(&g_FlipLock);
+    return active;
 }
 
 void
 MarkFlipCommitted()
 {
+    EnterCriticalSection(&g_FlipLock);
     g_FlipPreviewActive = false;
+    LeaveCriticalSection(&g_FlipLock);
 }
 
 void
 TogglePendingFlipPreview()
 {
+    PendingFlip flip{};
+    DISPLAY_PRIMARY_OVERRIDE previewPrimary;
+
     EnterCriticalSection(&g_FlipLock);
 
     if (!g_PendingFlip.Active)
@@ -216,38 +234,39 @@ TogglePendingFlipPreview()
     // Persist user's preferred single-screen target.
     //
     g_AutoRotateContext.IsDisplay1SingleScreenFavorite = g_PendingFlip.DisplayState1;
+    previewPrimary = g_PendingFlip.DisplayState1 ? DisplayPrimary1 : DisplayPrimary2;
+    flip = g_PendingFlip;
 
-    wprintf(L"Persisting preferred display: %u\n", g_AutoRotateContext.IsDisplay1SingleScreenFavorite);
-
-    DISPLAY_PRIMARY_OVERRIDE PreviewPrimary = g_PendingFlip.DisplayState1 ? DisplayPrimary1 : DisplayPrimary2;
+    LeaveCriticalSection(&g_FlipLock);
 
     ForceHideFlipPreviewOverlay();
 
     SetDisplayStates(
-        g_PendingFlip.DisplayPanelId1,
-        g_PendingFlip.DisplayPanelId2,
-        g_PendingFlip.DisplayOrientation1,
-        g_PendingFlip.DisplayOrientation2,
+        flip.DisplayPanelId1,
+        flip.DisplayPanelId2,
+        flip.DisplayOrientation1,
+        flip.DisplayOrientation2,
         TRUE,
         TRUE,
-        PreviewPrimary);
+        previewPrimary);
 
-    DISPLAY_DEVICE DisplayDevice1;
-    DISPLAY_DEVICE DisplayDevice2;
+    DISPLAY_DEVICE displayDevice1{};
+    DISPLAY_DEVICE displayDevice2{};
 
-    DisplayDevice1.cb = sizeof(DISPLAY_DEVICE);
-    DisplayDevice2.cb = sizeof(DISPLAY_DEVICE);
+    displayDevice1.cb = sizeof(DISPLAY_DEVICE);
+    displayDevice2.cb = sizeof(DISPLAY_DEVICE);
 
-    if (SUCCEEDED(GetDisplayDeviceByPanelId(g_PendingFlip.DisplayPanelId1, &DisplayDevice1)) &&
-        SUCCEEDED(GetDisplayDeviceByPanelId(g_PendingFlip.DisplayPanelId2, &DisplayDevice2)))
+    HRESULT res1 = GetDisplayDeviceByPanelId(flip.DisplayPanelId1, &displayDevice1);
+    HRESULT res2 = GetDisplayDeviceByPanelId(flip.DisplayPanelId2, &displayDevice2);
+    if (SUCCEEDED(res1) && SUCCEEDED(res2))
     {
-        if (g_PendingFlip.DisplayState1)
+        if (flip.DisplayState1)
         {
             //
             // Display1 will remain active.
             // Show confirmation on Display2.
             //
-            ShowFlipPreviewOverlay(DisplayDevice2.DeviceName);
+            ShowFlipPreviewOverlay(displayDevice2.DeviceName);
         }
         else
         {
@@ -255,9 +274,7 @@ TogglePendingFlipPreview()
             // Display2 will remain active.
             // Show confirmation on Display1.
             //
-            ShowFlipPreviewOverlay(DisplayDevice1.DeviceName);
+            ShowFlipPreviewOverlay(displayDevice1.DeviceName);
         }
     }
-
-    LeaveCriticalSection(&g_FlipLock);
 }
