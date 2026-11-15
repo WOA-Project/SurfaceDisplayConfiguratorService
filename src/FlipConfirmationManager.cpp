@@ -82,8 +82,8 @@ CommitPendingFlip()
         Policy.Panel1Orientation = flip.DisplayOrientation1;
         Policy.Panel2Orientation = flip.DisplayOrientation2;
 
-        InputStitching::InputSpacePolicy inputPolicy =
-            InputStitching::BuildInputSpacePolicy(Policy, InputStitching::g_InputSpaceConfiguration);
+        InputStitching::InputSpacePolicy inputPolicy = InputStitching::BuildInputSpacePolicy(
+            flip.DisplayPanelId1, flip.DisplayPanelId2, Policy, InputStitching::g_InputSpaceConfiguration);
         HRESULT inputHr = InputStitching::g_InputSpaceRuntime.ApplyPolicy(inputPolicy);
 
         if (FAILED(inputHr))
@@ -167,8 +167,8 @@ BeginPendingFlip(
         Policy.Panel1Orientation = DisplayOrientation1;
         Policy.Panel2Orientation = DisplayOrientation2;
 
-        InputStitching::InputSpacePolicy inputPolicy =
-            InputStitching::BuildInputSpacePolicy(Policy, InputStitching::g_InputSpaceConfiguration);
+        InputStitching::InputSpacePolicy inputPolicy = InputStitching::BuildInputSpacePolicy(
+            DisplayPanelId1, DisplayPanelId2, Policy, InputStitching::g_InputSpaceConfiguration);
         HRESULT inputHr = InputStitching::g_InputSpaceRuntime.ApplyPolicy(inputPolicy);
 
         if (FAILED(inputHr))

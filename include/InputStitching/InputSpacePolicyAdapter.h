@@ -7,6 +7,13 @@
 namespace InputStitching {
 
 InputSpacePolicy
-BuildInputSpacePolicy(const DisplayPolicy &Display, const InputSpaceConfiguration &Configuration);
+BuildInputSpacePolicy(
+    CONST WCHAR *DisplayPanelId1,
+    CONST WCHAR *DisplayPanelId2,
+    const DisplayPolicy &Display,
+    const InputSpaceConfiguration &Configuration);
 
-}
+InputSpacePolicy
+BuildInputSpacePolicyInternal(const DisplayPolicy &Display, const InputSpaceConfiguration &Configuration);
+
+} // namespace InputStitching

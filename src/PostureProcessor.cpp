@@ -86,7 +86,8 @@ ApplyPostureReading(TwoPanelHingedDevicePostureReading Reading)
 
     if (SUCCEEDED(status))
     {
-        InputStitching::InputSpacePolicy inputPolicy = InputStitching::BuildInputSpacePolicy(Policy, InputStitching::g_InputSpaceConfiguration);
+        InputStitching::InputSpacePolicy inputPolicy = InputStitching::BuildInputSpacePolicy(
+            Panel1Id, Panel2Id, Policy, InputStitching::g_InputSpaceConfiguration);
         HRESULT inputHr = InputStitching::g_InputSpaceRuntime.ApplyPolicy(inputPolicy);
 
         if (FAILED(inputHr))
