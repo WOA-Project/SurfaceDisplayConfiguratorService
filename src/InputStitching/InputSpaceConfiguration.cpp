@@ -22,7 +22,7 @@ ResetInputSpaceConfiguration(InputSpaceConfiguration *Configuration)
 
     Configuration->EnableGapRegion = true;
 
-    Configuration->GapPixels = 84;
+    Configuration->GapPixels = 66;
 
     Configuration->FallbackMode = InputTopologyMode::DualStitched;
 }
