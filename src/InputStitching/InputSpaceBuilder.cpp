@@ -7,6 +7,7 @@
 #include <InputStitching\InputSpaceDisplayEnumerator.h>
 #include <InputStitching\InputSpaceFlags.h>
 #include <InputStitching\Plan.h>
+#include <DisplayIdentityCache.h>
 
 namespace InputStitching {
 
@@ -114,6 +115,10 @@ InputSpaceBuilder::GenerateSingleLeftPlan(const InputSpacePolicy &Policy, Plan *
 
     if (FAILED(hr))
     {
+        wprintf(
+            L"EnumerateDisplays(&displays) "
+            L"failed: 0x%08X\n",
+            hr);
         return hr;
     }
 
@@ -144,6 +149,11 @@ InputSpaceBuilder::GenerateSingleLeftPlan(const InputSpacePolicy &Policy, Plan *
         return S_OK;
     }
 
+    wprintf(
+        L"GenerateSingleLeftPlan "
+        L"failed: 0x%08X\n",
+        HRESULT_FROM_WIN32(ERROR_NOT_FOUND));
+
     return HRESULT_FROM_WIN32(ERROR_NOT_FOUND);
 }
 
@@ -158,8 +168,13 @@ InputSpaceBuilder::GenerateSingleRightPlan(const InputSpacePolicy &Policy, Plan 
 
     if (FAILED(hr))
     {
+        wprintf(
+            L"EnumerateDisplays(&displays) "
+            L"failed: 0x%08X\n",
+            hr);
         return hr;
     }
+    wprintf(L"GenerateSingleRightPlan: %zu displays\n", displays.size());
 
     for (auto const &display : displays)
     {
@@ -188,12 +203,19 @@ InputSpaceBuilder::GenerateSingleRightPlan(const InputSpacePolicy &Policy, Plan 
         return S_OK;
     }
 
+    wprintf(
+        L"GenerateSingleRightPlan "
+        L"failed: 0x%08X\n",
+        HRESULT_FROM_WIN32(ERROR_NOT_FOUND));
+
     return HRESULT_FROM_WIN32(ERROR_NOT_FOUND);
 }
 
 HRESULT
 InputSpaceBuilder::BuildDisplayRegions(const InputSpacePolicy &Policy, Plan *PlanData)
 {
+    UNREFERENCED_PARAMETER(Policy);
+
     std::vector<DisplayEntry> displays;
 
     HRESULT hr = EnumerateDisplays(&displays);
@@ -203,26 +225,51 @@ InputSpaceBuilder::BuildDisplayRegions(const InputSpacePolicy &Policy, Plan *Pla
         return hr;
     }
 
+    //
+    // Sort internal displays into visual order.
+    //
+    std::stable_sort(displays.begin(), displays.end(), [](const DisplayEntry &a, const DisplayEntry &b) {
+        if (a.Internal != b.Internal)
+        {
+            return a.Internal;
+        }
+
+        if (!a.Internal)
+        {
+            return false;
+        }
+
+        LONG acx = (a.Region.Rect.left + a.Region.Rect.right) / 2;
+        LONG acy = (a.Region.Rect.top + a.Region.Rect.bottom) / 2;
+
+        LONG bcx = (b.Region.Rect.left + b.Region.Rect.right) / 2;
+        LONG bcy = (b.Region.Rect.top + b.Region.Rect.bottom) / 2;
+
+        LONG dx = std::abs(acx - bcx);
+        LONG dy = std::abs(acy - bcy);
+
+        bool horizontal = dx >= dy;
+
+        if (horizontal)
+        {
+            return a.Region.Rect.left < b.Region.Rect.left;
+        }
+
+        return a.Region.Rect.top < b.Region.Rect.top;
+    });
+
     const DisplayEntry *leftPanel = nullptr;
     const DisplayEntry *rightPanel = nullptr;
 
-    for (auto const &display : displays)
+    for (const auto &display : displays)
     {
-        switch (display.Role)
+        if (display.Role == InternalPanelRole::LeftPanel)
         {
-        case InternalPanelRole::LeftPanel:
-
             leftPanel = &display;
-            break;
-
-        case InternalPanelRole::RightPanel:
-
+        }
+        else if (display.Role == InternalPanelRole::RightPanel)
+        {
             rightPanel = &display;
-            break;
-
-        default:
-
-            break;
         }
 
         PlanData->Regions.push_back(display.Region);

@@ -106,6 +106,13 @@ GetRoleOrder(InternalPanelRole Role)
 HRESULT
 EnumerateDisplaysOnce(std::vector<DisplayEntry> *Displays)
 {
+    if (!Displays)
+    {
+        return E_POINTER;
+    }
+
+    Displays->clear();
+
     std::vector<DISPLAYCONFIG_PATH_INFO> paths;
     std::vector<DISPLAYCONFIG_MODE_INFO> modes;
 
@@ -138,11 +145,7 @@ EnumerateDisplaysOnce(std::vector<DisplayEntry> *Displays)
         if (status == ERROR_INSUFFICIENT_BUFFER)
         {
             Sleep(RetryBackoff(attempt, 10, 250));
-
-            continue;
         }
-
-        return HRESULT_FROM_WIN32(status);
     }
 
     if (status != ERROR_SUCCESS)
@@ -173,35 +176,24 @@ EnumerateDisplaysOnce(std::vector<DisplayEntry> *Displays)
 
         const auto &source = sourceMode.sourceMode;
 
-        wprintf(
-            L"Pos=(%ld,%ld) "
-            L"Size=%ldx%ld "
-            L"Rot=%u\n",
-            source.position.x,
-            source.position.y,
-            source.width,
-            source.height,
-            path.targetInfo.rotation);
-
-        LONG logicalWidth = static_cast<LONG>(source.width);
-        LONG logicalHeight = static_cast<LONG>(source.height);
         UINT32 rotation = static_cast<UINT32>(path.targetInfo.rotation);
+
         if (rotation < 1 || rotation > 4)
         {
             rotation = DISPLAYCONFIG_ROTATION_IDENTITY;
         }
+
+        LONG logicalWidth = static_cast<LONG>(source.width);
+        LONG logicalHeight = static_cast<LONG>(source.height);
         if (rotation == DISPLAYCONFIG_ROTATION_ROTATE90 || rotation == DISPLAYCONFIG_ROTATION_ROTATE270)
         {
             std::swap(logicalWidth, logicalHeight);
         }
 
         DisplayEntry entry{};
-
-        entry.Region.Rect.left = source.position.x;
-        entry.Region.Rect.top = source.position.y;
-        entry.Region.Rect.right = source.position.x + logicalWidth;
-        entry.Region.Rect.bottom = source.position.y + logicalHeight;
-
+        entry.Region.Rect = {
+            source.position.x, source.position.y, source.position.x + logicalWidth, source.position.y + logicalHeight};
+        
         entry.Region.Flags = kRegionDisplay;
         if (source.position.x == 0 && source.position.y == 0)
         {
@@ -210,6 +202,7 @@ EnumerateDisplaysOnce(std::vector<DisplayEntry> *Displays)
 
         entry.Region.SourceAdapterId = path.sourceInfo.adapterId;
         entry.Region.SourceId = path.sourceInfo.id;
+
         entry.Region.TargetAdapterId = path.targetInfo.adapterId;
         entry.Region.TargetId = path.targetInfo.id;
 
@@ -217,22 +210,7 @@ EnumerateDisplaysOnce(std::vector<DisplayEntry> *Displays)
         entry.Region.ModeRect = {0, 0, logicalWidth, logicalHeight};
         entry.Region.ScalingRect = entry.Region.ModeRect;
 
-        HMONITOR monitor = MonitorFromRect(&entry.Region.Rect, MONITOR_DEFAULTTONULL);
-
-        if (monitor)
-        {
-            UINT dpiX = 96;
-            UINT dpiY = 96;
-
-            if (SUCCEEDED(GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &dpiX, &dpiY)))
-            {
-                entry.Region.Dpi = static_cast<UINT16>(dpiX);
-                entry.Region.DpiAlt = static_cast<UINT16>(dpiY);
-            }
-        }
-
         std::wstring deviceName;
-
         if (SUCCEEDED(GetSourceDeviceName(path, deviceName)))
         {
             auto identity = g_DisplayIdentityCache.FindByDisplayName(deviceName.c_str());
@@ -265,32 +243,34 @@ EnumerateDisplaysOnce(std::vector<DisplayEntry> *Displays)
         Displays->push_back(std::move(entry));
     }
 
-    std::stable_sort(Displays->begin(), Displays->end(), [](const DisplayEntry &Left, const DisplayEntry &Right) {
-        return GetRoleOrder(Left.Role) < GetRoleOrder(Right.Role);
-    });
+    //
+    // Sort by actual desktop position,
+    // not physical identity.
+    //
+    std::stable_sort(
+        Displays->begin(), Displays->end(), [](const DisplayEntry &a, const DisplayEntry &b) {
+            if (a.Internal != b.Internal)
+            {
+                return a.Internal;
+            }
 
-    bool leftFound = false;
-    bool rightFound = false;
+            LONG dx = std::abs(
+                ((a.Region.Rect.left + a.Region.Rect.right) / 2) - ((b.Region.Rect.left + b.Region.Rect.right) / 2));
 
-    for (const auto &display : *Displays)
-    {
-        if (display.Role == InternalPanelRole::LeftPanel)
-        {
-            leftFound = true;
-        }
+            LONG dy = std::abs(
+                ((a.Region.Rect.top + a.Region.Rect.bottom) / 2) - ((b.Region.Rect.top + b.Region.Rect.bottom) / 2));
 
-        if (display.Role == InternalPanelRole::RightPanel)
-        {
-            rightFound = true;
-        }
-    }
+            bool horizontal = dx >= dy;
 
-    if (Displays->empty())
-    {
-        return HRESULT_FROM_WIN32(ERROR_NOT_FOUND);
-    }
+            if (horizontal)
+            {
+                return a.Region.Rect.left < b.Region.Rect.left;
+            }
 
-    return S_OK;
+            return a.Region.Rect.top < b.Region.Rect.top;
+        });
+
+    return Displays->empty() ? HRESULT_FROM_WIN32(ERROR_NOT_FOUND) : S_OK;
 }
 
 } // namespace

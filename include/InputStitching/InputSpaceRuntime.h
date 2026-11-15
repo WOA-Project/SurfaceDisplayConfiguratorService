@@ -24,6 +24,8 @@ public:
 
     HRESULT ApplyPolicy(const InputSpacePolicy &Policy);
 
+    HRESULT RemoveCurrentPolicy();
+
 private:
     HRESULT GeneratePolicy(const DisplayPolicy &DisplayPolicy, InputSpacePolicy *Policy);
 

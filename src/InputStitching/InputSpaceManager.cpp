@@ -36,6 +36,10 @@ InputSpaceManager::ApplyPolicy(const InputSpacePolicy &Policy)
 
     if (FAILED(hr))
     {
+        wprintf(
+            L"g_InputSpaceManager.BuildPlan(Policy, &newPlan) Failed."
+            L"failed: 0x%08X\n",
+            hr);
         return hr;
     }
 

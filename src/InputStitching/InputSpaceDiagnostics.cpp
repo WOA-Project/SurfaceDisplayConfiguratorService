@@ -219,11 +219,8 @@ DumpRegions(const Plan &PlanData)
         const auto &metadata = PlanData.Metadata[i];
 
         stream << L"[" << i << L"]\r\n"
-
                << L"Role: " << ToString(metadata.Role) << L"\r\n"
-
                << L"PanelRole: " << ToString(metadata.PanelRole) << L"\r\n"
-
                << L"Name: " << metadata.Name << L"\r\n";
 
         if (!metadata.PanelId.empty())
@@ -232,9 +229,7 @@ DumpRegions(const Plan &PlanData)
         }
 
         stream << L"Internal: " << (metadata.IsInternal ? L"Yes" : L"No") << L"\r\n"
-
                << L"Primary: " << (metadata.IsPrimary ? L"Yes" : L"No") << L"\r\n"
-
                << L"Rect: (" << metadata.DesktopRect.left << L"," << metadata.DesktopRect.top << L")-("
                << metadata.DesktopRect.right << L"," << metadata.DesktopRect.bottom << L")\r\n\r\n";
 
@@ -252,8 +247,7 @@ DumpRegions(const Plan &PlanData)
                    << region.ScalingRect.right << L"," << region.ScalingRect.bottom << L")\r\n"
 
                    << L"Rotation: " << region.Rotation << L"\r\n"
-
-                   << L"Dpi: " << region.Dpi << L"\r\n";
+                   << L"Dpi: " << region.Dpi << L"\r\n\r\n";
         }
     }
 
@@ -267,15 +261,10 @@ DescribePlan(const Plan &PlanData)
 
     stream << L"Input Space Diagnostic Report\r\n"
            << L"========================================\r\n\r\n"
-
            << DescribeSummary(PlanData) << L"\r\n\r\n"
-
            << DumpTopology(PlanData) << L"\r\n"
-
            << DumpStitching(PlanData) << L"\r\n"
-
            << DumpInputSpace(PlanData) << L"\r\n"
-
            << DumpRegions(PlanData);
 
     if (!PlanData.Debug.Log.empty())

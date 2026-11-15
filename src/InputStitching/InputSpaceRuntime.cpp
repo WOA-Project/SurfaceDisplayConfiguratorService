@@ -134,7 +134,7 @@ InputSpaceRuntime::GeneratePolicy(const DisplayPolicy &Display, InputSpacePolicy
 }
 
 HRESULT
-InputSpaceRuntime::ApplyPolicy(const InputSpacePolicy &Policy)
+InputSpaceRuntime::RemoveCurrentPolicy()
 {
     if (g_InputSpaceConfiguration.AutoPublish && m_Published)
     {
@@ -148,12 +148,38 @@ InputSpaceRuntime::ApplyPolicy(const InputSpacePolicy &Policy)
         m_Published = false;
     }
 
+    m_CurrentPolicy = {};
+}
+
+HRESULT
+InputSpaceRuntime::ApplyPolicy(const InputSpacePolicy &Policy)
+{
+    if (g_InputSpaceConfiguration.AutoPublish && m_Published)
+    {
+        HRESULT hr = g_InputSpaceManager.Remove();
+
+        if (FAILED(hr))
+        {
+            wprintf(
+                L"g_InputSpaceManager.Remove() Failed."
+                L"failed: 0x%08X\n",
+                hr);
+            return hr;
+        }
+
+        m_Published = false;
+    }
+
     m_CurrentPolicy = Policy;
 
     HRESULT hr = g_InputSpaceManager.ApplyPolicy(Policy);
 
     if (FAILED(hr))
     {
+        wprintf(
+            L"g_InputSpaceManager.ApplyPolicy(Policy) Failed."
+            L"failed: 0x%08X\n",
+            hr);
         return hr;
     }
 
@@ -163,6 +189,10 @@ InputSpaceRuntime::ApplyPolicy(const InputSpacePolicy &Policy)
 
         if (FAILED(hr))
         {
+            wprintf(
+                L"g_InputSpaceManager.Publish() Failed."
+                L"failed: 0x%08X\n",
+                hr);
             return hr;
         }
 

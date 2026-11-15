@@ -70,6 +70,8 @@ ApplyPostureReading(TwoPanelHingedDevicePostureReading Reading)
         return ERROR_SUCCESS;
     }
 
+    InputStitching::g_InputSpaceRuntime.RemoveCurrentPolicy();
+
     //
     // Normal dual-screen operation.
     //
