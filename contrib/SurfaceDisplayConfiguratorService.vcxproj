@@ -239,11 +239,15 @@
     <ClCompile Include="..\src\DisplaySynchronization.cpp" />
     <ClCompile Include="..\src\SdpPanelClient.cpp" />
     <ClCompile Include="..\src\InputStitching\InputSpaceBuilder.cpp" />
+    <ClCompile Include="..\src\InputStitching\InputSpaceConfiguration.cpp" />
     <ClCompile Include="..\src\InputStitching\InputSpaceDiagnostics.cpp" />
     <ClCompile Include="..\src\InputStitching\InputSpaceDisplayEnumerator.cpp" />
     <ClCompile Include="..\src\InputStitching\InputSpaceGlobals.cpp" />
     <ClCompile Include="..\src\InputStitching\InputSpaceManager.cpp" />
+    <ClCompile Include="..\src\InputStitching\InputSpaceOverlapValidation.cpp" />
+    <ClCompile Include="..\src\InputStitching\InputSpacePolicyAdapter.cpp" />
     <ClCompile Include="..\src\InputStitching\InputSpacePublisher.cpp" />
+    <ClCompile Include="..\src\InputStitching\InputSpaceRuntime.cpp" />
     <ClCompile Include="..\src\InputStitching\InputSpaceTest.cpp" />
     <ClCompile Include="..\src\InputStitching\InputSpaceValidation.cpp" />
   </ItemGroup>
@@ -315,13 +319,17 @@
     <ClInclude Include="..\include\SdpPanelClient.h" />
     <ClInclude Include="..\include\InputStitching\InputSpaceAbi.h" />
     <ClInclude Include="..\include\InputStitching\InputSpaceBuilder.h" />
+    <ClInclude Include="..\include\InputStitching\InputSpaceConfiguration.h" />
     <ClInclude Include="..\include\InputStitching\InputSpaceDiagnostics.h" />
     <ClInclude Include="..\include\InputStitching\InputSpaceDisplayEnumerator.h" />
     <ClInclude Include="..\include\InputStitching\InputSpaceFlags.h" />
     <ClInclude Include="..\include\InputStitching\InputSpaceGlobals.h" />
     <ClInclude Include="..\include\InputStitching\InputSpaceManager.h" />
+    <ClInclude Include="..\include\InputStitching\InputSpaceOverlapValidation.h" />
     <ClInclude Include="..\include\InputStitching\InputSpacePolicy.h" />
+    <ClInclude Include="..\include\InputStitching\InputSpacePolicyAdapter.h" />
     <ClInclude Include="..\include\InputStitching\InputSpacePublisher.h" />
+    <ClInclude Include="..\include\InputStitching\InputSpaceRuntime.h" />
     <ClInclude Include="..\include\InputStitching\InputSpaceTest.h" />
     <ClInclude Include="..\include\InputStitching\InputSpaceTypes.h" />
     <ClInclude Include="..\include\InputStitching\InputSpaceValidation.h" />

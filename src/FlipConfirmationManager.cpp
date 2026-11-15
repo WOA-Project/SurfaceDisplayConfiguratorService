@@ -7,6 +7,7 @@
 #include <DisplayTopology.h>
 #include "AutoRotateContext.h"
 #include <PostureProcessor.h>
+#include <InputStitching\InputSpaceRuntime.h>
 
 static PendingFlip g_PendingFlip{};
 static HANDLE g_FlipTimer = nullptr;
@@ -76,6 +77,8 @@ CommitPendingFlip()
     {
         DeleteTimerQueueTimer(nullptr, timer, INVALID_HANDLE_VALUE);
     }
+
+    InputStitching::g_InputSpaceRuntime.Rebuild();
 }
 
 static VOID CALLBACK

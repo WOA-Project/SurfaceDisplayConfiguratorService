@@ -7,6 +7,11 @@
 #include "OrientationManager.h"
 #include "DisplayRotationManager.h"
 #include "FlipConfirmationManager.h"
+#include <InputStitching\InputSpacePolicy.h>
+#include <InputStitching\InputSpaceGlobals.h>
+#include "InputStitching\InputSpacePolicyAdapter.h"
+#include "InputStitching\InputSpaceConfiguration.h"
+#include <InputStitching\InputSpaceRuntime.h>
 
 std::atomic<SingleScreenState> s_InSingleScreenMode{SingleScreenState::DualScreen};
 
@@ -68,7 +73,7 @@ ApplyPostureReading(TwoPanelHingedDevicePostureReading Reading)
     //
     // Normal dual-screen operation.
     //
-    return SetDisplayStates(
+    HRESULT status = SetDisplayStates(
         Panel1Id,
         Panel2Id,
         Policy.Panel1Orientation,
@@ -76,6 +81,23 @@ ApplyPostureReading(TwoPanelHingedDevicePostureReading Reading)
         Policy.Display1Enabled,
         Policy.Display2Enabled,
         DISPLAY_PRIMARY_OVERRIDE::DisplayPrimaryAuto);
+
+    if (SUCCEEDED(status))
+    {
+        InputStitching::InputSpacePolicy inputPolicy = InputStitching::BuildInputSpacePolicy(Policy, InputStitching::g_InputSpaceConfiguration);
+
+        HRESULT inputHr = InputStitching::g_InputSpaceRuntime.ApplyPolicy(inputPolicy);
+
+        if (FAILED(inputHr))
+        {
+            wprintf(
+                L"InputSpace policy application "
+                L"failed: 0x%08X\n",
+                inputHr);
+        }
+    }
+
+    return status;
 }
 
 VOID WINAPI

@@ -16,6 +16,7 @@
 #include "DisplayIdentityCache.h"
 #include "DisplayChangeMonitor.h"
 #include <tchar.h>
+#include <InputStitching\InputSpaceRuntime.h>
 
 static DisplayChangeMonitor g_DisplayChangeMonitor;
 
@@ -123,6 +124,11 @@ AutoRotateService::Initialize()
     }
 
     m_Initialized = TRUE;
+
+    if (SUCCEEDED(InputStitching::g_InputSpaceRuntime.Initialize()))
+    {
+        InputStitching::g_InputSpaceRuntime.Start();
+    }
 
     return ERROR_SUCCESS;
 }
