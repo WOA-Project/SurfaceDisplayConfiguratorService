@@ -30,6 +30,8 @@ public:
     const DisplayIdentity &LeftPanel() const;
     const DisplayIdentity &RightPanel() const;
 
+    const DisplayIdentity *FindByDisplayName(PCWSTR DisplayName) const;
+
 private:
     HRESULT BuildIdentity(PCWSTR PanelId, DisplayIdentity &Identity);
 

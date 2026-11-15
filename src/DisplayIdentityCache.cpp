@@ -119,6 +119,11 @@ DisplayIdentityCache::Initialize()
 {
     auto Sensor = TwoPanelHingedDevicePosture::GetDefaultAsync().get();
 
+    if (Sensor == nullptr)
+    {
+        return ERROR_NOT_FOUND;
+    }
+
     auto Reading = Sensor.GetCurrentPostureAsync().get();
 
     std::wstring Panel1Id = Reading.Panel1Id().c_str();
@@ -193,4 +198,20 @@ const DisplayIdentity &
 DisplayIdentityCache::RightPanel() const
 {
     return m_RightPanel;
+}
+
+const DisplayIdentity *
+DisplayIdentityCache::FindByDisplayName(PCWSTR DisplayName) const
+{
+    if (!_wcsicmp(m_LeftPanel.DisplayDevice.DeviceName, DisplayName))
+    {
+        return &m_LeftPanel;
+    }
+
+    if (!_wcsicmp(m_RightPanel.DisplayDevice.DeviceName, DisplayName))
+    {
+        return &m_RightPanel;
+    }
+
+    return nullptr;
 }
