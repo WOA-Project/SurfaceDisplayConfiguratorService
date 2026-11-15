@@ -1,6 +1,8 @@
 #pragma once
 
 #include "InputStitching\InputSpacePolicy.h"
+#include "InputStitching\InputSpaceTypes.h"
+#include "InputStitching\InputSpaceDisplayEnumerator.h"
 
 namespace InputStitching {
 
@@ -55,7 +57,7 @@ private:
 
     InternalPanelTopology DetermineTopology(const Plan &PlanData) const;
 
-    PanelArrangement DetermineArrangement(const RECT &Left, const RECT &Right) const;
+    DeviceArrangement DetermineArrangement(const DisplayEntry &Left, const DisplayEntry &Right);
 };
 
 } // namespace InputStitching

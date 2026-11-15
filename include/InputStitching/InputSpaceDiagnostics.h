@@ -79,6 +79,6 @@ const wchar_t *
 ToString(InternalPanelTopology Topology);
 
 const wchar_t *
-ToString(PanelArrangement Arrangement);
+ToString(DeviceArrangement Arrangement);
 
 } // namespace InputStitching

@@ -127,6 +127,18 @@ AutoRotateService::Initialize()
 
     if (SUCCEEDED(InputStitching::g_InputSpaceRuntime.Initialize()))
     {
+        InputStitching::InputSpacePolicy policy{};
+        policy.Mode = InputStitching::InputTopologyMode::DualStitched;
+        policy.EnableStitching = true;
+        policy.EnableGapRegion = true;
+
+        //
+        // Surface Duo hinge width.
+        // Adjust during testing as needed.
+        //
+        policy.GapPixels = 84;
+        InputStitching::g_InputSpaceRuntime.ApplyPolicy(policy);
+
         InputStitching::g_InputSpaceRuntime.Start();
     }
 

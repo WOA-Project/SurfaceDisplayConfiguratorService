@@ -136,6 +136,18 @@ InputSpaceRuntime::GeneratePolicy(const DisplayPolicy &Display, InputSpacePolicy
 HRESULT
 InputSpaceRuntime::ApplyPolicy(const InputSpacePolicy &Policy)
 {
+    if (g_InputSpaceConfiguration.AutoPublish && m_Published)
+    {
+        HRESULT hr = g_InputSpaceManager.Remove();
+
+        if (FAILED(hr))
+        {
+            return hr;
+        }
+
+        m_Published = false;
+    }
+
     m_CurrentPolicy = Policy;
 
     HRESULT hr = g_InputSpaceManager.ApplyPolicy(Policy);
@@ -147,11 +159,6 @@ InputSpaceRuntime::ApplyPolicy(const InputSpacePolicy &Policy)
 
     if (g_InputSpaceConfiguration.AutoPublish)
     {
-        if (m_Published)
-        {
-            g_InputSpaceManager.Remove();
-        }
-
         hr = g_InputSpaceManager.Publish();
 
         if (FAILED(hr))

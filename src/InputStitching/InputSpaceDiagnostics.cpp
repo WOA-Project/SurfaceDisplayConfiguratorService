@@ -105,17 +105,23 @@ ToString(InternalPanelTopology Topology)
 }
 
 const wchar_t *
-ToString(PanelArrangement Arrangement)
+ToString(DeviceArrangement Arrangement)
 {
     switch (Arrangement)
     {
-    case PanelArrangement::Horizontal:
-        return L"Horizontal";
+    case DeviceArrangement::LandscapeDual:
+        return L"LandscapeDual";
 
-    case PanelArrangement::Vertical:
-        return L"Vertical";
+    case DeviceArrangement::PortraitDual:
+        return L"PortraitDual";
 
-    case PanelArrangement::Unknown:
+    case DeviceArrangement::Tent:
+        return L"Tent";
+
+    case DeviceArrangement::SingleScreen:
+        return L"SingleScreen";
+
+    case DeviceArrangement::Unknown:
     default:
 
         return L"Unknown";
@@ -231,6 +237,24 @@ DumpRegions(const Plan &PlanData)
 
                << L"Rect: (" << metadata.DesktopRect.left << L"," << metadata.DesktopRect.top << L")-("
                << metadata.DesktopRect.right << L"," << metadata.DesktopRect.bottom << L")\r\n\r\n";
+
+        if (i < PlanData.Regions.size())
+        {
+            const auto &region = PlanData.Regions[i];
+
+            stream << L"DesktopRect: (" << region.Rect.left << L"," << region.Rect.top << L")-(" << region.Rect.right
+                   << L"," << region.Rect.bottom << L")\r\n"
+
+                   << L"ModeRect: (" << region.ModeRect.left << L"," << region.ModeRect.top << L")-("
+                   << region.ModeRect.right << L"," << region.ModeRect.bottom << L")\r\n"
+
+                   << L"ScalingRect: (" << region.ScalingRect.left << L"," << region.ScalingRect.top << L")-("
+                   << region.ScalingRect.right << L"," << region.ScalingRect.bottom << L")\r\n"
+
+                   << L"Rotation: " << region.Rotation << L"\r\n"
+
+                   << L"Dpi: " << region.Dpi << L"\r\n";
+        }
     }
 
     return stream.str();

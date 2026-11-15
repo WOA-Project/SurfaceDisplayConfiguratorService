@@ -8,7 +8,8 @@
 #include "InputStitching\InputSpaceGlobals.h"
 #include "InputStitching\InputSpaceTest.h"
 
-int
+
+/*int
 _tmain(int argc, TCHAR *argv[])
 {
     UNREFERENCED_PARAMETER(argc);
@@ -102,4 +103,4 @@ _tmain(int argc, TCHAR *argv[])
     wprintf(L"Input space removed.\n");
 
     return 0;
-}
+}*/

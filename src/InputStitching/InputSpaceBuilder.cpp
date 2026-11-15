@@ -23,11 +23,8 @@ InputSpaceBuilder::BuildPlan(const InputSpacePolicy &Policy, Plan *PlanData)
     static LONG g_InputSpaceId = 0;
 
     PlanData->Space.Id.LowPart = InterlockedIncrement(&g_InputSpaceId);
-
     PlanData->Space.Id.HighPart = GetCurrentProcessId();
-
     PlanData->Space.Reserved = 0;
-
     PlanData->Mode = Policy.Mode;
 
     switch (Policy.Mode)
@@ -130,19 +127,12 @@ InputSpaceBuilder::GenerateSingleLeftPlan(const InputSpacePolicy &Policy, Plan *
         PlanData->Regions.push_back(display.Region);
 
         RegionMetadata metadata{};
-
         metadata.Role = RegionRole::Display;
-
         metadata.PanelRole = display.Role;
-
         metadata.Name = display.Name;
-
         metadata.PanelId = display.PanelId;
-
         metadata.IsInternal = display.Internal;
-
         metadata.IsPrimary = IsPrimaryRegion(display.Region.Flags);
-
         metadata.DesktopRect = display.Region.Rect;
 
         PlanData->Metadata.push_back(metadata);
@@ -181,19 +171,12 @@ InputSpaceBuilder::GenerateSingleRightPlan(const InputSpacePolicy &Policy, Plan 
         PlanData->Regions.push_back(display.Region);
 
         RegionMetadata metadata{};
-
         metadata.Role = RegionRole::Display;
-
         metadata.PanelRole = display.Role;
-
         metadata.Name = display.Name;
-
         metadata.PanelId = display.PanelId;
-
         metadata.IsInternal = display.Internal;
-
         metadata.IsPrimary = IsPrimaryRegion(display.Region.Flags);
-
         metadata.DesktopRect = display.Region.Rect;
 
         PlanData->Metadata.push_back(metadata);
@@ -245,19 +228,12 @@ InputSpaceBuilder::BuildDisplayRegions(const InputSpacePolicy &Policy, Plan *Pla
         PlanData->Regions.push_back(display.Region);
 
         RegionMetadata metadata{};
-
         metadata.Role = RegionRole::Display;
-
         metadata.PanelRole = display.Role;
-
         metadata.Name = display.Name;
-
         metadata.PanelId = display.PanelId;
-
         metadata.IsInternal = display.Internal;
-
         metadata.IsPrimary = IsPrimaryRegion(display.Region.Flags);
-
         metadata.DesktopRect = display.Region.Rect;
 
         PlanData->Metadata.push_back(metadata);
@@ -274,84 +250,32 @@ InputSpaceBuilder::BuildDisplayRegions(const InputSpacePolicy &Policy, Plan *Pla
 
     if (leftPanel && rightPanel)
     {
-        PlanData->Arrangement = DetermineArrangement(leftPanel->Region.Rect, rightPanel->Region.Rect);
+        PlanData->Arrangement = DetermineArrangement(*leftPanel, *rightPanel);
     }
 
     return PlanData->Regions.empty() ? HRESULT_FROM_WIN32(ERROR_NOT_FOUND) : S_OK;
 }
 
-/*HRESULT
-InputSpaceBuilder::BuildGapRegion(const InputSpacePolicy &Policy, Plan *PlanData)
+static void
+UpdateRegionRect(Plan *plan, const RECT &original, const RECT &replacement)
 {
-    if (!PlanData)
+    for (size_t i = 0; i < plan->Regions.size(); ++i)
     {
-        return E_POINTER;
+        auto &region = plan->Regions[i];
+
+        if (EqualRect(&region.Rect, &original))
+        {
+            region.Rect = replacement;
+
+            if (i < plan->Metadata.size())
+            {
+                plan->Metadata[i].DesktopRect = replacement;
+            }
+
+            return;
+        }
     }
-
-    auto left = PlanData->FindPanel(InternalPanelRole::LeftPanel);
-
-    auto right = PlanData->FindPanel(InternalPanelRole::RightPanel);
-
-    if (!left)
-    {
-        PlanData->Debug.Log += L"Left panel unavailable.\n";
-
-        return S_FALSE;
-    }
-
-    if (!right)
-    {
-        PlanData->Debug.Log += L"Right panel unavailable.\n";
-
-        return S_FALSE;
-    }
-
-    const LONG overlapTop = std::max(left->DesktopRect.top, right->DesktopRect.top);
-
-    const LONG overlapBottom = std::min(left->DesktopRect.bottom, right->DesktopRect.bottom);
-
-    if (overlapBottom <= overlapTop)
-    {
-        return S_FALSE;
-    }
-
-    LONG desktopGap = right->DesktopRect.left - left->DesktopRect.right;
-
-    if (desktopGap < 0)
-    {
-        PlanData->Debug.Log += L"Panels overlap; gap disabled.\n";
-
-        return S_FALSE;
-    }
-
-    LONG gapWidth = Policy.GapPixels > 0 ? Policy.GapPixels : desktopGap;
-
-    INPUT_SPACE_REGION gap{};
-
-    gap.Flags = CustomRegion();
-
-    gap.Rect = {left->DesktopRect.right, overlapTop, left->DesktopRect.right + gapWidth, overlapBottom};
-
-    PlanData->Regions.push_back(gap);
-
-    RegionMetadata gapMetadata{};
-
-    gapMetadata.Role = RegionRole::Gap;
-
-    gapMetadata.Name = L"Hinge Gap";
-
-    gapMetadata.IsInternal = false;
-
-    gapMetadata.DesktopRect = gap.Rect;
-
-    PlanData->Metadata.push_back(gapMetadata);
-
-    PlanData->GapEnabled = true;
-    PlanData->GapPixels = gapWidth;
-    PlanData->Stitched = true;
-
-    return S_OK;
-}*/
+}
 
 HRESULT
 InputSpaceBuilder::BuildGapRegion(const InputSpacePolicy &Policy, Plan *PlanData)
@@ -361,120 +285,107 @@ InputSpaceBuilder::BuildGapRegion(const InputSpacePolicy &Policy, Plan *PlanData
         return E_POINTER;
     }
 
-    auto left = PlanData->FindPanel(InternalPanelRole::LeftPanel);
-
-    auto right = PlanData->FindPanel(InternalPanelRole::RightPanel);
-
-    if (!left)
-    {
-        PlanData->Debug.Log += L"Left panel unavailable.\n";
-
-        return S_FALSE;
-    }
-
-    if (!right)
-    {
-        PlanData->Debug.Log += L"Right panel unavailable.\n";
-
-        return S_FALSE;
-    }
-
-    //
-    // Capture original geometry.
-    //
-    const RECT leftRect = left->DesktopRect;
-
-    const RECT rightRect = right->DesktopRect;
-
-    const LONG overlapTop = std::max(leftRect.top, rightRect.top);
-
-    const LONG overlapBottom = std::min(leftRect.bottom, rightRect.bottom);
-
-    if (overlapBottom <= overlapTop)
+    auto leftPanel = PlanData->FindPanel(InternalPanelRole::LeftPanel);
+    auto rightPanel = PlanData->FindPanel(InternalPanelRole::RightPanel);
+    if (!leftPanel || !rightPanel)
     {
         return S_FALSE;
     }
 
-    LONG desktopGap = rightRect.left - leftRect.right;
-
-    if (desktopGap < 0)
-    {
-        PlanData->Debug.Log += L"Panels overlap; gap disabled.\n";
-
-        return S_FALSE;
-    }
-
-    LONG gapWidth = Policy.GapPixels > 0 ? Policy.GapPixels : desktopGap;
+    const RECT a = leftPanel->DesktopRect;
+    const RECT b = rightPanel->DesktopRect;
+    const LONG centerAX = (a.left + a.right) / 2;
+    const LONG centerAY = (a.top + a.bottom) / 2;
+    const LONG centerBX = (b.left + b.right) / 2;
+    const LONG centerBY = (b.top + b.bottom) / 2;
+    const LONG dx = centerBX - centerAX;
+    const LONG dy = centerBY - centerAY;
 
     //
-    // Gap geometry is based on ORIGINAL
-    // panel coordinates.
+    // Determine dominant arrangement axis.
     //
-    const LONG gapLeft = leftRect.right;
+    const bool horizontalArrangement = std::abs(dx) >= std::abs(dy);
 
-    const LONG gapRight = gapLeft + gapWidth;
+    LONG gapWidth = 0;
 
-    //
-    // Shift the right display region to
-    // make room for the hinge gap.
-    //
-    for (auto &region : PlanData->Regions)
-    {
-        if (!IsDisplayRegion(region.Flags))
-        {
-            continue;
-        }
-
-        if (region.Rect.left == rightRect.left && region.Rect.top == rightRect.top &&
-            region.Rect.right == rightRect.right && region.Rect.bottom == rightRect.bottom)
-        {
-            region.Rect.left += gapWidth;
-            region.Rect.right += gapWidth;
-
-            break;
-        }
-    }
-
-    for (auto &metadata : PlanData->Metadata)
-    {
-        if (metadata.PanelRole == InternalPanelRole::RightPanel)
-        {
-            metadata.DesktopRect.left += gapWidth;
-            metadata.DesktopRect.right += gapWidth;
-
-            break;
-        }
-    }
-
-    //
-    // Create the hinge gap region using
-    // the original geometry.
-    //
     INPUT_SPACE_REGION gap{};
-
     gap.Flags = CustomRegion();
 
-    gap.Rect = {gapLeft, overlapTop, gapRight, overlapBottom};
+    if (horizontalArrangement)
+    {
+        const RECT &visualLeft = (a.left <= b.left) ? a : b;
+        const RECT &visualRight = (a.left <= b.left) ? b : a;
+        const LONG overlapTop = std::max(visualLeft.top, visualRight.top);
+        const LONG overlapBottom = std::min(visualLeft.bottom, visualRight.bottom);
+        if (overlapBottom <= overlapTop)
+        {
+            return S_FALSE;
+        }
+
+        const LONG desktopGap = visualRight.left - visualLeft.right;
+        if (desktopGap < 0)
+        {
+            PlanData->Debug.Log += L"Panels overlap horizontally.\n";
+            return S_FALSE;
+        }
+
+        gapWidth = Policy.GapPixels > 0 ? Policy.GapPixels : desktopGap;
+        gap.Rect = {visualLeft.right, overlapTop, visualLeft.right + gapWidth, overlapBottom};
+
+        //
+        // Shift visually-right panel.
+        //
+        RECT shifted = visualRight;
+        shifted.left += gapWidth;
+        shifted.right += gapWidth;
+
+        UpdateRegionRect(PlanData, visualRight, shifted);
+    }
+    else
+    {
+        const RECT &visualTop = (a.top <= b.top) ? a : b;
+        const RECT &visualBottom = (a.top <= b.top) ? b : a;
+        const LONG overlapLeft = std::max(visualTop.left, visualBottom.left);
+        const LONG overlapRight = std::min(visualTop.right, visualBottom.right);
+        if (overlapRight <= overlapLeft)
+        {
+            return S_FALSE;
+        }
+
+        const LONG desktopGap = visualBottom.top - visualTop.bottom;
+        if (desktopGap < 0)
+        {
+            PlanData->Debug.Log += L"Panels overlap vertically.\n";
+
+            return S_FALSE;
+        }
+
+        gapWidth = Policy.GapPixels > 0 ? Policy.GapPixels : desktopGap;
+        gap.Rect = {overlapLeft, visualTop.bottom, overlapRight, visualTop.bottom + gapWidth};
+
+        //
+        // Shift visually-bottom panel.
+        //
+        RECT shifted = visualBottom;
+
+        shifted.top += gapWidth;
+        shifted.bottom += gapWidth;
+
+        UpdateRegionRect(PlanData, visualBottom, shifted);
+    }
 
     PlanData->Regions.push_back(gap);
 
-    RegionMetadata gapMetadata{};
+    RegionMetadata metadata{};
+    metadata.Role = RegionRole::Gap;
+    metadata.Name = L"Hinge Gap";
+    metadata.DesktopRect = gap.Rect;
 
-    gapMetadata.Role = RegionRole::Gap;
-
-    gapMetadata.Name = L"Hinge Gap";
-
-    gapMetadata.IsInternal = false;
-
-    gapMetadata.DesktopRect = gap.Rect;
-
-    PlanData->Metadata.push_back(gapMetadata);
+    PlanData->Metadata.push_back(metadata);
 
     PlanData->GapEnabled = true;
     PlanData->GapPixels = gapWidth;
     PlanData->Stitched = true;
-
-    PlanData->Debug.Log += L"Inserted hinge gap and shifted right panel.\n";
 
     return S_OK;
 }
@@ -497,7 +408,7 @@ InputSpaceBuilder::ShouldEnableStitching(const InputSpacePolicy &Policy, const P
         return false;
     }
 
-    if (PlanData.Arrangement != PanelArrangement::Horizontal)
+    if (PlanData.Arrangement != DeviceArrangement::LandscapeDual)
     {
         return false;
     }
@@ -521,24 +432,36 @@ InputSpaceBuilder::DetermineTopology(const Plan &PlanData) const
     return InternalPanelTopology::None;
 }
 
-PanelArrangement
-InputSpaceBuilder::DetermineArrangement(const RECT &Left, const RECT &Right) const
+DeviceArrangement
+InputSpaceBuilder::DetermineArrangement(const DisplayEntry &Left, const DisplayEntry &Right)
 {
-    LONG overlapX = std::min(Left.right, Right.right) - std::max(Left.left, Right.left);
+    //
+    // Tent:
+    // 90° / 270° opposing rotations.
+    //
+    if ((Left.Region.Rotation == DISPLAYCONFIG_ROTATION_ROTATE90 &&
+         Right.Region.Rotation == DISPLAYCONFIG_ROTATION_ROTATE270) ||
 
-    LONG overlapY = std::min(Left.bottom, Right.bottom) - std::max(Left.top, Right.top);
-
-    if (overlapY > 0)
+        (Left.Region.Rotation == DISPLAYCONFIG_ROTATION_ROTATE270 &&
+         Right.Region.Rotation == DISPLAYCONFIG_ROTATION_ROTATE90))
     {
-        return PanelArrangement::Horizontal;
+        return DeviceArrangement::Tent;
     }
 
-    if (overlapX > 0)
+    LONG width =
+        abs(((Left.Region.Rect.left + Left.Region.Rect.right) / 2) -
+            ((Right.Region.Rect.left + Right.Region.Rect.right) / 2));
+
+    LONG height =
+        abs(((Left.Region.Rect.top + Left.Region.Rect.bottom) / 2) -
+            ((Right.Region.Rect.top + Right.Region.Rect.bottom) / 2));
+
+    if (width > height)
     {
-        return PanelArrangement::Vertical;
+        return DeviceArrangement::LandscapeDual;
     }
 
-    return PanelArrangement::Unknown;
+    return DeviceArrangement::PortraitDual;
 }
 
 } // namespace InputStitching

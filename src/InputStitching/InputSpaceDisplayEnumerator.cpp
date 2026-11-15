@@ -107,7 +107,6 @@ HRESULT
 EnumerateDisplaysOnce(std::vector<DisplayEntry> *Displays)
 {
     std::vector<DISPLAYCONFIG_PATH_INFO> paths;
-
     std::vector<DISPLAYCONFIG_MODE_INFO> modes;
 
     LONG status = ERROR_INSUFFICIENT_BUFFER;
@@ -174,42 +173,48 @@ EnumerateDisplaysOnce(std::vector<DisplayEntry> *Displays)
 
         const auto &source = sourceMode.sourceMode;
 
+        wprintf(
+            L"Pos=(%ld,%ld) "
+            L"Size=%ldx%ld "
+            L"Rot=%u\n",
+            source.position.x,
+            source.position.y,
+            source.width,
+            source.height,
+            path.targetInfo.rotation);
+
+        LONG logicalWidth = static_cast<LONG>(source.width);
+        LONG logicalHeight = static_cast<LONG>(source.height);
+        UINT32 rotation = static_cast<UINT32>(path.targetInfo.rotation);
+        if (rotation < 1 || rotation > 4)
+        {
+            rotation = DISPLAYCONFIG_ROTATION_IDENTITY;
+        }
+        if (rotation == DISPLAYCONFIG_ROTATION_ROTATE90 || rotation == DISPLAYCONFIG_ROTATION_ROTATE270)
+        {
+            std::swap(logicalWidth, logicalHeight);
+        }
+
         DisplayEntry entry{};
 
         entry.Region.Rect.left = source.position.x;
-
         entry.Region.Rect.top = source.position.y;
-
-        entry.Region.Rect.right = source.position.x + static_cast<LONG>(source.width);
-
-        entry.Region.Rect.bottom = source.position.y + static_cast<LONG>(source.height);
+        entry.Region.Rect.right = source.position.x + logicalWidth;
+        entry.Region.Rect.bottom = source.position.y + logicalHeight;
 
         entry.Region.Flags = kRegionDisplay;
-
         if (source.position.x == 0 && source.position.y == 0)
         {
             entry.Region.Flags |= kRegionPrimary;
         }
 
         entry.Region.SourceAdapterId = path.sourceInfo.adapterId;
-
         entry.Region.SourceId = path.sourceInfo.id;
-
         entry.Region.TargetAdapterId = path.targetInfo.adapterId;
-
         entry.Region.TargetId = path.targetInfo.id;
 
-        UINT32 rotation = static_cast<UINT32>(path.targetInfo.rotation);
-
-        if (rotation < 1 || rotation > 4)
-        {
-            rotation = DISPLAYCONFIG_ROTATION_IDENTITY;
-        }
-
         entry.Region.Rotation = rotation;
-
-        entry.Region.ModeRect = {0, 0, static_cast<LONG>(source.width), static_cast<LONG>(source.height)};
-
+        entry.Region.ModeRect = {0, 0, logicalWidth, logicalHeight};
         entry.Region.ScalingRect = entry.Region.ModeRect;
 
         HMONITOR monitor = MonitorFromRect(&entry.Region.Rect, MONITOR_DEFAULTTONULL);
@@ -222,7 +227,6 @@ EnumerateDisplaysOnce(std::vector<DisplayEntry> *Displays)
             if (SUCCEEDED(GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &dpiX, &dpiY)))
             {
                 entry.Region.Dpi = static_cast<UINT16>(dpiX);
-
                 entry.Region.DpiAlt = static_cast<UINT16>(dpiY);
             }
         }
@@ -236,9 +240,7 @@ EnumerateDisplaysOnce(std::vector<DisplayEntry> *Displays)
             if (identity)
             {
                 entry.PanelId = identity->PanelId;
-
                 entry.Identity = identity;
-
                 entry.Internal = true;
 
                 if (identity->IsLeft)
@@ -257,7 +259,6 @@ EnumerateDisplaysOnce(std::vector<DisplayEntry> *Displays)
         if (!entry.Identity)
         {
             entry.Role = InternalPanelRole::External;
-
             entry.Internal = false;
         }
 

@@ -105,19 +105,14 @@ enum class InternalPanelTopology
 // participating panels.
 //
 
-enum class PanelArrangement
+enum class DeviceArrangement
 {
     Unknown,
 
-    //
-    // Left ↔ Right
-    //
-    Horizontal,
-
-    //
-    // Top ↕ Bottom
-    //
-    Vertical
+    LandscapeDual,
+    PortraitDual,
+    Tent,
+    SingleScreen
 };
 
 //

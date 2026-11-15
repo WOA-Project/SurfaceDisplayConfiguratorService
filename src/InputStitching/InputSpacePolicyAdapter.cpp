@@ -38,11 +38,8 @@ BuildInputSpacePolicy(const DisplayPolicy &Display, const InputSpaceConfiguratio
     }
 
     policy.EnableStitching = Configuration.EnableStitching;
-
     policy.EnableGapRegion = Configuration.EnableGapRegion;
-
     policy.GapPixels = Configuration.GapPixels;
-
     policy.PublishToSystem = Configuration.AutoPublish;
 
     //
@@ -50,11 +47,8 @@ BuildInputSpacePolicy(const DisplayPolicy &Display, const InputSpaceConfiguratio
     // participation state.
     //
     policy.EnableDisplay1Input = Display.Display1Enabled;
-
     policy.EnableDisplay2Input = Display.Display2Enabled;
-
     policy.EnableDisplay1Pen = Display.Display1Enabled;
-
     policy.EnableDisplay2Pen = Display.Display2Enabled;
 
     return policy;

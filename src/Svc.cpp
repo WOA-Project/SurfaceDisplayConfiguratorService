@@ -45,6 +45,20 @@ SvcInit(DWORD, LPTSTR *);
 
 HPOWERNOTIFY m_hScreenStateNotify = NULL;
 
+int _tmain(int argc, TCHAR *argv[])
+{
+    InitializeCriticalSection(&g_DisplayOperationLock);
+
+    // Perform work until service stops.
+    std::thread t1(AutoRotateMain);
+    std::thread t2(ActiveMonitorWindowHandlerMain);
+
+    while (1)
+    {
+    }
+
+}
+
 //
 // Purpose:
 //   Entry point for the process

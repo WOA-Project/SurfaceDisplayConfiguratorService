@@ -72,7 +72,7 @@ struct Plan
     // Current arrangement of the
     // participating internal panels.
     //
-    PanelArrangement Arrangement = PanelArrangement::Unknown;
+    DeviceArrangement Arrangement = DeviceArrangement::Unknown;
 
     //
     // Internal panel topology.
