@@ -42,6 +42,6 @@ OnFlipSensorReadingChanged(FlipSensor const & /*Sender*/, FlipSensorReadingChang
 
     if (Reading.GestureState() == GestureState::Started)
     {
-        TogglePreferredSingleScreen(Service->GetSensorManager().GetCurrentPosture());
+        TogglePreferredSingleScreen();
     }
 }

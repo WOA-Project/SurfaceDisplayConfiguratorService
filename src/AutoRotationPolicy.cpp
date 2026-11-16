@@ -21,9 +21,9 @@ UpdateAutoRotationPolicy(INT LeftOrientation, INT RightOrientation, BOOLEAN Left
         {
             if (!g_HaveOriginalAutoRotationState)
             {
-                EnterCriticalSection(&g_AutoRotateContext.CriticalSection);
+                EnterCriticalSection(&g_DisplayOperationLock);
                 g_OriginalAutoRotationEnabled = g_AutoRotateContext.AutoRotationEnabled;
-                LeaveCriticalSection(&g_AutoRotateContext.CriticalSection);
+                LeaveCriticalSection(&g_DisplayOperationLock);
 
                 g_HaveOriginalAutoRotationState = TRUE;
             }

@@ -58,15 +58,14 @@ struct OverlayInstance
 };
 
 static CRITICAL_SECTION g_OverlayLock;
-static std::vector<std::shared_ptr<OverlayInstance>> g_Overlays;
-
 struct OverlayLockInitializer
 {
     OverlayLockInitializer() { InitializeCriticalSection(&g_OverlayLock); }
-
     ~OverlayLockInitializer() { DeleteCriticalSection(&g_OverlayLock); }
 };
 static OverlayLockInitializer g_OverlayLockInitializer;
+
+static std::vector<std::shared_ptr<OverlayInstance>> g_Overlays;
 
 struct OverlayCreateParams
 {

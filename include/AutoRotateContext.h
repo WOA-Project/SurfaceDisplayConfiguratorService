@@ -10,14 +10,9 @@ struct AutoRotateContext
     INT Panel2Orientation;
 
     BOOLEAN IsDisplay1SingleScreenFavorite;
-
-    CRITICAL_SECTION CriticalSection;
 };
 
 extern AutoRotateContext g_AutoRotateContext;
 
 VOID WINAPI
 InitializeAutoRotateContext();
-
-VOID WINAPI
-DestroyAutoRotateContext();

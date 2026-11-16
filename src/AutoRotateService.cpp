@@ -270,8 +270,6 @@ AutoRotateService::Shutdown()
 
     SetWallpaperSpanStyle();
 
-    DestroyAutoRotateContext();
-
     uninit_apartment();
 
     m_Initialized = FALSE;

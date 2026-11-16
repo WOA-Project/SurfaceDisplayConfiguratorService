@@ -11,14 +11,13 @@
 static PendingFlip g_PendingFlip{};
 static HANDLE g_FlipTimer = nullptr;
 static bool g_FlipPreviewActive = false;
-CRITICAL_SECTION g_FlipLock;
 
+CRITICAL_SECTION g_FlipLock;
 struct FlipLockInitializer
 {
     FlipLockInitializer() { InitializeCriticalSection(&g_FlipLock); }
     ~FlipLockInitializer() { DeleteCriticalSection(&g_FlipLock); }
 };
-
 static FlipLockInitializer g_FlipLockInitializer;
 
 void
@@ -62,10 +61,8 @@ CommitPendingFlip()
         flip.DisplayState1,
         flip.DisplayState2,
         DisplayPrimaryAuto);
-
     if (FAILED(hr))
     {
-        wprintf(L"Pending flip commit failed: 0x%08X\n", hr);
         s_InSingleScreenMode.store(SingleScreenState::DualScreen);
         return;
     }
@@ -95,25 +92,28 @@ BeginPendingFlip(
 {
     HANDLE oldTimer = nullptr;
 
-    EnterCriticalSection(&g_FlipLock);
+    {
+        EnterCriticalSection(&g_FlipLock);
 
-    oldTimer = g_FlipTimer;
-    g_FlipTimer = nullptr;
+        oldTimer = g_FlipTimer;
+        g_FlipTimer = nullptr;
 
-    CancelPendingFlipLocked();
+        CancelPendingFlipLocked();
 
-    g_FlipPreviewActive = true;
-    g_PendingFlip.Active = true;
+        g_FlipPreviewActive = true;
+        g_PendingFlip.Active = true;
 
-    wcscpy_s(g_PendingFlip.DisplayPanelId1, DisplayPanelId1);
-    wcscpy_s(g_PendingFlip.DisplayPanelId2, DisplayPanelId2);
+        wcscpy_s(g_PendingFlip.DisplayPanelId1, DisplayPanelId1);
+        wcscpy_s(g_PendingFlip.DisplayPanelId2, DisplayPanelId2);
 
-    g_PendingFlip.DisplayOrientation1 = DisplayOrientation1;
-    g_PendingFlip.DisplayOrientation2 = DisplayOrientation2;
-    g_PendingFlip.DisplayState1 = DisplayState1;
-    g_PendingFlip.DisplayState2 = DisplayState2;
+        g_PendingFlip.DisplayOrientation1 = DisplayOrientation1;
+        g_PendingFlip.DisplayOrientation2 = DisplayOrientation2;
+        g_PendingFlip.DisplayState1 = DisplayState1;
+        g_PendingFlip.DisplayState2 = DisplayState2;
 
-    LeaveCriticalSection(&g_FlipLock);
+        LeaveCriticalSection(&g_FlipLock);
+    }
+
     HideFlipPreviewOverlay();
 
     if (oldTimer)
@@ -162,18 +162,22 @@ BeginPendingFlip(
     if (!CreateTimerQueueTimer(&newTimer, nullptr, PendingFlipTimer, nullptr, 3000, 0, WT_EXECUTEDEFAULT))
     {
         wprintf(L"Failed to create flip timer: %u\n", GetLastError());
-        EnterCriticalSection(&g_FlipLock);
-        g_PendingFlip.Active = false;
-        g_FlipPreviewActive = false;
-        LeaveCriticalSection(&g_FlipLock);
+        {
+            EnterCriticalSection(&g_FlipLock);
+            g_PendingFlip.Active = false;
+            g_FlipPreviewActive = false;
+            LeaveCriticalSection(&g_FlipLock);
+        }
         HideFlipPreviewOverlay();
         s_InSingleScreenMode.store(SingleScreenState::DualScreen);
         return;
     }
 
-    EnterCriticalSection(&g_FlipLock);
-    g_FlipTimer = newTimer;
-    LeaveCriticalSection(&g_FlipLock);
+    {
+        EnterCriticalSection(&g_FlipLock);
+        g_FlipTimer = newTimer;
+        LeaveCriticalSection(&g_FlipLock);
+    }
 }
 
 void
@@ -181,14 +185,16 @@ CancelPendingFlip()
 {
     HANDLE timer = nullptr;
 
-    EnterCriticalSection(&g_FlipLock);
+    {
+        EnterCriticalSection(&g_FlipLock);
 
-    timer = g_FlipTimer;
-    g_FlipTimer = nullptr;
+        timer = g_FlipTimer;
+        g_FlipTimer = nullptr;
 
-    CancelPendingFlipLocked();
+        CancelPendingFlipLocked();
 
-    LeaveCriticalSection(&g_FlipLock);
+        LeaveCriticalSection(&g_FlipLock);
+    }
 
     HideFlipPreviewOverlay();
 
@@ -229,9 +235,6 @@ MarkFlipCommitted()
 void
 TogglePendingFlipPreview()
 {
-    PendingFlip flip{};
-    DISPLAY_PRIMARY_OVERRIDE previewPrimary;
-
     EnterCriticalSection(&g_FlipLock);
 
     if (!g_PendingFlip.Active)
@@ -246,47 +249,8 @@ TogglePendingFlipPreview()
     // Persist user's preferred single-screen target.
     //
     g_AutoRotateContext.IsDisplay1SingleScreenFavorite = g_PendingFlip.DisplayState1;
-    previewPrimary = g_PendingFlip.DisplayState1 ? DisplayPrimary1 : DisplayPrimary2;
-    flip = g_PendingFlip;
 
     LeaveCriticalSection(&g_FlipLock);
 
-    ForceHideFlipPreviewOverlay();
-
-    SetDisplayStates(
-        flip.DisplayPanelId1,
-        flip.DisplayPanelId2,
-        flip.DisplayOrientation1,
-        flip.DisplayOrientation2,
-        TRUE,
-        TRUE,
-        previewPrimary);
-
-    DISPLAY_DEVICE displayDevice1{};
-    DISPLAY_DEVICE displayDevice2{};
-
-    displayDevice1.cb = sizeof(DISPLAY_DEVICE);
-    displayDevice2.cb = sizeof(DISPLAY_DEVICE);
-
-    HRESULT res1 = GetDisplayDeviceByPanelId(flip.DisplayPanelId1, &displayDevice1);
-    HRESULT res2 = GetDisplayDeviceByPanelId(flip.DisplayPanelId2, &displayDevice2);
-    if (SUCCEEDED(res1) && SUCCEEDED(res2))
-    {
-        if (flip.DisplayState1)
-        {
-            //
-            // Display1 will remain active.
-            // Show confirmation on Display2.
-            //
-            ShowFlipPreviewOverlay(displayDevice2.DeviceName);
-        }
-        else
-        {
-            //
-            // Display2 will remain active.
-            // Show confirmation on Display1.
-            //
-            ShowFlipPreviewOverlay(displayDevice1.DeviceName);
-        }
-    }
+    CommitPendingFlip();
 }
