@@ -13,4 +13,12 @@ InitializeAutoRotateContext()
     g_AutoRotateContext.Panel2Orientation = 0;
 
     g_AutoRotateContext.IsDisplay1SingleScreenFavorite = FALSE;
+
+    InitializeCriticalSectionAndSpinCount(&g_AutoRotateContext.CriticalSection, 0x00000400);
+}
+
+VOID WINAPI
+DestroyAutoRotateContext()
+{
+    DeleteCriticalSection(&g_AutoRotateContext.CriticalSection);
 }

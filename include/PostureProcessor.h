@@ -19,4 +19,4 @@ VOID WINAPI
 ProcessCurrentPosture(TwoPanelHingedDevicePostureReading Reading);
 
 VOID WINAPI
-TogglePreferredSingleScreen();
+TogglePreferredSingleScreen(TwoPanelHingedDevicePostureReading Reading);

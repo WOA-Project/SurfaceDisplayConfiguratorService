@@ -17,7 +17,6 @@
 #include "DisplayChangeMonitor.h"
 #include <tchar.h>
 #include <InputStitching\InputSpaceRuntime.h>
-#include <DisplaySynchronization.h>
 
 static DisplayChangeMonitor g_DisplayChangeMonitor;
 
@@ -186,9 +185,7 @@ AutoRotateService::UpdateAutoRotationState(HKEY AutoRotationKey)
 
     RegQueryValueEx(AutoRotationKey, _T("Enable"), nullptr, &Type, reinterpret_cast<LPBYTE>(&Enabled), &Size);
 
-    EnterCriticalSection(&g_DisplayOperationLock);
     g_AutoRotateContext.AutoRotationEnabled = (Enabled != 0);
-    LeaveCriticalSection(&g_DisplayOperationLock);
 }
 
 VOID
@@ -272,6 +269,8 @@ AutoRotateService::Shutdown()
     SetTabletPostureTaskbarState(FALSE);
 
     SetWallpaperSpanStyle();
+
+    DestroyAutoRotateContext();
 
     uninit_apartment();
 

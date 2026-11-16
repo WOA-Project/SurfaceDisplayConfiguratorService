@@ -7,8 +7,6 @@
 #include "OrientationManager.h"
 #include "DisplayRotationManager.h"
 #include "FlipConfirmationManager.h"
-#include <AutoRotateService.h>
-#include <DisplaySynchronization.h>
 
 std::atomic<SingleScreenState> s_InSingleScreenMode{SingleScreenState::DualScreen};
 
@@ -83,17 +81,19 @@ ApplyPostureReading(TwoPanelHingedDevicePostureReading Reading)
 VOID WINAPI
 ProcessCurrentPosture(TwoPanelHingedDevicePostureReading Reading)
 {
-    EnterCriticalSection(&g_DisplayOperationLock);
+    EnterCriticalSection(&g_AutoRotateContext.CriticalSection);
+
     ApplyPostureReading(Reading);
-    LeaveCriticalSection(&g_DisplayOperationLock);
+
+    LeaveCriticalSection(&g_AutoRotateContext.CriticalSection);
 }
 
 VOID WINAPI
-TogglePreferredSingleScreen()
+TogglePreferredSingleScreen(TwoPanelHingedDevicePostureReading Reading)
 {
-    EnterCriticalSection(&g_DisplayOperationLock);
+    EnterCriticalSection(&g_AutoRotateContext.CriticalSection);
+
     g_AutoRotateContext.IsDisplay1SingleScreenFavorite = !g_AutoRotateContext.IsDisplay1SingleScreenFavorite;
-    LeaveCriticalSection(&g_DisplayOperationLock);
 
     //
     // If we're currently folded,
@@ -104,11 +104,7 @@ TogglePreferredSingleScreen()
         CancelPendingFlip();
     }
 
-    AutoRotateService *Service = GetAutoRotateService();
-    if (!Service)
-    {
-        return;
-    }
+    ApplyPostureReading(Reading);
 
-    ApplyPostureReading(Service->GetSensorManager().GetCurrentPosture());
+    LeaveCriticalSection(&g_AutoRotateContext.CriticalSection);
 }

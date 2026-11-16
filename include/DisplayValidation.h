@@ -112,6 +112,19 @@ BOOLEAN IsConfigurationSatisfied(
     ULONG RightWidth,
     ULONG RightHeight);
 
+BOOLEAN VerifyDisplayConfiguration(
+    CONST WCHAR *LeftDisplayPanelId,
+    CONST WCHAR *RightDisplayPanelId,
+    const DISPLAY_DEVICE& LeftDisplayDevice,
+    const DISPLAY_DEVICE& RightDisplayDevice,
+    INT LeftDisplayOrientation,
+    INT RightDisplayOrientation,
+    const DEVMODE& LeftDevMode,
+    const DEVMODE& RightDevMode);
+
 VOID ValidateDisplayConfiguration();
 
 VOID RepairDisplayConfiguration();
+
+VOID
+VerifyPreDisplayConfiguration(CONST WCHAR *LeftDisplayPanelId, CONST WCHAR *RightDisplayPanelId);
