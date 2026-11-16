@@ -17,43 +17,6 @@ std::atomic<ULONGLONG> g_LastPolicyEvaluationTick{0};
 std::atomic<BOOLEAN> g_ImmediateRepairRunning{false};
 
 VOID
-VerifyPreDisplayConfiguration(CONST WCHAR *LeftDisplayPanelId, CONST WCHAR *RightDisplayPanelId)
-{
-    DISPLAY_DEVICE VerifyLeft{};
-    DISPLAY_DEVICE VerifyRight{};
-
-    VerifyLeft.cb = sizeof(DISPLAY_DEVICE);
-    VerifyRight.cb = sizeof(DISPLAY_DEVICE);
-
-    HRESULT VerifyStatus;
-    VerifyStatus = GetDisplayDeviceByPanelId(LeftDisplayPanelId, &VerifyLeft);
-    if (SUCCEEDED(VerifyStatus))
-    {
-        wprintf(
-            L"AFTER HW SYNC LEFT: %s Flags=0x%08X Attached=%d\n",
-            VerifyLeft.DeviceName,
-            VerifyLeft.StateFlags,
-            (VerifyLeft.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) != 0);
-    }
-
-    VerifyStatus = GetDisplayDeviceByPanelId(RightDisplayPanelId, &VerifyRight);
-    if (SUCCEEDED(VerifyStatus))
-    {
-        wprintf(
-            L"AFTER HW SYNC RIGHT: %s Flags=0x%08X Attached=%d\n",
-            VerifyRight.DeviceName,
-            VerifyRight.StateFlags,
-            (VerifyRight.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) != 0);
-    }
-
-    if ((VerifyLeft.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) == 0 &&
-        (VerifyRight.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) == 0)
-    {
-        wprintf(L"!!! BOTH DISPLAYS DETACHED AFTER HW SYNC !!!\n");
-    }
-}
-
-VOID
 SaveDesiredStateLocked(
     BOOL NoOp,
     CONST WCHAR *LeftDisplayPanelId,

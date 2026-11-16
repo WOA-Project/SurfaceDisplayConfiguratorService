@@ -250,8 +250,6 @@ SetDisplayStatesInternal(
     lastLeftDisplayState = (LeftDisplayDevice.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP);
     lastRightDisplayState = (RightDisplayDevice.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP);
 
-    VerifyPreDisplayConfiguration(LeftDisplayPanelId, RightDisplayPanelId);
-
     //
     // In order to switch from portrait to landscape and vice versa we need to swap the resolution width and height
     // So we check for that
