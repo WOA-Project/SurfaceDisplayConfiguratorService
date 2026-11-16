@@ -68,11 +68,35 @@ ApplyPostureReading(TwoPanelHingedDevicePostureReading Reading)
     }
 
     //
+    // Swapping single-screen
+    //
+    if (IsSingleScreen && s_InSingleScreenMode.load() != SingleScreenState::DualScreen &&
+        g_AutoRotateContext.IsDisplay1SingleScreenFavorite != Policy.Display1Enabled)
+    {
+        EnterCriticalSection(&g_DisplayOperationLock);
+        g_AutoRotateContext.IsDisplay1SingleScreenFavorite = !g_AutoRotateContext.IsDisplay1SingleScreenFavorite;
+        LeaveCriticalSection(&g_DisplayOperationLock);
+
+        CancelPendingFlip();
+        s_InSingleScreenMode.store(SingleScreenState::PreviewPending);
+
+        BeginPendingFlip(
+            Panel1Id,
+            Panel2Id,
+            Policy.Panel1Orientation,
+            Policy.Panel2Orientation,
+            Policy.Display1Enabled,
+            Policy.Display2Enabled);
+
+        return ERROR_SUCCESS;
+    }
+
+    //
     // Remaining single-screen.
     //
     if (IsSingleScreen && s_InSingleScreenMode.load() != SingleScreenState::DualScreen)
     {
-        //return ERROR_SUCCESS;
+        return ERROR_SUCCESS;
     }
 
     //
