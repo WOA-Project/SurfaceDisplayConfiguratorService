@@ -28,8 +28,16 @@ ApplyPostureReading(TwoPanelHingedDevicePostureReading Reading)
     DisplayPolicy Policy = BuildDisplayPolicy(
         g_AutoRotateContext.AutoRotationEnabled, Reading, g_AutoRotateContext.IsDisplay1SingleScreenFavorite);
 
-    g_AutoRotateContext.Panel1Orientation = Policy.Panel1Orientation;
-    g_AutoRotateContext.Panel2Orientation = Policy.Panel2Orientation;
+    wprintf(
+        L"Policy to apply:\n"
+        L"    Display1Enabled: %d\n"
+        L"    Display2Enabled: %d\n"
+        L"    Panel1Orientation: %d\n"
+        L"    Panel2Orientation: %d\n",
+        Policy.Display1Enabled,
+        Policy.Display2Enabled,
+        Policy.Panel1Orientation,
+        Policy.Panel2Orientation);
 
     bool IsSingleScreen = (Policy.Display1Enabled != Policy.Display2Enabled);
 

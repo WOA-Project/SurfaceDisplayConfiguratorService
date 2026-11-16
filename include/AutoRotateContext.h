@@ -5,10 +5,6 @@
 struct AutoRotateContext
 {
     BOOLEAN AutoRotationEnabled;
-
-    INT Panel1Orientation;
-    INT Panel2Orientation;
-
     BOOLEAN IsDisplay1SingleScreenFavorite;
 };
 

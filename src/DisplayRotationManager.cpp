@@ -175,6 +175,15 @@ SetDisplayStatesInternal(
         return E_INVALIDARG;
     }
 
+    wprintf(
+        L"SetDisplayStatesInternal Entry: LeftPanel='%s' RightPanel='%s' LeftOrientation=%d RightOrientation=%d LeftState=%d RightState=%d\n",
+        LeftDisplayPanelId ? LeftDisplayPanelId : L"(null)",
+        RightDisplayPanelId ? RightDisplayPanelId : L"(null)",
+        LeftDisplayOrientation,
+        RightDisplayOrientation,
+        LeftDisplayState,
+        RightDisplayState);
+
     const DisplayIdentity *LeftIdentity = g_DisplayIdentityCache.FindByPanelId(LeftDisplayPanelId);
     const DisplayIdentity *RightIdentity = g_DisplayIdentityCache.FindByPanelId(RightDisplayPanelId);
 
@@ -273,6 +282,48 @@ SetDisplayStatesInternal(
         BuildExtendedDisplayLayout(Connection, &LeftDevMode, &RightDevMode);
 
         ApplyPrimaryOverride(PrimaryOverride, &LeftDevMode, &RightDevMode);
+
+                wprintf(
+            L"=====================================================\n"
+            L"REQUESTED TOPOLOGY:\n"
+            L"LEFT [%s]\n"
+            L"  fields=0x%08X\n"
+            L"  pos=(%ld,%ld)\n"
+            L"  res=%lux%lu\n"
+            L"  orient=%lu\n"
+            L"  freq=%lu\n"
+            L"  bpp=%lu\n"
+            L"  flags=0x%08X\n"
+            L"\n"
+            L"RIGHT [%s]\n"
+            L"  fields=0x%08X\n"
+            L"  pos=(%ld,%ld)\n"
+            L"  res=%lux%lu\n"
+            L"  orient=%lu\n"
+            L"  freq=%lu\n"
+            L"  bpp=%lu\n"
+            L"  flags=0x%08X\n"
+            L"=====================================================\n",
+            LeftDisplayDevice.DeviceName,
+            LeftDevMode.dmFields,
+            LeftDevMode.dmPosition.x,
+            LeftDevMode.dmPosition.y,
+            LeftDevMode.dmPelsWidth,
+            LeftDevMode.dmPelsHeight,
+            LeftDevMode.dmDisplayOrientation,
+            LeftDevMode.dmDisplayFrequency,
+            LeftDevMode.dmBitsPerPel,
+            LeftDevMode.dmDisplayFlags,
+            RightDisplayDevice.DeviceName,
+            RightDevMode.dmFields,
+            RightDevMode.dmPosition.x,
+            RightDevMode.dmPosition.y,
+            RightDevMode.dmPelsWidth,
+            RightDevMode.dmPelsHeight,
+            RightDevMode.dmDisplayOrientation,
+            RightDevMode.dmDisplayFrequency,
+            RightDevMode.dmBitsPerPel,
+            RightDevMode.dmDisplayFlags);
 
         if (IsConfigurationSatisfied(
                 LeftDisplayPanelId,
