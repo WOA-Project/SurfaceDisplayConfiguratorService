@@ -14,23 +14,6 @@
 
 #pragma comment(lib, "uxtheme.lib")
 
-#ifndef DWMWA_USE_HOSTBACKDROPBRUSH
-#    define DWMWA_USE_HOSTBACKDROPBRUSH 17
-#endif
-
-#ifndef DWMWA_SYSTEMBACKDROP_TYPE
-#    define DWMWA_SYSTEMBACKDROP_TYPE 38
-#endif
-
-typedef enum DWM_SYSTEMBACKDROP_TYPE
-{
-    DWMSBT_AUTO = 0,
-    DWMSBT_NONE = 1,
-    DWMSBT_MAINWINDOW = 2,
-    DWMSBT_TRANSIENTWINDOW = 3,
-    DWMSBT_TABBEDWINDOW = 4
-} DWM_SYSTEMBACKDROP_TYPE;
-
 enum ACCENT_STATE
 {
     ACCENT_DISABLED = 0,
@@ -75,15 +58,14 @@ struct OverlayInstance
 };
 
 static CRITICAL_SECTION g_OverlayLock;
-static std::vector<std::shared_ptr<OverlayInstance>> g_Overlays;
-
 struct OverlayLockInitializer
 {
     OverlayLockInitializer() { InitializeCriticalSection(&g_OverlayLock); }
-
     ~OverlayLockInitializer() { DeleteCriticalSection(&g_OverlayLock); }
 };
 static OverlayLockInitializer g_OverlayLockInitializer;
+
+static std::vector<std::shared_ptr<OverlayInstance>> g_Overlays;
 
 struct OverlayCreateParams
 {
@@ -167,12 +149,6 @@ ApplyBackdrop(HWND hwnd)
 
     MARGINS margins = {-1};
     DwmExtendFrameIntoClientArea(hwnd, &margins);
-
-    /*BOOL hostBackdrop = TRUE;
-    DwmSetWindowAttribute(hwnd, DWMWA_USE_HOSTBACKDROPBRUSH, &hostBackdrop, sizeof(hostBackdrop));
-
-    DWM_SYSTEMBACKDROP_TYPE backdrop = DWMSBT_TRANSIENTWINDOW;
-    DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &backdrop, sizeof(backdrop));*/
 }
 
 static OverlayInstance *
@@ -262,7 +238,7 @@ OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         oldFont = (HFONT)SelectObject(hdc, textFont);
         SetTextColor(hdc, RGB(255, 255, 255));
         RECT textRect = {0, groupTop + 430, rc.right, groupTop + groupHeight};
-        DrawTextW(hdc, L"Double tap to switch screens", -1, &textRect, DT_CENTER | DT_SINGLELINE);
+        DrawTextW(hdc, L"Double-tap to switch screens", -1, &textRect, DT_CENTER | DT_SINGLELINE);
 
         SelectObject(hdc, oldFont);
         DeleteObject(textFont);
