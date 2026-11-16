@@ -14,23 +14,6 @@
 
 #pragma comment(lib, "uxtheme.lib")
 
-#ifndef DWMWA_USE_HOSTBACKDROPBRUSH
-#    define DWMWA_USE_HOSTBACKDROPBRUSH 17
-#endif
-
-#ifndef DWMWA_SYSTEMBACKDROP_TYPE
-#    define DWMWA_SYSTEMBACKDROP_TYPE 38
-#endif
-
-typedef enum DWM_SYSTEMBACKDROP_TYPE
-{
-    DWMSBT_AUTO = 0,
-    DWMSBT_NONE = 1,
-    DWMSBT_MAINWINDOW = 2,
-    DWMSBT_TRANSIENTWINDOW = 3,
-    DWMSBT_TABBEDWINDOW = 4
-} DWM_SYSTEMBACKDROP_TYPE;
-
 enum ACCENT_STATE
 {
     ACCENT_DISABLED = 0,
@@ -167,12 +150,6 @@ ApplyBackdrop(HWND hwnd)
 
     MARGINS margins = {-1};
     DwmExtendFrameIntoClientArea(hwnd, &margins);
-
-    /*BOOL hostBackdrop = TRUE;
-    DwmSetWindowAttribute(hwnd, DWMWA_USE_HOSTBACKDROPBRUSH, &hostBackdrop, sizeof(hostBackdrop));
-
-    DWM_SYSTEMBACKDROP_TYPE backdrop = DWMSBT_TRANSIENTWINDOW;
-    DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &backdrop, sizeof(backdrop));*/
 }
 
 static OverlayInstance *
