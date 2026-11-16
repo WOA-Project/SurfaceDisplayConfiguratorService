@@ -7,23 +7,23 @@ OnPostureChanged(
     TwoPanelHingedDevicePosture const &Sender,
     TwoPanelHingedDevicePostureReadingChangedEventArgs const &Args);
 
-extern VOID
-OnFlipSensorReadingChanged(FlipSensor const &Sender, FlipSensorReadingChangedEventArgs const &Args);
+/*extern VOID
+OnFlipSensorReadingChanged(FlipSensor const &Sender, FlipSensorReadingChangedEventArgs const &Args);*/
 
 event_token postureEventToken{};
-event_token flipEventToken{};
+//event_token flipEventToken{};
 
 static BOOLEAN g_PostureSubscribed = FALSE;
-static BOOLEAN g_FlipSubscribed = FALSE;
+//static BOOLEAN g_FlipSubscribed = FALSE;
 
 BOOLEAN WINAPI
 AreSensorEventsSubscribed()
 {
-    return g_PostureSubscribed && g_FlipSubscribed;
+    return g_PostureSubscribed /*&& g_FlipSubscribed*/;
 }
 
 BOOL WINAPI
-SubscribeSensorEvents(TwoPanelHingedDevicePosture PostureSensor, FlipSensor FlipSensorInstance)
+SubscribeSensorEvents(TwoPanelHingedDevicePosture PostureSensor/*, FlipSensor FlipSensorInstance*/)
 {
     if (!PostureSensor)
     {
@@ -31,11 +31,11 @@ SubscribeSensorEvents(TwoPanelHingedDevicePosture PostureSensor, FlipSensor Flip
         return FALSE;
     }
 
-    if (!FlipSensorInstance)
+    /*if (!FlipSensorInstance)
     {
         OutputDebugString(L"Flip sensor unavailable\n");
         return FALSE;
-    }
+    }*/
 
     if (!g_PostureSubscribed)
     {
@@ -47,7 +47,7 @@ SubscribeSensorEvents(TwoPanelHingedDevicePosture PostureSensor, FlipSensor Flip
         }
     }
 
-    if (!g_FlipSubscribed)
+    /*if (!g_FlipSubscribed)
     {
         if (FlipSensorInstance)
         {
@@ -55,13 +55,13 @@ SubscribeSensorEvents(TwoPanelHingedDevicePosture PostureSensor, FlipSensor Flip
 
             g_FlipSubscribed = TRUE;
         }
-    }
+    }*/
 
     return TRUE;
 }
 
 VOID WINAPI
-UnsubscribeSensorEvents(TwoPanelHingedDevicePosture PostureSensor, FlipSensor FlipSensorInstance)
+UnsubscribeSensorEvents(TwoPanelHingedDevicePosture PostureSensor/*, FlipSensor FlipSensorInstance*/)
 {
     if (g_PostureSubscribed && PostureSensor)
     {
@@ -70,10 +70,10 @@ UnsubscribeSensorEvents(TwoPanelHingedDevicePosture PostureSensor, FlipSensor Fl
         g_PostureSubscribed = FALSE;
     }
 
-    if (g_FlipSubscribed && FlipSensorInstance)
+    /*if (g_FlipSubscribed && FlipSensorInstance)
     {
         FlipSensorInstance.ReadingChanged(flipEventToken);
 
         g_FlipSubscribed = FALSE;
-    }
+    }*/
 }

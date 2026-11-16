@@ -19,8 +19,8 @@ OnPostureChanged(
     ProcessCurrentPosture(Args.Reading());
 }
 
-VOID
-OnFlipSensorReadingChanged(FlipSensor const & /*Sender*/, FlipSensorReadingChangedEventArgs const &Args)
+/*VOID
+OnFlipSensorReadingChanged(FlipSensor const & /*Sender, FlipSensorReadingChangedEventArgs const &Args)
 {
     printf("OnFlipSensorReadingChanged Entry\n");
 
@@ -40,8 +40,10 @@ OnFlipSensorReadingChanged(FlipSensor const & /*Sender*/, FlipSensorReadingChang
 
     FlipSensorReading Reading = Args.Reading();
 
+    wprintf(L"FLIP!\nState=%d\n", Reading.GestureState());
+
     if (Reading.GestureState() == GestureState::Started)
     {
         TogglePreferredSingleScreen();
     }
-}
+}*/

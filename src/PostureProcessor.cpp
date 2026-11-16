@@ -72,7 +72,7 @@ ApplyPostureReading(TwoPanelHingedDevicePostureReading Reading)
     //
     if (IsSingleScreen && s_InSingleScreenMode.load() != SingleScreenState::DualScreen)
     {
-        return ERROR_SUCCESS;
+        //return ERROR_SUCCESS;
     }
 
     //
@@ -96,7 +96,7 @@ ProcessCurrentPosture(TwoPanelHingedDevicePostureReading Reading)
     LeaveCriticalSection(&g_DisplayOperationLock);
 }
 
-VOID WINAPI
+/*VOID WINAPI
 TogglePreferredSingleScreen()
 {
     EnterCriticalSection(&g_DisplayOperationLock);
@@ -119,4 +119,4 @@ TogglePreferredSingleScreen()
     }
 
     ApplyPostureReading(Service->GetSensorManager().GetCurrentPosture());
-}
+}*/

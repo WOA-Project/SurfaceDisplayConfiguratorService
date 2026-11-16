@@ -283,7 +283,7 @@ SetDisplayStatesInternal(
 
         ApplyPrimaryOverride(PrimaryOverride, &LeftDevMode, &RightDevMode);
 
-                wprintf(
+        wprintf(
             L"=====================================================\n"
             L"REQUESTED TOPOLOGY:\n"
             L"LEFT [%s]\n"

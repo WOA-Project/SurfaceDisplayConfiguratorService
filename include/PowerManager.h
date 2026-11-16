@@ -5,7 +5,7 @@
 extern HPOWERNOTIFY g_SystemSuspendHandle;
 
 VOID WINAPI
-InitializePowerManagement(TwoPanelHingedDevicePosture PostureSensor, FlipSensor FlipSensorInstance);
+InitializePowerManagement(TwoPanelHingedDevicePosture PostureSensor/*, FlipSensor FlipSensorInstance*/);
 
 VOID WINAPI
 ShutdownPowerManagement();

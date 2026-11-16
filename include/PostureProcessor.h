@@ -18,5 +18,5 @@ ApplyPostureReading(TwoPanelHingedDevicePostureReading Reading);
 VOID WINAPI
 ProcessCurrentPosture(TwoPanelHingedDevicePostureReading Reading);
 
-VOID WINAPI
-TogglePreferredSingleScreen();
+/*VOID WINAPI
+TogglePreferredSingleScreen();*/
