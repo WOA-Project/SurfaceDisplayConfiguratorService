@@ -361,6 +361,8 @@ SetDisplayStatesInternal(
     // Left on, Right off
     else if (LeftDisplayState && !RightDisplayState)
     {
+        g_AutoRotateContext.IsDisplay1SingleScreenFavorite = TRUE;
+
         if (lastLeftDisplayState && !lastRightDisplayState)
         {
             Status = NotifyAutoRotationAlpcPortOfOrientationChange(LeftDisplayOrientation);
@@ -412,6 +414,8 @@ SetDisplayStatesInternal(
     // Left off, Right on
     else if (!LeftDisplayState && RightDisplayState)
     {
+        g_AutoRotateContext.IsDisplay1SingleScreenFavorite = FALSE;
+
         if (!lastLeftDisplayState && lastRightDisplayState)
         {
             Status = NotifyAutoRotationAlpcPortOfOrientationChange(RightDisplayOrientation);

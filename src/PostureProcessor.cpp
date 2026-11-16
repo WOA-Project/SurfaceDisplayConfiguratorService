@@ -74,7 +74,7 @@ ApplyPostureReading(TwoPanelHingedDevicePostureReading Reading)
         g_AutoRotateContext.IsDisplay1SingleScreenFavorite != Policy.Display1Enabled)
     {
         EnterCriticalSection(&g_DisplayOperationLock);
-        g_AutoRotateContext.IsDisplay1SingleScreenFavorite = !g_AutoRotateContext.IsDisplay1SingleScreenFavorite;
+        g_AutoRotateContext.IsDisplay1SingleScreenFavorite = Policy.Display1Enabled;
         LeaveCriticalSection(&g_DisplayOperationLock);
 
         CancelPendingFlip();
