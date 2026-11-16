@@ -193,7 +193,6 @@
     <ClCompile Include="..\src\AutoRotateService.cpp" />
     <ClCompile Include="..\src\AutoRotationApiPort.cpp" />
     <ClCompile Include="..\src\AutoRotationPolicy.cpp" />
-    <ClCompile Include="..\src\BrightnessManager.cpp" />
     <ClCompile Include="..\src\Core\SpanController.cpp" />
     <ClCompile Include="..\src\Detection\LaunchMonitorResolver.cpp" />
     <ClCompile Include="..\src\Detection\WindowClassifier.cpp" />
@@ -231,7 +230,6 @@
     <ClCompile Include="..\src\Overlay\OverlayWindow.cpp" />
     <ClCompile Include="..\src\PostureProcessor.cpp" />
     <ClCompile Include="..\src\PowerManager.cpp" />
-    <ClCompile Include="..\src\SdpPanelClient.cpp" />
     <ClCompile Include="..\src\SensorCallbacks.cpp" />
     <ClCompile Include="..\src\SensorManager.cpp" />
     <ClCompile Include="..\src\SensorSubscriptionManager.cpp" />
@@ -272,7 +270,6 @@
     <ClInclude Include="..\include\AutoRotateService.h" />
     <ClInclude Include="..\include\AutoRotationApiPort.h" />
     <ClInclude Include="..\include\AutoRotationPolicy.h" />
-    <ClInclude Include="..\include\BrightnessManager.h" />
     <ClInclude Include="..\include\Configuration\Configuration.h" />
     <ClInclude Include="..\include\Core\SpanController.h" />
     <ClInclude Include="..\include\Detection\LaunchMonitorResolver.h" />
@@ -318,7 +315,6 @@
     <ClInclude Include="..\include\PostureProcessor.h" />
     <ClInclude Include="..\include\PowerManager.h" />
     <ClInclude Include="..\include\resource.h" />
-    <ClInclude Include="..\include\SdpPanelClient.h" />
     <ClInclude Include="..\include\SensorCallbacks.h" />
     <ClInclude Include="..\include\SensorManager.h" />
     <ClInclude Include="..\include\SensorSubscriptionManager.h" />

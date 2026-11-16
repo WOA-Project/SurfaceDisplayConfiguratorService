@@ -31,14 +31,12 @@
 
 #include "DisplayConfiguration.h"
 
-#include "BrightnessManager.h"
 #include <OrientationManager.h>
 #include <AutoRotateContext.h>
 #include <AutoRotateService.h>
 #include "DisplayValidation.h"
 #include <AutoRotationPolicy.h>
 #include <DisplaySynchronization.h>
-#include <SdpPanelClient.h>
 #include <InputStitching\InputSpacePolicy.h>
 #include <InputStitching\InputSpaceConfiguration.h>
 #include <InputStitching\InputSpaceRuntime.h>
@@ -135,27 +133,6 @@ PrepareDisplayModeForOrientation(PDEVMODE DevMode, INT TargetOrientation)
     DevMode->dmFields |= DM_DISPLAYORIENTATION | DM_PELSWIDTH | DM_PELSHEIGHT;
 }
 
-void
-SetBrightnessViaDriverPath(UCHAR level)
-{
-    SdpPanelClient panelClient;
-    if (!panelClient.Open())
-    {
-        //wprintf(L"Failed to open SDP panel device.\n");
-        return;
-    }
-
-    if (!panelClient.SetBrightness(SdpPanelClient::Primary, level))
-    {
-        //wprintf(L"Failed to set primary brightness.\n");
-    }
-
-    if (!panelClient.SetBrightness(SdpPanelClient::Secondary, level))
-    {
-        //wprintf(L"Failed to set secondary brightness.\n");
-    }
-}
-
 struct ValidationSuppressionGuard
 {
     ValidationSuppressionGuard() { g_SuppressValidation.store(true); }
@@ -178,9 +155,6 @@ SetDisplayStatesInternal(
     DEVMODE RightDevMode = {0};
     BOOLEAN lastLeftDisplayState = FALSE;
     BOOLEAN lastRightDisplayState = FALSE;
-    BrightnessManager brightnessMgr;
-    BOOL brightnessMgrInitialized = FALSE;
-    BYTE brightnessValue = 0;
     BOOLEAN NoOp = FALSE;
     BOOLEAN ConfigurationChanged = FALSE;
 
@@ -235,20 +209,6 @@ SetDisplayStatesInternal(
     if (FAILED(Status))
     {
         goto exit;
-    }
-
-    brightnessMgrInitialized = brightnessMgr.Initialize();
-
-    if (brightnessMgrInitialized)
-    {
-        if (!brightnessMgr.GetBrightness(LeftDisplayDevice.DeviceName, brightnessValue) || brightnessValue == 0)
-        {
-            brightnessMgr.GetBrightness(RightDisplayDevice.DeviceName, brightnessValue);
-            if (brightnessValue == 0)
-            {
-                brightnessValue = 50; // Default
-            }
-        }
     }
 
     Status = GetDisplayDeviceBestDisplayMode(&LeftDisplayDevice, &LeftDevMode);
@@ -461,14 +421,6 @@ SetDisplayStatesInternal(
         {
             goto exit;
         }
-    }
-
-    if (brightnessMgrInitialized && brightnessValue != 0)
-    {
-        brightnessMgr.SetBrightness(LeftDisplayDevice.DeviceName, brightnessValue);
-        brightnessMgr.SetBrightness(RightDisplayDevice.DeviceName, brightnessValue);
-
-        SetBrightnessViaDriverPath(brightnessValue);
     }
 
     // Need to fix work areas if multiple displays due to Windows Shy Taskbar bugs...
