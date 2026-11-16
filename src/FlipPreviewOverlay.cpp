@@ -239,7 +239,7 @@ OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         oldFont = (HFONT)SelectObject(hdc, textFont);
         SetTextColor(hdc, RGB(255, 255, 255));
         RECT textRect = {0, groupTop + 430, rc.right, groupTop + groupHeight};
-        DrawTextW(hdc, L"Double tap to switch screens", -1, &textRect, DT_CENTER | DT_SINGLELINE);
+        DrawTextW(hdc, L"Double-tap to switch screens", -1, &textRect, DT_CENTER | DT_SINGLELINE);
 
         SelectObject(hdc, oldFont);
         DeleteObject(textFont);
