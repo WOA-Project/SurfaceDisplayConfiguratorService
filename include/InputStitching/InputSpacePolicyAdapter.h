@@ -9,7 +9,4 @@ namespace InputStitching {
 InputSpacePolicy
 BuildInputSpacePolicy(const DisplayPolicy &Display, const InputSpaceConfiguration &Configuration);
 
-InputSpacePolicy
-BuildInputSpacePolicyInternal(const DisplayPolicy &Display, const InputSpaceConfiguration &Configuration);
-
 } // namespace InputStitching
