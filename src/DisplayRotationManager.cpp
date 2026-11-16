@@ -44,6 +44,10 @@
 #include <AutoRotationPolicy.h>
 #include <DisplaySynchronization.h>
 #include <SdpPanelClient.h>
+#include <InputStitching\InputSpacePolicy.h>
+#include <InputStitching\InputSpaceConfiguration.h>
+#include <InputStitching\InputSpaceRuntime.h>
+#include <InputStitching\InputSpacePolicyAdapter.h>
 
 //
 // Subject: Sets a device enablement state based on its panel id attachment
@@ -245,7 +249,7 @@ SetDisplayStates(
         }
     }
 
-    return SetDisplayStatesInternal(
+    HRESULT status = SetDisplayStatesInternal(
         Panel1IsLeft ? DisplayPanelId1 : DisplayPanelId2,
         Panel1IsLeft ? DisplayPanelId2 : DisplayPanelId1,
         Panel1IsLeft ? DisplayOrientation1 : DisplayOrientation2,
@@ -253,6 +257,29 @@ SetDisplayStates(
         Panel1IsLeft ? DisplayState1 : DisplayState2,
         Panel1IsLeft ? DisplayState2 : DisplayState1,
         PrimaryOverride);
+
+    if (SUCCEEDED(status))
+    {
+        DisplayPolicy Policy = {};
+        Policy.Display1Enabled = Panel1IsLeft ? DisplayState1 : DisplayState2;
+        Policy.Display2Enabled = Panel1IsLeft ? DisplayState2 : DisplayState1;
+        Policy.Panel1Orientation = Panel1IsLeft ? DisplayOrientation1 : DisplayOrientation2;
+        Policy.Panel2Orientation = Panel1IsLeft ? DisplayOrientation2 : DisplayOrientation1;
+
+        InputStitching::InputSpacePolicy inputPolicy =
+            InputStitching::BuildInputSpacePolicy(Policy, InputStitching::g_InputSpaceConfiguration);
+        HRESULT inputHr = InputStitching::g_InputSpaceRuntime.ApplyPolicy(inputPolicy);
+
+        if (FAILED(inputHr))
+        {
+            wprintf(
+                L"InputSpace policy application "
+                L"failed: 0x%08X\n",
+                inputHr);
+        }
+    }
+
+    return status;
 }
 
 static VOID

@@ -7,8 +7,6 @@
 #include <DisplayTopology.h>
 #include "AutoRotateContext.h"
 #include <PostureProcessor.h>
-#include <InputStitching\InputSpaceRuntime.h>
-#include <InputStitching\InputSpacePolicyAdapter.h>
 
 static PendingFlip g_PendingFlip{};
 static HANDLE g_FlipTimer = nullptr;
@@ -56,8 +54,6 @@ CommitPendingFlip()
 
     ForceHideFlipPreviewOverlay();
 
-    InputStitching::g_InputSpaceRuntime.RemoveCurrentPolicy();
-
     HRESULT hr = SetDisplayStates(
         flip.DisplayPanelId1,
         flip.DisplayPanelId2,
@@ -74,35 +70,12 @@ CommitPendingFlip()
         return;
     }
 
-    if (SUCCEEDED(hr))
-    {
-        DisplayPolicy Policy = {};
-        Policy.Display1Enabled = flip.DisplayState1;
-        Policy.Display2Enabled = flip.DisplayState2;
-        Policy.Panel1Orientation = flip.DisplayOrientation1;
-        Policy.Panel2Orientation = flip.DisplayOrientation2;
-
-        InputStitching::InputSpacePolicy inputPolicy = InputStitching::BuildInputSpacePolicy(
-            flip.DisplayPanelId1, flip.DisplayPanelId2, Policy, InputStitching::g_InputSpaceConfiguration);
-        HRESULT inputHr = InputStitching::g_InputSpaceRuntime.ApplyPolicy(inputPolicy);
-
-        if (FAILED(inputHr))
-        {
-            wprintf(
-                L"InputSpace policy application "
-                L"failed: 0x%08X\n",
-                inputHr);
-        }
-    }
-
     s_InSingleScreenMode.store(SingleScreenState::SingleScreenCommitted);
 
     if (timer)
     {
         DeleteTimerQueueTimer(nullptr, timer, INVALID_HANDLE_VALUE);
     }
-
-    InputStitching::g_InputSpaceRuntime.Rebuild();
 }
 
 static VOID CALLBACK
@@ -150,34 +123,11 @@ BeginPendingFlip(
 
     DISPLAY_PRIMARY_OVERRIDE previewPrimary = DisplayState1 ? DisplayPrimary1 : DisplayPrimary2;
 
-    InputStitching::g_InputSpaceRuntime.RemoveCurrentPolicy();
-
     HRESULT hr = SetDisplayStates(
         DisplayPanelId1, DisplayPanelId2, DisplayOrientation1, DisplayOrientation2, TRUE, TRUE, previewPrimary);
     if (FAILED(hr))
     {
         s_InSingleScreenMode.store(SingleScreenState::DualScreen);
-    }
-
-    if (SUCCEEDED(hr))
-    {
-        DisplayPolicy Policy = {};
-        Policy.Display1Enabled = TRUE;
-        Policy.Display2Enabled = TRUE;
-        Policy.Panel1Orientation = DisplayOrientation1;
-        Policy.Panel2Orientation = DisplayOrientation2;
-
-        InputStitching::InputSpacePolicy inputPolicy = InputStitching::BuildInputSpacePolicy(
-            DisplayPanelId1, DisplayPanelId2, Policy, InputStitching::g_InputSpaceConfiguration);
-        HRESULT inputHr = InputStitching::g_InputSpaceRuntime.ApplyPolicy(inputPolicy);
-
-        if (FAILED(inputHr))
-        {
-            wprintf(
-                L"InputSpace policy application "
-                L"failed: 0x%08X\n",
-                inputHr);
-        }
     }
 
     DISPLAY_DEVICE displayDevice1{};
