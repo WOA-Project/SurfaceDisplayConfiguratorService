@@ -29,6 +29,8 @@ THE SOFTWARE.
 #include "pch.h"
 #include "VirtualDesktop.h"
 #include <tchar.h>
+#include <optional>
+#include <vector>
 
 // Non-Localizable strings
 namespace NonLocalizable {

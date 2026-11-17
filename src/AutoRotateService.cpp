@@ -1,5 +1,6 @@
 #include "pch.h"
 
+#include "winrt.h"
 #include "AutoRotateService.h"
 
 #include "AutoRotateContext.h"

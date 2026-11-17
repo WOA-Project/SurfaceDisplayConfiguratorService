@@ -1,5 +1,6 @@
 #include "pch.h"
 
+#include "winrt.h"
 #include <SetupAPI.h>
 #include <Devpkey.h>
 

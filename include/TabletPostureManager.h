@@ -36,6 +36,12 @@ BOOL WINAPI
 SetWallpaperSpanStyle();
 
 BOOL WINAPI
+SetWallpaperFillStyle();
+
+VOID WINAPI
+RefreshDesktop();
+
+BOOL WINAPI
 InitializeTabletPostureSubscriptions();
 
 VOID WINAPI

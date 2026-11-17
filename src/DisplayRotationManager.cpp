@@ -41,6 +41,7 @@
 #include <InputStitching\InputSpaceConfiguration.h>
 #include <InputStitching\InputSpaceRuntime.h>
 #include <InputStitching\InputSpacePolicyAdapter.h>
+#include <TabletPostureManager.h>
 
 static VOID
 ApplyPrimaryOverride(DISPLAY_PRIMARY_OVERRIDE Override, PDEVMODE Left, PDEVMODE Right)
@@ -475,6 +476,9 @@ SetDisplayStatesInternal(
             goto exit;
         }
     }
+
+    // Refresh Desktop Wallpaper setting...
+    RefreshDesktop();
 
     // Need to fix work areas if multiple displays due to Windows Shy Taskbar bugs...
     if (LeftDisplayState && RightDisplayState)

@@ -1,5 +1,6 @@
 #include "pch.h"
 
+#include "winrt.h"
 #include "SensorCallbacks.h"
 
 #include "AutoRotateService.h"
@@ -13,8 +14,6 @@ OnPostureChanged(
     TwoPanelHingedDevicePostureReadingChangedEventArgs const &Args)
 {
     printf("OnPostureChanged Entry\n");
-
-    SetWallpaperSpanStyle();
 
     ProcessCurrentPosture(Args.Reading());
 }
@@ -35,8 +34,6 @@ OnFlipSensorReadingChanged(FlipSensor const & /*Sender*/, FlipSensorReadingChang
     {
         return;
     }
-
-    SetWallpaperSpanStyle();
 
     FlipSensorReading Reading = Args.Reading();
 

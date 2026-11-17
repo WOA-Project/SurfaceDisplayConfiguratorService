@@ -1,5 +1,6 @@
 #include "pch.h"
 
+#include "winrt.h"
 #include <powrprof.h>
 
 #include "PowerManager.h"

@@ -3,6 +3,8 @@
 #include "DisplayChangeMonitor.h"
 #include "DisplayRotationManager.h"
 
+#include <atomic>
+
 DWORD WINAPI
 DisplayChangeMonitor::ThreadProc(void *Context)
 {
