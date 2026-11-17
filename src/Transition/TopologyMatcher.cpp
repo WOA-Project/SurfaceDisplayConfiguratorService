@@ -32,13 +32,9 @@ TopologyMatcher::Match(const TopologySnapshot &Current, const TopologySnapshot &
 
                 pair.Current.Role = currentRegion.Role;
 
-                pair.Current.Rect = currentRegion.RenderRect;
+                pair.Current.Rect = currentRegion.DesktopRect;
 
                 pair.Current.DesktopRect = currentRegion.DesktopRect;
-
-                pair.Current.TextureWidth = currentRegion.TextureWidth;
-
-                pair.Current.TextureHeight = currentRegion.TextureHeight;
 
                 pair.Current.RotationDegrees = 0.0f;
 
@@ -48,13 +44,9 @@ TopologyMatcher::Match(const TopologySnapshot &Current, const TopologySnapshot &
 
                 pair.Target.Role = Target.Regions[i].Role;
 
-                pair.Target.Rect = Target.Regions[i].RenderRect;
+                pair.Target.Rect = Target.Regions[i].DesktopRect;
 
                 pair.Target.DesktopRect = Target.Regions[i].DesktopRect;
-
-                pair.Target.TextureWidth = Target.Regions[i].TextureWidth;
-
-                pair.Target.TextureHeight = Target.Regions[i].TextureHeight;
 
                 pair.Target.RotationDegrees = 0.0f;
 
