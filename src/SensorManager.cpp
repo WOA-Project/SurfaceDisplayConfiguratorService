@@ -1,5 +1,6 @@
 #include "pch.h"
 
+#include "winrt.h"
 #include "SensorManager.h"
 
 SensorManager::SensorManager() : m_Initialized(FALSE), m_PostureSensor(nullptr), m_FlipSensor(nullptr) {}

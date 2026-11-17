@@ -28,6 +28,9 @@ THE SOFTWARE.
 */
 #pragma once
 
+#include <optional>
+#include <vector>
+
 class VirtualDesktop
 {
 public:

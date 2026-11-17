@@ -4,6 +4,7 @@
 #include <SetupAPI.h>
 #include <Devpkey.h>
 #include <tchar.h>
+#include <algorithm>
 
 #include "DevicePanel.h"
 #include "DisplayTopology.h"

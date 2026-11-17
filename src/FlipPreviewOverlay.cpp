@@ -6,11 +6,13 @@
 #include <dwmapi.h>
 #include <math.h>
 
+#include <algorithm>
 #include "resource.h"
 
 #include <uxtheme.h>
 
 #include "FlipConfirmationManager.h"
+#include <vector>
 
 #pragma comment(lib, "uxtheme.lib")
 

@@ -31,6 +31,8 @@
 #include <strsafe.h>
 #include <cfgmgr32.h>
 #include <winternl.h>
+#define IUnknown ::IUnknown
+#include <shlobj.h>
 #include "TabletPostureManager.h"
 
 ULONG64 WNF_TMCN_ISTABLETPOSTURE = 0x0F850339A3BC1035;
@@ -297,12 +299,39 @@ SetTabletPostureState(BOOLEAN state)
     return SUCCEEDED(status);
 }
 
+VOID WINAPI
+RefreshDesktop()
+{
+    WCHAR wallpaper[MAX_PATH];
+    DWORD size = ARRAYSIZE(wallpaper);
+
+    RegGetValueW(HKEY_CURRENT_USER, L"Control Panel\\Desktop", L"WallPaper", RRF_RT_REG_SZ, nullptr, wallpaper, &size);
+    SystemParametersInfoW(SPI_SETDESKWALLPAPER, 0, wallpaper, SPIF_UPDATEINIFILE | SPIF_SENDWININICHANGE);
+    SendMessageTimeoutW(
+        HWND_BROADCAST, WM_SETTINGCHANGE, 0, (LPARAM)L"Control Panel\\Desktop", SMTO_ABORTIFHUNG, 5000, nullptr);
+    SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
+}
+
 BOOL WINAPI
 SetWallpaperSpanStyle()
 {
     HRESULT status;
 
     const WCHAR *pvData = L"22";
+    DWORD pcbData = ((DWORD)wcslen(pvData) + 1) * sizeof(WCHAR);
+
+    status = _RegSetKeyValue(
+        HKEY_CURRENT_USER, _T("Control Panel\\Desktop"), _T("WallpaperStyle"), REG_SZ, (PBYTE)pvData, pcbData);
+
+    return SUCCEEDED(status);
+}
+
+BOOL WINAPI
+SetWallpaperFillStyle()
+{
+    HRESULT status;
+
+    const WCHAR *pvData = L"10";
     DWORD pcbData = ((DWORD)wcslen(pvData) + 1) * sizeof(WCHAR);
 
     status = _RegSetKeyValue(

@@ -28,6 +28,7 @@
 #include "ActiveMonitorWindowHandler.h"
 #include "PowerManager.h"
 #include <DisplaySynchronization.h>
+#include <thread>
 
 TCHAR SVCNAME[] = TEXT("SurfaceDisplayConfiguratorService");
 

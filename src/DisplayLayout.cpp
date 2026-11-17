@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "DisplayLayout.h"
+#include <TabletPostureManager.h>
 
 const PANEL_EDGE PhysicalLeftHingeEdge = PanelEdgeRight;
 const PANEL_EDGE PhysicalRightHingeEdge = PanelEdgeLeft;
@@ -94,6 +95,8 @@ DetermineDisplayConnection(INT LeftOrientation, INT RightOrientation)
 VOID WINAPI
 BuildExtendedDisplayLayout(const DISPLAY_CONNECTION &Connection, PDEVMODE LeftDevMode, PDEVMODE RightDevMode)
 {
+    BOOL SpanWallpaper = FALSE;
+
     //
     // Default origin.
     //
@@ -108,6 +111,7 @@ BuildExtendedDisplayLayout(const DISPLAY_CONNECTION &Connection, PDEVMODE LeftDe
     //
     if (Connection.LeftEdge == PanelEdgeRight && Connection.RightEdge == PanelEdgeLeft)
     {
+        SpanWallpaper = TRUE;
         RightDevMode->dmPosition.x = LeftDevMode->dmPelsWidth;
     }
 
@@ -116,6 +120,7 @@ BuildExtendedDisplayLayout(const DISPLAY_CONNECTION &Connection, PDEVMODE LeftDe
     //
     else if (Connection.LeftEdge == PanelEdgeLeft && Connection.RightEdge == PanelEdgeRight)
     {
+        SpanWallpaper = TRUE;
         //
         // Keep coordinates positive.
         //
@@ -127,6 +132,7 @@ BuildExtendedDisplayLayout(const DISPLAY_CONNECTION &Connection, PDEVMODE LeftDe
     //
     else if (Connection.LeftEdge == PanelEdgeBottom && Connection.RightEdge == PanelEdgeTop)
     {
+        SpanWallpaper = TRUE;
         //
         // Right display physically above left display
         //
@@ -138,6 +144,7 @@ BuildExtendedDisplayLayout(const DISPLAY_CONNECTION &Connection, PDEVMODE LeftDe
     //
     else if (Connection.LeftEdge == PanelEdgeTop && Connection.RightEdge == PanelEdgeBottom)
     {
+        SpanWallpaper = TRUE;
         //
         // Left display physically above right display
         //
@@ -149,6 +156,7 @@ BuildExtendedDisplayLayout(const DISPLAY_CONNECTION &Connection, PDEVMODE LeftDe
     //
     else if (Connection.LeftEdge == PanelEdgeTop && Connection.RightEdge == PanelEdgeTop)
     {
+        SpanWallpaper = FALSE;
         //
         // No uniquely correct answer.
         //
@@ -163,6 +171,7 @@ BuildExtendedDisplayLayout(const DISPLAY_CONNECTION &Connection, PDEVMODE LeftDe
     //
     else if (Connection.LeftEdge == PanelEdgeBottom && Connection.RightEdge == PanelEdgeBottom)
     {
+        SpanWallpaper = FALSE;
         //
         // No uniquely correct answer.
         //
@@ -177,6 +186,7 @@ BuildExtendedDisplayLayout(const DISPLAY_CONNECTION &Connection, PDEVMODE LeftDe
     //
     else if (Connection.LeftEdge == PanelEdgeLeft && Connection.RightEdge == PanelEdgeLeft)
     {
+        SpanWallpaper = FALSE;
         //
         // No uniquely correct answer.
         //
@@ -191,6 +201,7 @@ BuildExtendedDisplayLayout(const DISPLAY_CONNECTION &Connection, PDEVMODE LeftDe
     //
     else if (Connection.LeftEdge == PanelEdgeRight && Connection.RightEdge == PanelEdgeRight)
     {
+        SpanWallpaper = FALSE;
         //
         // No uniquely correct answer.
         //
@@ -201,6 +212,7 @@ BuildExtendedDisplayLayout(const DISPLAY_CONNECTION &Connection, PDEVMODE LeftDe
     }
     else
     {
+        SpanWallpaper = FALSE;
         wprintf(
             L"WARNING: Unsupported connection "
             L"%s <-> %s\n",
@@ -221,4 +233,13 @@ BuildExtendedDisplayLayout(const DISPLAY_CONNECTION &Connection, PDEVMODE LeftDe
         LeftDevMode->dmPosition.y,
         RightDevMode->dmPosition.x,
         RightDevMode->dmPosition.y);
+
+    if (SpanWallpaper)
+    {
+        SetWallpaperSpanStyle();
+    }
+    else
+    {
+        SetWallpaperFillStyle();
+    }
 }

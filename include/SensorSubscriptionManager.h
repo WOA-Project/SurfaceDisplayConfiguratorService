@@ -1,6 +1,7 @@
 #pragma once
 
 #include "pch.h"
+#include "winrt.h"
 
 BOOL WINAPI
 SubscribeSensorEvents(TwoPanelHingedDevicePosture PostureSensor, FlipSensor FlipSensorInstance);

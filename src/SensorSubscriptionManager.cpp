@@ -1,5 +1,6 @@
 #include "pch.h"
 
+#include "winrt.h"
 #include "SensorSubscriptionManager.h"
 
 extern VOID

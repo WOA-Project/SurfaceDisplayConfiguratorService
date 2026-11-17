@@ -1,5 +1,6 @@
 #include "pch.h"
 
+#include "winrt.h"
 #include "PostureProcessor.h"
 
 #include "AutoRotateContext.h"

@@ -22,6 +22,8 @@
 #pragma once
 #include <iostream>
 
+#define _SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS
+
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -31,22 +33,19 @@
 #endif
 
 #include <Windows.h>
-#include <winrt/Windows.Foundation.h>
-#include <winrt/Windows.Foundation.Collections.h>
-#include <winrt/Windows.System.h>
-#include <winrt/Windows.Devices.Sensors.h>
-#include <winrt/Windows.System.Preview.h>
-#include <winrt/Windows.Internal.Devices.Sensors.h>
-#include <winrt/Windows.Internal.System.h>
 
 #include <ShellScalingApi.h>
 #include <ShObjIdl.h>
 #include <strsafe.h>
 
-using namespace winrt;
-using namespace Windows::System;
-using namespace Windows::Foundation;
-using namespace Windows::Devices::Sensors;
-using namespace Windows::System::Preview;
-using namespace Windows::Internal::Devices::Sensors;
-using namespace Windows::Internal::System;
+// Common.h
+
+#define RETURN_IF_FAILED(hrcall)      \
+do                                    \
+{                                     \
+    const HRESULT hr__ = (hrcall);    \
+    if (FAILED(hr__))                 \
+    {                                 \
+        return hr__;                  \
+    }                                 \
+} while (false)

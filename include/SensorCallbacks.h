@@ -1,6 +1,7 @@
 #pragma once
 
 #include "pch.h"
+#include "winrt.h"
 
 VOID
 OnPostureChanged(

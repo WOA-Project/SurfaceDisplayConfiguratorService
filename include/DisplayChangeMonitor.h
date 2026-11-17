@@ -2,6 +2,8 @@
 
 #include <windows.h>
 
+#include <atomic>
+
 class DisplayChangeMonitor
 {
 public:

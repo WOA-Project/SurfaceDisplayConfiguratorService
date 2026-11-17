@@ -8,6 +8,7 @@
 
 #include "pch.h"
 
+#include "winrt.h"
 #include "OrientationManager.h"
 
 static bool
