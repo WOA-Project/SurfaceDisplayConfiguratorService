@@ -27,7 +27,7 @@ ApplyPostureReading(TwoPanelHingedDevicePostureReading Reading)
         Panel2Id);
 
     DisplayPolicy Policy = BuildDisplayPolicy(
-        g_AutoRotateContext.AutoRotationEnabled, Reading, g_AutoRotateContext.IsDisplay1SingleScreenFavorite);
+        /*g_AutoRotateContext.AutoRotationEnabled*/ TRUE, Reading, g_AutoRotateContext.IsDisplay1SingleScreenFavorite);
 
     wprintf(
         L"Policy to apply:\n"
