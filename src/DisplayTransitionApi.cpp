@@ -2,8 +2,8 @@
 
 #include "DisplayTransitionApi.h"
 
-#include "Transition/TransitionManager.h"
 #include "Transition/SnapshotBuilder.h"
+#include "Transition/TransitionManager.h"
 
 namespace {
 Transition::TransitionManager s_TransitionManager;

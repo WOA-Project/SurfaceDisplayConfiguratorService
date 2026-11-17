@@ -40,6 +40,10 @@ TopologyMatcher::Match(const TopologySnapshot &Current, const TopologySnapshot &
 
                 pair.Current.TextureHeight = currentRegion.TextureHeight;
 
+                pair.Current.RotationDegrees = 0.0f;
+
+                pair.Current.Opacity = 1.0f;
+
                 pair.Target.Id = Target.Regions[i].Id;
 
                 pair.Target.Role = Target.Regions[i].Role;
@@ -51,6 +55,10 @@ TopologyMatcher::Match(const TopologySnapshot &Current, const TopologySnapshot &
                 pair.Target.TextureWidth = Target.Regions[i].TextureWidth;
 
                 pair.Target.TextureHeight = Target.Regions[i].TextureHeight;
+
+                pair.Target.RotationDegrees = 0.0f;
+
+                pair.Target.Opacity = 1.0f;
 
                 targetMatched[i] = true;
 
