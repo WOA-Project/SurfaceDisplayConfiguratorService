@@ -2,15 +2,11 @@
 
 #include "Transition\\TransitionManager.h"
 
-#include "Transition\\AnimationClock.h"
 #include "Transition\\RenderGeometryBuilder.h"
+#include "Transition\\TopologyCoordinator.h"
+#include "Transition\\TransitionAnimator.h"
 #include "Transition\\TransitionStatistics.h"
 #include "Transition\\TransitionTrace.h"
-#include "Transition\\TopologySnapshot.h"
-#include "Transition\\TransitionAnimator.h"
-#include "Transition\\TopologyCoordinator.h"
-
-#include <utility>
 
 namespace Transition {
 
@@ -59,6 +55,10 @@ TransitionManager::EndTransition()
 
     m_CapturedDesktop.Clear();
 
+    m_CurrentRenderGeometry.clear();
+
+    m_TargetRenderGeometry.clear();
+
     m_CompositionHost.Shutdown();
 
     m_Overlay.Destroy();
@@ -83,6 +83,10 @@ TransitionManager::ExecuteTransition(
 
         m_CapturedDesktop.Clear();
 
+        m_CurrentRenderGeometry.clear();
+
+        m_TargetRenderGeometry.clear();
+
         m_CompositionHost.Shutdown();
 
         m_Overlay.Destroy();
@@ -90,16 +94,14 @@ TransitionManager::ExecuteTransition(
         m_Active = false;
     };
 
-    const HRESULT beginHr = BeginTransition(Request{});
+    HRESULT hr = BeginTransition(Request{});
 
-    if (FAILED(beginHr))
+    if (FAILED(hr))
     {
         cleanup();
 
-        return beginHr;
+        return hr;
     }
-
-    HRESULT hr = S_OK;
 
     do
     {
@@ -113,20 +115,9 @@ TransitionManager::ExecuteTransition(
 
         RETURN_IF_FAILED(m_CaptureManager.Capture(m_CapturedDesktop));
 
-        //
-        // Build render geometry from the
-        // actual captured content.
-        //
+        RETURN_IF_FAILED(m_RenderGeometryBuilder.Build(CurrentSnapshot, m_CapturedDesktop, m_CurrentRenderGeometry));
 
-        RenderGeometryBuilder geometryBuilder;
-
-        std::vector<RenderGeometry> currentGeometry;
-
-        std::vector<RenderGeometry> targetGeometry;
-
-        RETURN_IF_FAILED(geometryBuilder.Build(CurrentSnapshot, m_CapturedDesktop, currentGeometry));
-
-        RETURN_IF_FAILED(geometryBuilder.Build(TargetSnapshot, m_CapturedDesktop, targetGeometry));
+        RETURN_IF_FAILED(m_RenderGeometryBuilder.Build(TargetSnapshot, m_CapturedDesktop, m_TargetRenderGeometry));
 
         m_PanelVisuals.clear();
 
@@ -143,7 +134,7 @@ TransitionManager::ExecuteTransition(
 
         Scenario scenario;
 
-        RETURN_IF_FAILED(m_ScenarioBuilder.BuildScenario(CurrentSnapshot, TargetSnapshot, scenario));
+        RETURN_IF_FAILED(m_ScenarioBuilder.BuildScenario(m_CurrentRenderGeometry, m_TargetRenderGeometry, scenario));
 
         TransitionAnimator animator(m_CompositionHost);
 

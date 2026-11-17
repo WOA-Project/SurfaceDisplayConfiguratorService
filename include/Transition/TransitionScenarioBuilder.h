@@ -1,21 +1,22 @@
 #pragma once
 
-#include "Transition\VisualLayoutBuilder.h"
-#include "Transition\TopologySnapshot.h"
-#include "Transition\TransitionScenario.h"
+#include "Transition\\RenderGeometry.h"
+#include "Transition\\TransitionScenario.h"
+
+#include <vector>
 
 namespace Transition {
 
 class TransitionScenarioBuilder
 {
 public:
-    HRESULT
-    BuildScenario(const TopologySnapshot &CurrentPolicy, const TopologySnapshot &TargetPolicy, Scenario &Result);
+    HRESULT BuildScenario(
+        const std::vector<RenderGeometry> &CurrentGeometry,
+        const std::vector<RenderGeometry> &TargetGeometry,
+        Scenario &Result);
 
 private:
-    static VisualState MakeState(const DisplayRegion &Region);
-
-    static ScenarioKind DetectScenario(const TopologySnapshot &Current, const TopologySnapshot &Target);
+    VisualState MakeState(const RenderGeometry &Geometry);
 };
 
 } // namespace Transition

@@ -5,6 +5,29 @@
 
 namespace Transition {
 
+namespace {
+
+static float
+ToDegrees(DisplayRotation Rotation)
+{
+    switch (Rotation)
+    {
+    case DisplayRotation::Rotate90:
+        return 90.0f;
+
+    case DisplayRotation::Rotate180:
+        return 180.0f;
+
+    case DisplayRotation::Rotate270:
+        return 270.0f;
+
+    default:
+        return 0.0f;
+    }
+}
+
+} // namespace
+
 HRESULT
 RenderGeometryBuilder::Build(
     const TopologySnapshot &Snapshot,
@@ -25,22 +48,15 @@ RenderGeometryBuilder::Build(
 
         geometry.RenderRect = region.DesktopRect;
 
+        geometry.RotationDegrees = ToDegrees(region.Rotation);
+
         geometry.Orientation = RenderOrientation::Unknown;
 
         geometry.OrientationCorrected = false;
 
-        auto panelIt =
-            std::find_if(CapturedDesktop.Panels.begin(), CapturedDesktop.Panels.end(), [&](const CapturedPanel &panel) {
-                const LONG desktopWidth = panel.DesktopRect.right - panel.DesktopRect.left;
-
-                const LONG desktopHeight = panel.DesktopRect.bottom - panel.DesktopRect.top;
-
-                const LONG regionWidth = region.DesktopRect.right - region.DesktopRect.left;
-
-                const LONG regionHeight = region.DesktopRect.bottom - region.DesktopRect.top;
-
-                return desktopWidth == regionWidth && desktopHeight == regionHeight &&
-                       panel.DesktopRect.left == region.DesktopRect.left &&
+        auto panelIt = std::find_if(
+            CapturedDesktop.Panels.begin(), CapturedDesktop.Panels.end(), [&](const CapturedPanel &panel) {
+                return panel.DesktopRect.left == region.DesktopRect.left &&
                        panel.DesktopRect.top == region.DesktopRect.top;
             });
 
@@ -61,22 +77,26 @@ RenderGeometryBuilder::Build(
 
             if (orientationMismatch)
             {
-                geometry.Orientation = RenderOrientation::Portrait;
-
                 geometry.RenderRect.left = geometry.DesktopRect.left;
 
                 geometry.RenderRect.top = geometry.DesktopRect.top;
 
-                geometry.RenderRect.right = geometry.DesktopRect.left + static_cast<LONG>(geometry.TextureWidth);
+                geometry.RenderRect.right = geometry.RenderRect.left + static_cast<LONG>(geometry.TextureWidth);
 
-                geometry.RenderRect.bottom = geometry.DesktopRect.top + static_cast<LONG>(geometry.TextureHeight);
+                geometry.RenderRect.bottom = geometry.RenderRect.top + static_cast<LONG>(geometry.TextureHeight);
+
+                geometry.Orientation = RenderOrientation::Portrait;
             }
             else
             {
-                geometry.Orientation = RenderOrientation::Landscape;
-
                 geometry.RenderRect = geometry.DesktopRect;
+
+                geometry.Orientation = RenderOrientation::Landscape;
             }
+
+            geometry.PivotX = static_cast<float>(geometry.TextureWidth) * 0.5f;
+
+            geometry.PivotY = static_cast<float>(geometry.TextureHeight) * 0.5f;
         }
 
         Result.emplace_back(std::move(geometry));

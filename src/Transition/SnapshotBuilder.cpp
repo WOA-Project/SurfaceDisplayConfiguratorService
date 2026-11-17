@@ -54,14 +54,6 @@ SnapshotBuilder::BuildTopologySnapshot(
             LeftDevMode.dmPosition.x + static_cast<LONG>(LeftDevMode.dmPelsWidth),
             LeftDevMode.dmPosition.y + static_cast<LONG>(LeftDevMode.dmPelsHeight)};
 
-        //
-        // RenderRect starts equal to DesktopRect.
-        // RenderGeometryBuilder may later replace
-        // this with geometry derived from the
-        // captured content.
-        //
-        region.RenderRect = region.DesktopRect;
-
         snapshot.Regions.emplace_back(std::move(region));
     }
 
@@ -82,8 +74,6 @@ SnapshotBuilder::BuildTopologySnapshot(
             RightDevMode.dmPosition.y,
             RightDevMode.dmPosition.x + static_cast<LONG>(RightDevMode.dmPelsWidth),
             RightDevMode.dmPosition.y + static_cast<LONG>(RightDevMode.dmPelsHeight)};
-
-        region.RenderRect = region.DesktopRect;
 
         snapshot.Regions.emplace_back(std::move(region));
     }
