@@ -101,7 +101,7 @@ AnimationPlanner::BuildPlan(const RegionPair &Transition, AnimationPlan &Plan)
 
     Plan.PivotY = Transition.Current.PivotY;
 
-    if (Plan.PivotX == 0.0f && Plan.PivotY == 0.0f)
+    //if (Plan.PivotX == 0.0f && Plan.PivotY == 0.0f)
     {
         Plan.PivotX = static_cast<float>(Transition.Current.TextureWidth) * 0.5f;
 
