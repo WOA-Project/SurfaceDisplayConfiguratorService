@@ -43,6 +43,8 @@
 #include <InputStitching\InputSpacePolicyAdapter.h>
 #include <TabletPostureManager.h>
 
+#include "DisplayTransitionApi.h"
+
 static VOID
 ApplyPrimaryOverride(DISPLAY_PRIMARY_OVERRIDE Override, PDEVMODE Left, PDEVMODE Right)
 {
@@ -348,9 +350,27 @@ SetDisplayStatesInternal(
         }
 
         UpdateAutoRotationPolicy(LeftDisplayOrientation, RightDisplayOrientation, LeftDisplayState, RightDisplayState);
+        DEVMODE CurrentLeft = LeftDevMode;
+        DEVMODE CurrentRight = RightDevMode;
 
-        Status =
-            ApplyExtendedDisplayConfiguration(&LeftDisplayDevice, &RightDisplayDevice, &LeftDevMode, &RightDevMode);
+        EnumDisplaySettingsExW(LeftDisplayDevice.DeviceName, ENUM_CURRENT_SETTINGS, &CurrentLeft, 0);
+        EnumDisplaySettingsExW(RightDisplayDevice.DeviceName, ENUM_CURRENT_SETTINGS, &CurrentRight, 0);
+
+        Status = ExecuteDisplayTopologyTransition(
+            LeftDisplayPanelId,
+            RightDisplayPanelId,
+            CurrentLeft,
+            CurrentRight,
+            LeftDevMode,
+            RightDevMode,
+            lastLeftDisplayState,
+            lastRightDisplayState,
+            LeftDisplayState,
+            RightDisplayState,
+            [&]() {
+                return ApplyExtendedDisplayConfiguration(
+                    &LeftDisplayDevice, &RightDisplayDevice, &LeftDevMode, &RightDevMode);
+            });
 
         if (FAILED(Status))
         {
