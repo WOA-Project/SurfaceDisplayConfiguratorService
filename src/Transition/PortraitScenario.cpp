@@ -23,15 +23,20 @@ NormalizeDegrees(float Degrees)
 }
 
 static float
-ShortestArc(float Start, float End)
+ShortestArcTarget(float Start, float End)
 {
-    float Delta = NormalizeDegrees(End) - NormalizeDegrees(Start);
+    Start = NormalizeDegrees(Start);
+
+    End = NormalizeDegrees(End);
+
+    float Delta = End - Start;
 
     if (Delta > 180.0f)
     {
         Delta -= 360.0f;
     }
-    else if (Delta < -180.0f)
+
+    if (Delta < -180.0f)
     {
         Delta += 360.0f;
     }
@@ -54,7 +59,7 @@ PortraitScenarioBuilder::Build(Scenario &Scenario)
 
         auto &target = Scenario.TargetStates[i];
 
-        target.RotationDegrees = ShortestArc(current.RotationDegrees, target.RotationDegrees);
+        target.RotationDegrees = ShortestArcTarget(current.RotationDegrees, target.RotationDegrees);
     }
 
     return S_OK;
