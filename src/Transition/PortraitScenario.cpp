@@ -6,40 +6,42 @@
 
 namespace Transition {
 
-bool
-PortraitScenarioBuilder::IsPortraitRect(const RECT &Rect) noexcept
+static float
+NormalizeDegrees(float Degrees)
 {
-    return (Rect.bottom - Rect.top) > (Rect.right - Rect.left);
+    while (Degrees < 0.0f)
+    {
+        Degrees += 360.0f;
+    }
+
+    while (Degrees >= 360.0f)
+    {
+        Degrees -= 360.0f;
+    }
+
+    return Degrees;
 }
 
-bool
-PortraitScenarioBuilder::IsLandscapeRect(const RECT &Rect) noexcept
+static float
+ShortestArc(float Start, float End)
 {
-    return (Rect.right - Rect.left) > (Rect.bottom - Rect.top);
+    float Delta = NormalizeDegrees(End) - NormalizeDegrees(Start);
+
+    if (Delta > 180.0f)
+    {
+        Delta -= 360.0f;
+    }
+    else if (Delta < -180.0f)
+    {
+        Delta += 360.0f;
+    }
+
+    return Start + Delta;
 }
 
 HRESULT
 PortraitScenarioBuilder::Build(Scenario &Scenario)
 {
-    if (Scenario.CurrentStates.empty() || Scenario.TargetStates.empty())
-    {
-        return E_INVALIDARG;
-    }
-
-    //
-    // Portrait transitions are largely
-    // geometry-driven now.
-    //
-    // RotationDegrees already comes from:
-    //
-    // TopologySnapshot
-    //        ↓
-    // MakeState()
-    //
-    // Therefore we do NOT overwrite
-    // rotation values here.
-    //
-
     Scenario.DurationMs = 400;
 
     Scenario.CommitPoint = 0.50f;
@@ -52,30 +54,7 @@ PortraitScenarioBuilder::Build(Scenario &Scenario)
 
         auto &target = Scenario.TargetStates[i];
 
-        //
-        // Rotate around display center.
-        //
-
-        //target.PivotX = static_cast<float>(current.Rect.left + ((current.Rect.right - current.Rect.left) / 2));
-
-        //target.PivotY = static_cast<float>(current.Rect.top + ((current.Rect.bottom - current.Rect.top) / 2));
-
-        target.PivotX = 675.0f;
-target.PivotY = 900.0f;
-    }
-
-    //
-    // Diagnostics.
-    //
-
-    for (size_t i = 0; i < count; ++i)
-    {
-        wprintf(
-            L"PORTRAIT SCENARIO[%zu] "
-            L"%f -> %f\n",
-            i,
-            Scenario.CurrentStates[i].RotationDegrees,
-            Scenario.TargetStates[i].RotationDegrees);
+        target.RotationDegrees = ShortestArc(current.RotationDegrees, target.RotationDegrees);
     }
 
     return S_OK;

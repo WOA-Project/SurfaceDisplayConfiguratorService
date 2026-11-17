@@ -40,9 +40,6 @@ AnimationPlanner::BuildPlan(const RegionPair &Transition, AnimationPlan &Plan)
     //
     // Translation
     //
-    // Geometry is already normalized
-    // into RenderRect before this stage.
-    //
 
     Plan.StartX = static_cast<float>(Current.left);
 
@@ -98,9 +95,6 @@ AnimationPlanner::BuildPlan(const RegionPair &Transition, AnimationPlan &Plan)
 
     //
     // Pivot
-    //
-    // Geometry model now uses
-    // texture-local pivots.
     //
 
     Plan.PivotX = Transition.Current.PivotX;

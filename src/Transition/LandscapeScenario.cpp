@@ -1,65 +1,24 @@
 #include "pch.h"
 
-#include "Transition\LandscapeScenario.h"
-
-#include <algorithm>
+#include "Transition\\LandscapeScenario.h"
 
 namespace Transition {
-
-bool
-LandscapeScenarioBuilder::IsPortraitRect(const RECT &Rect) noexcept
-{
-    return (Rect.bottom - Rect.top) > (Rect.right - Rect.left);
-}
-
-bool
-LandscapeScenarioBuilder::IsLandscapeRect(const RECT &Rect) noexcept
-{
-    return (Rect.right - Rect.left) > (Rect.bottom - Rect.top);
-}
 
 HRESULT
 LandscapeScenarioBuilder::Build(Scenario &Scenario)
 {
-    if (Scenario.CurrentStates.empty() || Scenario.TargetStates.empty())
-    {
-        return E_INVALIDARG;
-    }
-
-    //
-    // Landscape transitions are generally
-    // slightly faster than fold/unfold
-    // but slower than a simple fade.
-    //
-
     Scenario.DurationMs = 400;
 
     Scenario.CommitPoint = 0.50f;
 
-    const size_t count = std::min(Scenario.CurrentStates.size(), Scenario.TargetStates.size());
-
-    for (size_t i = 0; i < count; ++i)
+    for (auto &state : Scenario.CurrentStates)
     {
-        auto &current = Scenario.CurrentStates[i];
+        state.RotationDegrees = 0.0f;
+    }
 
-        auto &target = Scenario.TargetStates[i];
-
-        //
-        // Portrait -> Landscape.
-        //
-
-        if (IsPortraitRect(current.Rect))
-        {
-            target.RotationDegrees = 0.0f;
-        }
-
-        //
-        // Rotate around display center.
-        //
-
-        target.PivotX = static_cast<float>(current.Rect.left + ((current.Rect.right - current.Rect.left) / 2));
-
-        target.PivotY = static_cast<float>(current.Rect.top + ((current.Rect.bottom - current.Rect.top) / 2));
+    for (auto &state : Scenario.TargetStates)
+    {
+        state.RotationDegrees = 0.0f;
     }
 
     return S_OK;

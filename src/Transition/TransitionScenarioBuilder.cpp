@@ -1,13 +1,13 @@
 #include "pch.h"
 
-#include "Transition/TransitionScenarioBuilder.h"
+#include "Transition\\TransitionScenarioBuilder.h"
 
-#include "Transition/BookScenario.h"
-#include "Transition/DualToSingleScenario.h"
-#include "Transition/PortraitScenario.h"
-#include "Transition/SingleToDualScenario.h"
-#include "Transition/TentScenario.h"
-#include "Transition/TopologySnapshot.h"
+#include "Transition\\BookScenario.h"
+#include "Transition\\DualToSingleScenario.h"
+#include "Transition\\PortraitScenario.h"
+#include "Transition\\SingleToDualScenario.h"
+#include "Transition\\TentScenario.h"
+#include "Transition\\TopologySnapshot.h"
 
 #include <algorithm>
 #include <cmath>
@@ -30,6 +30,25 @@ FindRegionByRole(const TopologySnapshot &Snapshot, DisplayRole Role)
     return nullptr;
 }
 
+static float
+ToDegrees(DisplayRotation Rotation)
+{
+    switch (Rotation)
+    {
+    case DisplayRotation::Rotate90:
+        return 90.0f;
+
+    case DisplayRotation::Rotate180:
+        return 180.0f;
+
+    case DisplayRotation::Rotate270:
+        return 270.0f;
+
+    default:
+        return 0.0f;
+    }
+}
+
 } // namespace
 
 VisualState
@@ -42,28 +61,22 @@ TransitionScenarioBuilder::MakeState(const DisplayRegion &Region)
     state.Role = Region.Role;
 
     //
-    // Use RenderRect as the geometry
-    // being animated.
+    // Transition geometry comes from
+    // RenderRect, not DesktopRect.
     //
+
     state.Rect = Region.RenderRect;
 
-    //
-    // Preserve desktop placement
-    // separately.
-    //
     state.DesktopRect = Region.DesktopRect;
 
     state.TextureWidth = Region.TextureWidth;
 
     state.TextureHeight = Region.TextureHeight;
 
-    state.RotationDegrees = 0.0f;
+    state.RotationDegrees = ToDegrees(Region.Rotation);
 
     state.Opacity = 1.0f;
 
-    //
-    // Pivot is texture-local.
-    //
     state.PivotX = static_cast<float>(Region.TextureWidth) * 0.5f;
 
     state.PivotY = static_cast<float>(Region.TextureHeight) * 0.5f;
@@ -135,12 +148,12 @@ TransitionScenarioBuilder::BuildScenario(
 
     for (const auto &region : CurrentSnapshot.Regions)
     {
-        Result.CurrentStates.push_back(MakeState(region));
+        Result.CurrentStates.emplace_back(MakeState(region));
     }
 
     for (const auto &region : TargetSnapshot.Regions)
     {
-        Result.TargetStates.push_back(MakeState(region));
+        Result.TargetStates.emplace_back(MakeState(region));
     }
 
     switch (Result.Kind)
