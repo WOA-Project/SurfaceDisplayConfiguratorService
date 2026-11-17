@@ -1,6 +1,7 @@
 #pragma once
 
 #include <windows.h>
+#include "Transition\TopologySnapshot.h"
 
 #include <vector>
 
@@ -8,6 +9,10 @@ namespace Transition {
 
 struct VisualState
 {
+    std::wstring Id;
+
+    DisplayRole Role = DisplayRole::Unknown;
+
     RECT Rect{};
 
     float RotationDegrees = 0.0f;

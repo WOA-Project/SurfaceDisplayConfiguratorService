@@ -43,6 +43,8 @@ TransitionScenarioBuilder::MakeState(const DisplayRegion &Region)
 {
     VisualState state{};
 
+    state.Id = Region.Id;
+    state.Role = Region.Role;
     state.Rect = Region.DesktopRect;
 
     switch (Region.Rotation)
@@ -91,6 +93,22 @@ TransitionScenarioBuilder::DetectScenario(const TopologySnapshot &Current, const
         return ScenarioKind::SingleToDual;
     }
 
+    const DisplayRegion *currentLeft = FindRegionByRole(Current, DisplayRole::Left);
+
+    const DisplayRegion *targetLeft = FindRegionByRole(Target, DisplayRole::Left);
+
+    if (currentLeft && targetLeft)
+    {
+        //
+        // Any rotation change should animate.
+        //
+
+        if (currentLeft->Rotation != targetLeft->Rotation)
+        {
+            return ScenarioKind::RotationChange;
+        }
+    }
+
     if (targetCount == 2)
     {
         const auto &first = Target.Regions[0];
@@ -107,27 +125,6 @@ TransitionScenarioBuilder::DetectScenario(const TopologySnapshot &Current, const
         }
     }
 
-    const DisplayRegion *currentLeft = FindRegionByRole(Current, DisplayRole::Left);
-
-    const DisplayRegion *targetLeft = FindRegionByRole(Target, DisplayRole::Left);
-
-    if (currentLeft && targetLeft)
-    {
-        const bool currentPortrait = IsPortraitRotation(currentLeft->Rotation);
-
-        const bool targetPortrait = IsPortraitRotation(targetLeft->Rotation);
-
-        if (!currentPortrait && targetPortrait)
-        {
-            return ScenarioKind::LandscapeToPortrait;
-        }
-
-        if (currentPortrait && !targetPortrait)
-        {
-            return ScenarioKind::PortraitToLandscape;
-        }
-    }
-
     return ScenarioKind::Unknown;
 }
 
@@ -141,6 +138,8 @@ TransitionScenarioBuilder::BuildScenario(
 
     Result.Kind = DetectScenario(CurrentSnapshot, TargetSnapshot);
 
+    wprintf(L"SCENARIO DETECTED=%d\n", static_cast<int>(Result.Kind));
+
     Result.DurationMs = 250;
 
     Result.CommitPoint = 0.50f;
@@ -153,6 +152,16 @@ TransitionScenarioBuilder::BuildScenario(
     for (const auto &region : TargetSnapshot.Regions)
     {
         Result.TargetStates.push_back(MakeState(region));
+    }
+
+    for (size_t i = 0; i < Result.CurrentStates.size(); ++i)
+    {
+        wprintf(L"STATE[%zu] Current=%f\n", i, Result.CurrentStates[i].RotationDegrees);
+    }
+
+    for (size_t i = 0; i < Result.TargetStates.size(); ++i)
+    {
+        wprintf(L"STATE[%zu] Target=%f\n", i, Result.TargetStates[i].RotationDegrees);
     }
 
     switch (Result.Kind)
@@ -188,6 +197,8 @@ TransitionScenarioBuilder::BuildScenario(
 
         break;
     }
+
+    case ScenarioKind::RotationChange:
 
     case ScenarioKind::LandscapeToPortrait:
 

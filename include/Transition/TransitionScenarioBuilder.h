@@ -9,6 +9,8 @@ enum class ScenarioKind
 {
     Unknown,
 
+    RotationChange,
+
     Fold,
     Unfold,
 

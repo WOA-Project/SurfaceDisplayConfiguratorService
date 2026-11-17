@@ -29,11 +29,33 @@ AnimationBuilder::CreateScalarAnimation(
         return E_UNEXPECTED;
     }
 
-    RETURN_IF_FAILED(device->CreateAnimation(Animation));
+    HRESULT hr = device->CreateAnimation(Animation);
 
-    RETURN_IF_FAILED((*Animation)->AddCubic(0.0, Start, 0.0, 0.0, 0.0));
+    wprintf(
+        L"[Transition] CreateAnimation "
+        L"hr=0x%08X "
+        L"Start=%f "
+        L"End=%f "
+        L"Duration=%f\n",
+        hr,
+        Start,
+        End,
+        DurationSeconds);
 
-    RETURN_IF_FAILED((*Animation)->AddCubic(DurationSeconds, End, 0.0, 0.0, 0.0));
+    RETURN_IF_FAILED(hr);
+
+    //
+    // Single segment.
+    //
+
+    hr = (*Animation)->AddCubic(0.0, Start, End - Start, 0.0, 0.0);
+
+    wprintf(
+        L"[Transition] AddCubic "
+        L"hr=0x%08X\n",
+        hr);
+
+    RETURN_IF_FAILED(hr);
 
     return S_OK;
 }

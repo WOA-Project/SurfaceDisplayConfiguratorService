@@ -133,54 +133,87 @@ DisplayRegionMatcher::Match(
     std::vector<bool> targetUsed(Target.size(), false);
 
     //
-    // Match every current region to the
-    // best target region.
+    // First pass:
+    // exact panel-id matching.
     //
 
     for (const auto &currentState : Current)
     {
-        int bestIndex = -1;
-
-        double bestScore = -std::numeric_limits<double>::max();
-
-        for (size_t i = 0; i < Target.size(); ++i)
-        {
-            if (targetUsed[i])
-            {
-                continue;
-            }
-
-            const double score = MatchScore(currentState.Rect, Target[i].Rect);
-
-            if (score > bestScore)
-            {
-                bestScore = score;
-                bestIndex = static_cast<int>(i);
-            }
-        }
-
         RegionPair pair{};
 
         pair.Current = currentState;
 
-        if (bestIndex >= 0)
-        {
-            pair.Target = Target[bestIndex];
+        bool matched = false;
 
-            targetUsed[bestIndex] = true;
-        }
-        else
+        if (!currentState.Id.empty())
         {
-            pair.Target = MakeRemovedState(currentState);
+            for (size_t i = 0; i < Target.size(); ++i)
+            {
+                if (targetUsed[i])
+                {
+                    continue;
+                }
+
+                if (Target[i].Id == currentState.Id)
+                {
+                    pair.Target = Target[i];
+
+                    targetUsed[i] = true;
+
+                    matched = true;
+
+                    break;
+                }
+            }
         }
+
+        if (!matched)
+        {
+            int bestIndex = -1;
+
+            double bestScore = -std::numeric_limits<double>::max();
+
+            for (size_t i = 0; i < Target.size(); ++i)
+            {
+                if (targetUsed[i])
+                {
+                    continue;
+                }
+
+                const double score = MatchScore(currentState.Rect, Target[i].Rect);
+
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    bestIndex = static_cast<int>(i);
+                }
+            }
+
+            if (bestIndex >= 0)
+            {
+                pair.Target = Target[bestIndex];
+
+                targetUsed[bestIndex] = true;
+            }
+            else
+            {
+                pair.Target = MakeRemovedState(currentState);
+            }
+        }
+
+        wprintf(
+            L"MATCH: %s "
+            L"Rot(%f)->(%f)\n",
+            pair.Current.Id.c_str(),
+            pair.Current.RotationDegrees,
+            pair.Target.RotationDegrees);
 
         Pairs.emplace_back(std::move(pair));
     }
 
     //
-    // Remaining target regions represent
-    // displays appearing during the
-    // transition.
+    // Remaining targets become appearing
+    // regions.
     //
 
     for (size_t i = 0; i < Target.size(); ++i)

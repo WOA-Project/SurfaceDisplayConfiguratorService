@@ -1,6 +1,6 @@
 #include "pch.h"
 
-#include "Transition\PortraitScenario.h"
+#include "Transition\\PortraitScenario.h"
 
 #include <algorithm>
 
@@ -26,7 +26,22 @@ PortraitScenarioBuilder::Build(Scenario &Scenario)
         return E_INVALIDARG;
     }
 
+    //
+    // Portrait transitions are largely
+    // geometry-driven now.
+    //
+    // RotationDegrees already comes from:
+    //
+    // TopologySnapshot
+    //        ↓
+    // MakeState()
+    //
+    // Therefore we do NOT overwrite
+    // rotation values here.
+    //
+
     Scenario.DurationMs = 400;
+
     Scenario.CommitPoint = 0.50f;
 
     const size_t count = std::min(Scenario.CurrentStates.size(), Scenario.TargetStates.size());
@@ -37,19 +52,30 @@ PortraitScenarioBuilder::Build(Scenario &Scenario)
 
         auto &target = Scenario.TargetStates[i];
 
-        if (IsLandscapeRect(current.Rect))
-        {
-            target.RotationDegrees = 90.0f;
-        }
-
         //
-        // Rotate around the center of the
-        // current display region.
+        // Rotate around display center.
         //
 
-        target.PivotX = static_cast<float>(current.Rect.left + ((current.Rect.right - current.Rect.left) / 2));
+        //target.PivotX = static_cast<float>(current.Rect.left + ((current.Rect.right - current.Rect.left) / 2));
 
-        target.PivotY = static_cast<float>(current.Rect.top + ((current.Rect.bottom - current.Rect.top) / 2));
+        //target.PivotY = static_cast<float>(current.Rect.top + ((current.Rect.bottom - current.Rect.top) / 2));
+
+        target.PivotX = 675.0f;
+target.PivotY = 900.0f;
+    }
+
+    //
+    // Diagnostics.
+    //
+
+    for (size_t i = 0; i < count; ++i)
+    {
+        wprintf(
+            L"PORTRAIT SCENARIO[%zu] "
+            L"%f -> %f\n",
+            i,
+            Scenario.CurrentStates[i].RotationDegrees,
+            Scenario.TargetStates[i].RotationDegrees);
     }
 
     return S_OK;

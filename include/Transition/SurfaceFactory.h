@@ -38,6 +38,14 @@ public:
 private:
     HRESULT
     CreateSurfaceFromTexture(CompositionHost &Host, ID3D11Texture2D *SourceTexture, IDCompositionSurface **Surface);
+
+    HRESULT
+    CreateDebugSurface(
+        CompositionHost &Host,
+        UINT Width,
+        UINT Height,
+        D2D1_COLOR_F Color,
+        IDCompositionSurface **Surface);
 };
 
 } // namespace Transition

@@ -90,6 +90,7 @@ TransitionManager::ExecuteTransition(
 
     if (FAILED(beginHr))
     {
+        wprintf(L"BeginTransitionFailed!\n");
         cleanup();
         return beginHr;
     }
@@ -101,6 +102,7 @@ TransitionManager::ExecuteTransition(
         hr = m_Overlay.Create();
         if (FAILED(hr))
         {
+            wprintf(L"Overlay Create failed!\n");
             break;
         }
 
@@ -110,6 +112,7 @@ TransitionManager::ExecuteTransition(
 
         if (FAILED(hr))
         {
+            wprintf(L"CompositionHost Init failed!\n");
             break;
         }
 
@@ -117,6 +120,7 @@ TransitionManager::ExecuteTransition(
 
         if (FAILED(hr))
         {
+            wprintf(L"CaptureManager Init failed!\n");
             break;
         }
 
@@ -124,6 +128,7 @@ TransitionManager::ExecuteTransition(
 
         if (FAILED(hr))
         {
+            wprintf(L"CaptureManager Capture failed!\n");
             break;
         }
 
@@ -148,6 +153,7 @@ TransitionManager::ExecuteTransition(
 
             if (FAILED(hr))
             {
+                wprintf(L"CreatePanelVisual failed! %d\n", hr);
                 break;
             }
 
@@ -160,6 +166,9 @@ TransitionManager::ExecuteTransition(
         }
 
         hr = m_CompositionHost.Commit();
+
+        wprintf(L"HELLO\n");
+        Sleep(5000);
 
         if (FAILED(hr))
         {
