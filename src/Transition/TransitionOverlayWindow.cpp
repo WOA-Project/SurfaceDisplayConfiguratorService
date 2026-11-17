@@ -62,6 +62,14 @@ TransitionOverlayWindow::RefreshVirtualDesktopRect()
     m_VirtualDesktopRect.right = m_VirtualDesktopRect.left + GetSystemMetrics(SM_CXVIRTUALSCREEN);
 
     m_VirtualDesktopRect.bottom = m_VirtualDesktopRect.top + GetSystemMetrics(SM_CYVIRTUALSCREEN);
+
+    wprintf(
+        L"[Transition] OverlayDesktop "
+        L"(%ld,%ld)-(%ld,%ld)\n",
+        m_VirtualDesktopRect.left,
+        m_VirtualDesktopRect.top,
+        m_VirtualDesktopRect.right,
+        m_VirtualDesktopRect.bottom);
 }
 
 HRESULT
@@ -94,6 +102,21 @@ TransitionOverlayWindow::Create()
         return HRESULT_FROM_WIN32(GetLastError());
     }
 
+    RECT windowRect{};
+
+    GetWindowRect(m_Window, &windowRect);
+
+    wprintf(
+        L"[Transition] OverlayWindow "
+        L"(%ld,%ld)-(%ld,%ld) "
+        L"size=%ldx%ld\n",
+        windowRect.left,
+        windowRect.top,
+        windowRect.right,
+        windowRect.bottom,
+        windowRect.right - windowRect.left,
+        windowRect.bottom - windowRect.top);
+
     SetLayeredWindowAttributes(m_Window, 0, 255, LWA_ALPHA);
 
     return S_OK;
@@ -121,6 +144,16 @@ TransitionOverlayWindow::Show()
     ShowWindow(m_Window, SW_SHOWNOACTIVATE);
 
     UpdateWindow(m_Window);
+
+    RECT clientRect{};
+
+    GetClientRect(m_Window, &clientRect);
+
+    wprintf(
+        L"[Transition] OverlayClient "
+        L"%ldx%ld\n",
+        clientRect.right,
+        clientRect.bottom);
 }
 
 void

@@ -1,17 +1,12 @@
 #include "pch.h"
 
-#include "Transition\AnimationClock.h"
+#include "Transition\\AnimationClock.h"
 
 namespace Transition {
 
 HRESULT
-AnimationClock::Start(UINT DurationMs, float CommitPoint)
+AnimationClock::Start(uint32_t DurationMs, float CommitPoint)
 {
-    if (DurationMs == 0)
-    {
-        return E_INVALIDARG;
-    }
-
     if (CommitPoint < 0.0f || CommitPoint > 1.0f)
     {
         return E_INVALIDARG;
@@ -19,120 +14,58 @@ AnimationClock::Start(UINT DurationMs, float CommitPoint)
 
     m_DurationMs = DurationMs;
 
-    m_CommitTimeMs = static_cast<UINT>(static_cast<float>(DurationMs) * CommitPoint);
+    m_CommitPoint = CommitPoint;
 
     m_StartTick = GetTickCount64();
 
-    m_State.store(AnimationClockState::Running, std::memory_order_release);
+    m_Running = true;
 
     return S_OK;
 }
 
-void
-AnimationClock::Cancel()
-{
-    m_State.store(AnimationClockState::Cancelled, std::memory_order_release);
-}
-
-bool
-AnimationClock::IsRunning() const noexcept
-{
-    return m_State.load(std::memory_order_acquire) == AnimationClockState::Running;
-}
-
-bool
-AnimationClock::IsCancelled() const noexcept
-{
-    return m_State.load(std::memory_order_acquire) == AnimationClockState::Cancelled;
-}
-
-bool
-AnimationClock::IsComplete() const noexcept
-{
-    const auto state = m_State.load(std::memory_order_acquire);
-
-    if (state == AnimationClockState::Cancelled)
-    {
-        return true;
-    }
-
-    if (state == AnimationClockState::Completed)
-    {
-        return true;
-    }
-
-    if (state != AnimationClockState::Running)
-    {
-        return false;
-    }
-
-    const ULONGLONG elapsed = GetTickCount64() - m_StartTick;
-
-    if (elapsed >= m_DurationMs)
-    {
-        const_cast<AnimationClock *>(this)->m_State.store(AnimationClockState::Completed, std::memory_order_release);
-
-        return true;
-    }
-
-    return false;
-}
-
-bool
-AnimationClock::HasReachedCommitPoint() const noexcept
-{
-    if (!IsRunning())
-    {
-        return false;
-    }
-
-    const ULONGLONG elapsed = GetTickCount64() - m_StartTick;
-
-    return elapsed >= m_CommitTimeMs;
-}
-
 HRESULT
-AnimationClock::WaitForCommitPoint(DWORD PollIntervalMs)
+AnimationClock::WaitForCommitPoint()
 {
-    while (!HasReachedCommitPoint())
+    if (!m_Running)
     {
-        if (IsCancelled())
-        {
-            return HRESULT_FROM_WIN32(ERROR_CANCELLED);
-        }
+        return E_UNEXPECTED;
+    }
 
-        Sleep(PollIntervalMs);
+    const uint64_t commitDelayMs =
+        static_cast<uint64_t>(static_cast<double>(m_DurationMs) * static_cast<double>(m_CommitPoint));
+
+    const uint64_t now = GetTickCount64();
+
+    const uint64_t elapsed = now - m_StartTick;
+
+    if (elapsed < commitDelayMs)
+    {
+        Sleep(static_cast<DWORD>(commitDelayMs - elapsed));
     }
 
     return S_OK;
 }
 
 HRESULT
-AnimationClock::WaitForCompletion(DWORD PollIntervalMs)
+AnimationClock::WaitForCompletion()
 {
-    while (!IsComplete())
+    if (!m_Running)
     {
-        if (IsCancelled())
-        {
-            return HRESULT_FROM_WIN32(ERROR_CANCELLED);
-        }
-
-        Sleep(PollIntervalMs);
+        return E_UNEXPECTED;
     }
 
+    const uint64_t now = GetTickCount64();
+
+    const uint64_t elapsed = now - m_StartTick;
+
+    if (elapsed < m_DurationMs)
+    {
+        Sleep(static_cast<DWORD>(m_DurationMs - elapsed));
+    }
+
+    m_Running = false;
+
     return S_OK;
-}
-
-UINT
-AnimationClock::GetDurationMs() const noexcept
-{
-    return m_DurationMs;
-}
-
-UINT
-AnimationClock::GetCommitTimeMs() const noexcept
-{
-    return m_CommitTimeMs;
 }
 
 } // namespace Transition

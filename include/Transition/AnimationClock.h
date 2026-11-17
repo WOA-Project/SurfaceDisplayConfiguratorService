@@ -2,54 +2,27 @@
 
 #include <windows.h>
 
-#include <atomic>
+#include <cstdint>
 
 namespace Transition {
-
-enum class AnimationClockState
-{
-    Idle,
-
-    Running,
-
-    Completed,
-
-    Cancelled
-};
 
 class AnimationClock
 {
 public:
-    AnimationClock() = default;
+    HRESULT Start(uint32_t DurationMs, float CommitPoint);
 
-    HRESULT Start(UINT DurationMs, float CommitPoint);
+    HRESULT WaitForCommitPoint();
 
-    void Cancel();
-
-    bool IsRunning() const noexcept;
-
-    bool IsCancelled() const noexcept;
-
-    bool IsComplete() const noexcept;
-
-    bool HasReachedCommitPoint() const noexcept;
-
-    HRESULT WaitForCommitPoint(DWORD PollIntervalMs = 1);
-
-    HRESULT WaitForCompletion(DWORD PollIntervalMs = 1);
-
-    UINT GetDurationMs() const noexcept;
-
-    UINT GetCommitTimeMs() const noexcept;
+    HRESULT WaitForCompletion();
 
 private:
-    UINT m_DurationMs = 0;
+    uint64_t m_StartTick = 0;
 
-    UINT m_CommitTimeMs = 0;
+    uint32_t m_DurationMs = 0;
 
-    ULONGLONG m_StartTick = 0;
+    float m_CommitPoint = 0.0f;
 
-    std::atomic<AnimationClockState> m_State = AnimationClockState::Idle;
+    bool m_Running = false;
 };
 
 } // namespace Transition

@@ -1,15 +1,13 @@
 #pragma once
 
-#include "Transition\AnimationPlan.h"
-#include "Transition\DisplayRegionMatcher.h"
+#include "Transition\\AnimationPlan.h"
+#include "Transition\\RegionPair.h"
 
 namespace Transition {
 
 class AnimationPlanner
 {
 public:
-    AnimationPlanner() = default;
-
     HRESULT BuildPlan(const RegionPair &Transition, AnimationPlan &Plan);
 
 private:

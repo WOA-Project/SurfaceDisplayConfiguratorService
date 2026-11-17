@@ -2,9 +2,7 @@
 
 #include <functional>
 
-struct _devicemodeW;
-typedef struct _devicemodeW DEVMODEW;
-typedef DEVMODEW DEVMODE;
+#include <windows.h>
 
 HRESULT
 ExecuteDisplayTopologyTransition(

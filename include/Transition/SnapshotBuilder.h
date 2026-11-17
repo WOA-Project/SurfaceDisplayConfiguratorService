@@ -16,8 +16,6 @@ public:
         const DEVMODE &RightDevMode,
         bool LeftEnabled,
         bool RightEnabled);
-
-    static TopologySnapshot Build(const InputStitching::Plan &Plan);
 };
 
 } // namespace Transition

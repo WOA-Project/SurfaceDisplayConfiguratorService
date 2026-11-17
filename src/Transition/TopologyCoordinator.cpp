@@ -1,9 +1,11 @@
 #include "pch.h"
 
-#include "Transition\TopologyCoordinator.h"
+#include "Transition\\TopologyCoordinator.h"
 
-#include "Transition\TransitionStatistics.h"
-#include "Transition\TransitionTrace.h"
+#include "Transition\\AnimationClock.h"
+#include "Transition\\TopologyGeneration.h"
+#include "Transition\\TransitionStatistics.h"
+#include "Transition\\TransitionTrace.h"
 
 #include <algorithm>
 
@@ -34,23 +36,6 @@ TopologyCoordinator::Execute(
     for (size_t i = 0; i < pairs.size(); ++i)
     {
         RETURN_IF_FAILED(m_Planner.BuildPlan(pairs[i], plans[i]));
-
-        wprintf(
-            L"[Transition] Plan[%zu] "
-            L"Pos(%f,%f)->(%f,%f) "
-            L"Scale(%f,%f)->(%f,%f) "
-            L"Rot(%f)->(%f)\n",
-            i,
-            plans[i].StartX,
-            plans[i].StartY,
-            plans[i].EndX,
-            plans[i].EndY,
-            plans[i].StartScaleX,
-            plans[i].StartScaleY,
-            plans[i].EndScaleX,
-            plans[i].EndScaleY,
-            plans[i].StartRotationDegrees,
-            plans[i].EndRotationDegrees);
 
         plans[i].DurationMs = Scenario.DurationMs;
 

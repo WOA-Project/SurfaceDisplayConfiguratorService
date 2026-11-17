@@ -1,8 +1,9 @@
 #pragma once
 
-#include "Transition\AnimationBuilder.h"
-#include "Transition\AnimationPlan.h"
-#include "Transition\SurfaceFactory.h"
+#include "Transition\\AnimationBuilder.h"
+#include "Transition\\AnimationPlan.h"
+#include "Transition\\CompositionHost.h"
+#include "Transition\\PanelVisual.h"
 
 namespace Transition {
 
@@ -10,10 +11,6 @@ class TransitionAnimator
 {
 public:
     explicit TransitionAnimator(CompositionHost &Host);
-
-    TransitionAnimator(const TransitionAnimator &) = delete;
-
-    TransitionAnimator &operator=(const TransitionAnimator &) = delete;
 
     HRESULT Execute(PanelVisual &Visual, const AnimationPlan &Plan);
 

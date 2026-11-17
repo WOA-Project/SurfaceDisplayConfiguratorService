@@ -1,6 +1,6 @@
 #include "pch.h"
 
-#include "Transition\SurfaceFactory.h"
+#include "Transition\\SurfaceFactory.h"
 
 #include <d3d11.h>
 #include <dxgi.h>
@@ -23,7 +23,7 @@ SurfaceFactory::CreateDebugSurface(
 
     POINT offset{};
 
-    Microsoft::WRL::ComPtr<IDXGISurface> dxgiSurface;
+    ComPtr<IDXGISurface> dxgiSurface;
 
     RETURN_IF_FAILED((*Surface)->BeginDraw(nullptr, IID_PPV_ARGS(dxgiSurface.GetAddressOf()), &offset));
 
@@ -31,7 +31,7 @@ SurfaceFactory::CreateDebugSurface(
 
     do
     {
-        Microsoft::WRL::ComPtr<ID2D1Factory1> factory;
+        ComPtr<ID2D1Factory1> factory;
 
         hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, factory.GetAddressOf());
 
@@ -40,9 +40,9 @@ SurfaceFactory::CreateDebugSurface(
             break;
         }
 
-        Microsoft::WRL::ComPtr<ID2D1Device> d2dDevice;
+        ComPtr<ID2D1Device> d2dDevice;
 
-        Microsoft::WRL::ComPtr<IDXGIDevice> dxgiDevice;
+        ComPtr<IDXGIDevice> dxgiDevice;
 
         hr = Host.GetD3DDevice()->QueryInterface(IID_PPV_ARGS(dxgiDevice.GetAddressOf()));
 
@@ -58,7 +58,7 @@ SurfaceFactory::CreateDebugSurface(
             break;
         }
 
-        Microsoft::WRL::ComPtr<ID2D1DeviceContext> d2dContext;
+        ComPtr<ID2D1DeviceContext> d2dContext;
 
         hr = d2dDevice->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, d2dContext.GetAddressOf());
 
@@ -67,7 +67,7 @@ SurfaceFactory::CreateDebugSurface(
             break;
         }
 
-        Microsoft::WRL::ComPtr<ID2D1Bitmap1> bitmap;
+        ComPtr<ID2D1Bitmap1> bitmap;
 
         D2D1_BITMAP_PROPERTIES1 props = D2D1::BitmapProperties1(
             D2D1_BITMAP_OPTIONS_TARGET, D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED));
@@ -106,62 +106,23 @@ SurfaceFactory::CreateSurfaceFromTexture(
 {
     if (!SourceTexture || !Surface)
     {
-        wprintf(L"[Transition][ERROR] CreateSurfaceFromTexture invalid args\n");
-
         return E_INVALIDARG;
     }
 
     *Surface = nullptr;
 
-    D3D11_TEXTURE2D_DESC textureDesc{};
+    D3D11_TEXTURE2D_DESC
+    textureDesc{};
 
     SourceTexture->GetDesc(&textureDesc);
 
-    {
-        wchar_t buffer[512];
-
-        swprintf_s(
-            buffer,
-            L"[Transition][INFO] SourceTexture "
-            L"%ux%u Format=%u Usage=%u BindFlags=0x%08X MiscFlags=0x%08X\n",
-            textureDesc.Width,
-            textureDesc.Height,
-            textureDesc.Format,
-            textureDesc.Usage,
-            textureDesc.BindFlags,
-            textureDesc.MiscFlags);
-
-        wprintf(buffer);
-    }
-
-    HRESULT hr = Host.CreateSurface(textureDesc.Width, textureDesc.Height, textureDesc.Format, Surface);
-
-    {
-        wchar_t buffer[128];
-
-        swprintf_s(buffer, L"[Transition][INFO] CreateSurface hr=0x%08X\n", hr);
-
-        wprintf(buffer);
-    }
-
-    RETURN_IF_FAILED(hr);
+    RETURN_IF_FAILED(Host.CreateSurface(textureDesc.Width, textureDesc.Height, textureDesc.Format, Surface));
 
     POINT updateOffset{};
 
     ComPtr<IDXGISurface> drawSurface;
 
-    hr = (*Surface)->BeginDraw(nullptr, IID_PPV_ARGS(drawSurface.GetAddressOf()), &updateOffset);
-
-    {
-        wchar_t buffer[256];
-
-        swprintf_s(
-            buffer, L"[Transition][INFO] BeginDraw hr=0x%08X Offset=(%ld,%ld)\n", hr, updateOffset.x, updateOffset.y);
-
-        wprintf(buffer);
-    }
-
-    RETURN_IF_FAILED(hr);
+    RETURN_IF_FAILED((*Surface)->BeginDraw(nullptr, IID_PPV_ARGS(drawSurface.GetAddressOf()), &updateOffset));
 
     HRESULT result = S_OK;
 
@@ -171,55 +132,18 @@ SurfaceFactory::CreateSurfaceFromTexture(
 
         result = drawSurface.As(&destinationTexture);
 
-        {
-            wchar_t buffer[128];
-
-            swprintf_s(buffer, L"[Transition][INFO] IDXGISurface->ID3D11Texture2D hr=0x%08X\n", result);
-
-            wprintf(buffer);
-        }
-
         if (FAILED(result))
         {
             break;
-        }
-
-        D3D11_TEXTURE2D_DESC destinationDesc{};
-
-        destinationTexture->GetDesc(&destinationDesc);
-
-        {
-            wchar_t buffer[512];
-
-            swprintf_s(
-                buffer,
-                L"[Transition][INFO] DestinationTexture "
-                L"%ux%u Format=%u Usage=%u BindFlags=0x%08X MiscFlags=0x%08X\n",
-                destinationDesc.Width,
-                destinationDesc.Height,
-                destinationDesc.Format,
-                destinationDesc.Usage,
-                destinationDesc.BindFlags,
-                destinationDesc.MiscFlags);
-
-            wprintf(buffer);
         }
 
         auto *context = Host.GetImmediateContext();
 
         if (!context)
         {
-            wprintf(L"[Transition][ERROR] ImmediateContext is null\n");
-
             result = E_UNEXPECTED;
             break;
         }
-
-        wprintf(L"[Transition][INFO] CopyResource begin\n");
-
-        /*context->CopyResource(
-            destinationTexture.Get(),
-            SourceTexture);*/
 
         D3D11_BOX sourceBox{};
 
@@ -228,30 +152,20 @@ SurfaceFactory::CreateSurfaceFromTexture(
         sourceBox.front = 0;
 
         sourceBox.right = textureDesc.Width;
+
         sourceBox.bottom = textureDesc.Height;
+
         sourceBox.back = 1;
 
         context->CopySubresourceRegion(destinationTexture.Get(), 0, 0, 0, 0, SourceTexture, 0, &sourceBox);
 
         context->Flush();
-
-        wprintf(L"[Transition][INFO] CopyResource end\n");
     } while (false);
 
     const HRESULT endDrawHr = (*Surface)->EndDraw();
 
-    {
-        wchar_t buffer[128];
-
-        swprintf_s(buffer, L"[Transition][INFO] EndDraw hr=0x%08X\n", endDrawHr);
-
-        wprintf(buffer);
-    }
-
     if (FAILED(result))
     {
-        wprintf(L"[Transition][ERROR] CreateSurfaceFromTexture failed before EndDraw\n");
-
         return result;
     }
 
@@ -270,7 +184,8 @@ SurfaceFactory::CreatePanelVisual(CompositionHost &Host, const CapturedPanel &Pa
 
     Result.DesktopRect = Panel.DesktopRect;
 
-    D3D11_TEXTURE2D_DESC desc{};
+    D3D11_TEXTURE2D_DESC
+    desc{};
 
     Panel.Texture->GetDesc(&desc);
 
@@ -294,6 +209,10 @@ SurfaceFactory::CreatePanelVisual(CompositionHost &Host, const CapturedPanel &Pa
     RETURN_IF_FAILED(dcomp->CreateScaleTransform(Result.Scale.GetAddressOf()));
 
     RETURN_IF_FAILED(dcomp->CreateRotateTransform(Result.Rotate.GetAddressOf()));
+
+    //
+    // Absolute coordinate model.
+    //
 
     RETURN_IF_FAILED(Result.Translate->SetOffsetX(static_cast<float>(Panel.DesktopRect.left)));
 

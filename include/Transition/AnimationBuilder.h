@@ -1,9 +1,8 @@
 #pragma once
 
-#include "Transition\CompositionHost.h"
+#include "Transition\\CompositionHost.h"
 
 #include <dcomp.h>
-#include <wrl/client.h>
 
 namespace Transition {
 
@@ -12,22 +11,7 @@ class AnimationBuilder
 public:
     explicit AnimationBuilder(CompositionHost &Host);
 
-    AnimationBuilder(const AnimationBuilder &) = delete;
-
-    AnimationBuilder &operator=(const AnimationBuilder &) = delete;
-
-    //
-    // Scalar animation helper.
-    //
-    // Creates a simple Start -> End animation over
-    // DurationSeconds.
-    //
-
     HRESULT CreateScalarAnimation(float Start, float End, float DurationSeconds, IDCompositionAnimation **Animation);
-
-    //
-    // Transform creation helpers.
-    //
 
     HRESULT CreateTranslateTransform(IDCompositionTranslateTransform **Transform);
 
@@ -41,10 +25,6 @@ public:
     CreateTransformGroup(IDCompositionTransform **Transforms, UINT TransformCount, IDCompositionTransform **Group);
 
 #endif
-
-    //
-    // Convenience helpers.
-    //
 
     HRESULT
     CreateOpacityAnimation(IDCompositionVisual *Visual, float StartOpacity, float EndOpacity, float DurationSeconds);

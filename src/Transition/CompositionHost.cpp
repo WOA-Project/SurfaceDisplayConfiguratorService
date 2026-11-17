@@ -1,6 +1,6 @@
 #include "pch.h"
 
-#include "Transition\CompositionHost.h"
+#include "Transition\\CompositionHost.h"
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dcomp.lib")
@@ -11,17 +11,17 @@ namespace Transition {
 HRESULT
 CompositionHost::Initialize(HWND Window)
 {
-    UINT Flags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
+    UINT flags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
 
 #if defined(_DEBUG)
-    Flags |= D3D11_CREATE_DEVICE_DEBUG;
+    flags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
 
     RETURN_IF_FAILED(D3D11CreateDevice(
         nullptr,
         D3D_DRIVER_TYPE_HARDWARE,
         nullptr,
-        Flags,
+        flags,
         nullptr,
         0,
         D3D11_SDK_VERSION,
@@ -69,15 +69,7 @@ CompositionHost::Commit()
         return E_UNEXPECTED;
     }
 
-    HRESULT hr = m_CompositionDevice->Commit();
-
-    wchar_t buffer[128];
-
-    swprintf_s(buffer, L"[Transition][INFO] Composition Commit hr=0x%08X\n", hr);
-
-    wprintf(buffer);
-
-    return hr;
+    return m_CompositionDevice->Commit();
 }
 
 HRESULT

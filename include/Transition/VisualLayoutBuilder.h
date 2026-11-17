@@ -1,7 +1,6 @@
 #pragma once
 
-#include <windows.h>
-#include "Transition\TopologySnapshot.h"
+#include "Transition\\TopologySnapshot.h"
 
 #include <vector>
 
@@ -13,13 +12,33 @@ struct VisualState
 
     DisplayRole Role = DisplayRole::Unknown;
 
+    //
+    // Geometry actually used by the
+    // animation system.
+    //
     RECT Rect{};
+
+    //
+    // Original desktop geometry.
+    //
+    RECT DesktopRect{};
+
+    //
+    // Actual rendered content size.
+    //
+    UINT TextureWidth = 0;
+
+    UINT TextureHeight = 0;
 
     float RotationDegrees = 0.0f;
 
     float Opacity = 1.0f;
 
+    //
+    // Pivot in texture-local space.
+    //
     float PivotX = 0.0f;
+
     float PivotY = 0.0f;
 };
 

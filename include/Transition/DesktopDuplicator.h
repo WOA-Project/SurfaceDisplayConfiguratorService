@@ -1,43 +1,21 @@
 #pragma once
 
+#include "Transition\\DuplicationState.h"
+#include "Transition\\TopologyGeneration.h"
 #include "Transition\CaptureGenerationTracker.h"
-
-#include <windows.h>
 
 #include <d3d11.h>
 #include <dxgi1_2.h>
+#include <wrl/client.h>
 
 #include <mutex>
 
-#include <wrl/client.h>
-
 namespace Transition {
-
-enum class DuplicationState
-{
-    Uninitialized,
-
-    Active,
-
-    AccessLost,
-
-    DeviceRemoved,
-
-    Reinitializing
-};
 
 class DesktopDuplicator
 {
 public:
     DesktopDuplicator() = default;
-
-    DesktopDuplicator(const DesktopDuplicator &) = delete;
-
-    DesktopDuplicator &operator=(const DesktopDuplicator &) = delete;
-
-    DesktopDuplicator(DesktopDuplicator &&) = delete;
-
-    DesktopDuplicator &operator=(DesktopDuplicator &&) = delete;
 
     HRESULT Initialize(ID3D11Device *Device, UINT OutputIndex);
 
@@ -57,6 +35,10 @@ private:
     HRESULT EnsureValid();
 
 private:
+    Microsoft::WRL::ComPtr<ID3D11Device> m_Device;
+
+    Microsoft::WRL::ComPtr<IDXGIOutputDuplication> m_Duplication;
+
     UINT m_OutputIndex = 0;
 
     RECT m_DesktopRect{};
@@ -66,10 +48,6 @@ private:
     CaptureGenerationTracker m_GenerationTracker;
 
     std::mutex m_RebuildLock;
-
-    Microsoft::WRL::ComPtr<ID3D11Device> m_Device;
-
-    Microsoft::WRL::ComPtr<IDXGIOutputDuplication> m_Duplication;
 };
 
 } // namespace Transition

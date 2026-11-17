@@ -1,10 +1,16 @@
 #pragma once
 
-#include "Transition/TopologySnapshot.h"
+#include "Transition\\RegionPair.h"
+#include "Transition\\TopologySnapshot.h"
+
+#include <vector>
 
 namespace Transition {
 
-const DisplayRegion *
-FindRegion(const TopologySnapshot &Snapshot, const std::wstring &Id);
+class TopologyMatcher
+{
+public:
+    HRESULT Match(const TopologySnapshot &Current, const TopologySnapshot &Target, std::vector<RegionPair> &Result);
+};
 
-}
+} // namespace Transition

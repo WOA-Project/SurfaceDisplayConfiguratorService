@@ -1,31 +1,27 @@
 #pragma once
 
-#include "Transition\AnimationPlanner.h"
-#include "Transition\CapturedDesktop.h"
-#include "Transition\CompositionHost.h"
-#include "Transition\DesktopCaptureManager.h"
-#include "Transition\SurfaceFactory.h"
-#include "Transition\TopologyCoordinator.h"
-#include "Transition\TransitionOverlayWindow.h"
-#include "Transition\TransitionScenarioBuilder.h"
-#include "Transition\TransitionTypes.h"
-
-#include "InputStitching\Plan.h"
+#include "Transition\\AnimationPlanner.h"
+#include "Transition\\CapturedDesktop.h"
+#include "Transition\\CompositionHost.h"
+#include "Transition\\DesktopCaptureManager.h"
+#include "Transition\\RenderGeometry.h"
+#include "Transition\\RenderGeometryBuilder.h"
+#include "Transition\TransitionScenario.h"
+#include "Transition\\SnapshotBuilder.h"
+#include "Transition\\SurfaceFactory.h"
+#include "Transition\\TopologySnapshot.h"
+#include "Transition\\TransitionOverlayWindow.h"
+#include "Transition\\TransitionScenarioBuilder.h"
 
 #include <functional>
 #include <vector>
 
 namespace Transition {
 
-struct TransitionResult
+struct PanelVisual;
+
+struct Request
 {
-    HRESULT Hr = S_OK;
-
-    UINT DurationMs = 0;
-
-    bool RebuildOccurred = false;
-
-    bool TopologyChanged = false;
 };
 
 class TransitionManager
@@ -34,10 +30,6 @@ public:
     TransitionManager();
 
     ~TransitionManager();
-
-    TransitionManager(const TransitionManager &) = delete;
-
-    TransitionManager &operator=(const TransitionManager &) = delete;
 
     HRESULT BeginTransition(const Request &Request);
 
@@ -50,12 +42,10 @@ public:
         const TopologySnapshot &TargetSnapshot,
         const std::function<HRESULT()> &TopologyAction);
 
-    bool IsTransitionActive() const noexcept { return m_Active; }
-
 private:
     bool m_Active = false;
 
-    Request m_Request;
+    Request m_Request{};
 
     TransitionOverlayWindow m_Overlay;
 
@@ -69,9 +59,15 @@ private:
 
     AnimationPlanner m_Planner;
 
+    RenderGeometryBuilder m_RenderGeometryBuilder;
+
     CapturedDesktop m_CapturedDesktop;
 
     std::vector<PanelVisual> m_PanelVisuals;
+
+    std::vector<RenderGeometry> m_CurrentRenderGeometry;
+
+    std::vector<RenderGeometry> m_TargetRenderGeometry;
 };
 
 } // namespace Transition

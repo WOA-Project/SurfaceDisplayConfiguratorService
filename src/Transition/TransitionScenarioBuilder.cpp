@@ -1,13 +1,13 @@
 #include "pch.h"
 
-#include "Transition\TransitionScenarioBuilder.h"
+#include "Transition/TransitionScenarioBuilder.h"
 
-#include "Transition\BookScenario.h"
-#include "Transition\DualToSingleScenario.h"
-#include "Transition\PortraitScenario.h"
-#include "Transition\SingleToDualScenario.h"
-#include "Transition\TentScenario.h"
-#include "Transition\TopologySnapshot.h"
+#include "Transition/BookScenario.h"
+#include "Transition/DualToSingleScenario.h"
+#include "Transition/PortraitScenario.h"
+#include "Transition/SingleToDualScenario.h"
+#include "Transition/TentScenario.h"
+#include "Transition/TopologySnapshot.h"
 
 #include <algorithm>
 #include <cmath>
@@ -30,12 +30,6 @@ FindRegionByRole(const TopologySnapshot &Snapshot, DisplayRole Role)
     return nullptr;
 }
 
-bool
-IsPortraitRotation(DisplayRotation Rotation)
-{
-    return Rotation == DisplayRotation::Rotate90 || Rotation == DisplayRotation::Rotate270;
-}
-
 } // namespace
 
 VisualState
@@ -44,34 +38,35 @@ TransitionScenarioBuilder::MakeState(const DisplayRegion &Region)
     VisualState state{};
 
     state.Id = Region.Id;
+
     state.Role = Region.Role;
-    state.Rect = Region.DesktopRect;
 
-    switch (Region.Rotation)
-    {
-    case DisplayRotation::Rotate90:
+    //
+    // Use RenderRect as the geometry
+    // being animated.
+    //
+    state.Rect = Region.RenderRect;
 
-        state.RotationDegrees = 90.0f;
-        break;
+    //
+    // Preserve desktop placement
+    // separately.
+    //
+    state.DesktopRect = Region.DesktopRect;
 
-    case DisplayRotation::Rotate180:
+    state.TextureWidth = Region.TextureWidth;
 
-        state.RotationDegrees = 180.0f;
-        break;
+    state.TextureHeight = Region.TextureHeight;
 
-    case DisplayRotation::Rotate270:
-
-        state.RotationDegrees = 270.0f;
-        break;
-
-    case DisplayRotation::Identity:
-    default:
-
-        state.RotationDegrees = 0.0f;
-        break;
-    }
+    state.RotationDegrees = 0.0f;
 
     state.Opacity = 1.0f;
+
+    //
+    // Pivot is texture-local.
+    //
+    state.PivotX = static_cast<float>(Region.TextureWidth) * 0.5f;
+
+    state.PivotY = static_cast<float>(Region.TextureHeight) * 0.5f;
 
     return state;
 }
@@ -99,10 +94,6 @@ TransitionScenarioBuilder::DetectScenario(const TopologySnapshot &Current, const
 
     if (currentLeft && targetLeft)
     {
-        //
-        // Any rotation change should animate.
-        //
-
         if (currentLeft->Rotation != targetLeft->Rotation)
         {
             return ScenarioKind::RotationChange;
@@ -138,8 +129,6 @@ TransitionScenarioBuilder::BuildScenario(
 
     Result.Kind = DetectScenario(CurrentSnapshot, TargetSnapshot);
 
-    wprintf(L"SCENARIO DETECTED=%d\n", static_cast<int>(Result.Kind));
-
     Result.DurationMs = 250;
 
     Result.CommitPoint = 0.50f;
@@ -152,16 +141,6 @@ TransitionScenarioBuilder::BuildScenario(
     for (const auto &region : TargetSnapshot.Regions)
     {
         Result.TargetStates.push_back(MakeState(region));
-    }
-
-    for (size_t i = 0; i < Result.CurrentStates.size(); ++i)
-    {
-        wprintf(L"STATE[%zu] Current=%f\n", i, Result.CurrentStates[i].RotationDegrees);
-    }
-
-    for (size_t i = 0; i < Result.TargetStates.size(); ++i)
-    {
-        wprintf(L"STATE[%zu] Target=%f\n", i, Result.TargetStates[i].RotationDegrees);
     }
 
     switch (Result.Kind)
@@ -199,9 +178,7 @@ TransitionScenarioBuilder::BuildScenario(
     }
 
     case ScenarioKind::RotationChange:
-
     case ScenarioKind::LandscapeToPortrait:
-
     case ScenarioKind::PortraitToLandscape: {
         PortraitScenarioBuilder builder;
 

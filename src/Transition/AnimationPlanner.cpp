@@ -1,6 +1,6 @@
 #include "pch.h"
 
-#include "Transition\AnimationPlanner.h"
+#include "Transition\\AnimationPlanner.h"
 
 namespace Transition {
 
@@ -19,13 +19,13 @@ AnimationPlanner::Height(const RECT &Rect) noexcept
 float
 AnimationPlanner::CenterX(const RECT &Rect) noexcept
 {
-    return static_cast<float>(Rect.left + (Rect.right - Rect.left) / 2);
+    return static_cast<float>(Rect.left + ((Rect.right - Rect.left) / 2));
 }
 
 float
 AnimationPlanner::CenterY(const RECT &Rect) noexcept
 {
-    return static_cast<float>(Rect.top + (Rect.bottom - Rect.top) / 2);
+    return static_cast<float>(Rect.top + ((Rect.bottom - Rect.top) / 2));
 }
 
 HRESULT
@@ -39,6 +39,9 @@ AnimationPlanner::BuildPlan(const RegionPair &Transition, AnimationPlan &Plan)
 
     //
     // Translation
+    //
+    // Geometry is already normalized
+    // into RenderRect before this stage.
     //
 
     Plan.StartX = static_cast<float>(Current.left);
@@ -96,24 +99,27 @@ AnimationPlanner::BuildPlan(const RegionPair &Transition, AnimationPlan &Plan)
     //
     // Pivot
     //
+    // Geometry model now uses
+    // texture-local pivots.
+    //
 
-    Plan.PivotX = Transition.Target.PivotX;
+    Plan.PivotX = Transition.Current.PivotX;
 
-    Plan.PivotY = Transition.Target.PivotY;
+    Plan.PivotY = Transition.Current.PivotY;
 
     if (Plan.PivotX == 0.0f && Plan.PivotY == 0.0f)
     {
-        Plan.PivotX = CenterX(Current);
+        Plan.PivotX = static_cast<float>(Transition.Current.TextureWidth) * 0.5f;
 
-        Plan.PivotY = CenterY(Current);
+        Plan.PivotY = static_cast<float>(Transition.Current.TextureHeight) * 0.5f;
     }
 
     //
-    // Default timing.
-    // Scenario builders may override this.
+    // Timing
     //
 
     Plan.DurationMs = 250;
+
     Plan.CommitPoint = 0.50f;
 
     return S_OK;

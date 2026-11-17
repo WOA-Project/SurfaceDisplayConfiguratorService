@@ -1,9 +1,9 @@
 #pragma once
 
-#include "Transition\CapturedDesktop.h"
-#include "Transition\CaptureState.h"
-#include "Transition\DesktopDuplicator.h"
-#include "Transition\DisplayTopologyFingerprint.h"
+#include "Transition\\CapturedDesktop.h"
+#include "Transition\\CaptureState.h"
+#include "Transition\\DesktopDuplicator.h"
+#include "Transition\\DisplayTopologyFingerprint.h"
 
 #include <d3d11.h>
 #include <wrl/client.h>

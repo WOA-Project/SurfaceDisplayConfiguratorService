@@ -1,6 +1,6 @@
 #include "pch.h"
 
-#include "Transition\AnimationBuilder.h"
+#include "Transition\\AnimationBuilder.h"
 
 using Microsoft::WRL::ComPtr;
 
@@ -29,33 +29,9 @@ AnimationBuilder::CreateScalarAnimation(
         return E_UNEXPECTED;
     }
 
-    HRESULT hr = device->CreateAnimation(Animation);
+    RETURN_IF_FAILED(device->CreateAnimation(Animation));
 
-    wprintf(
-        L"[Transition] CreateAnimation "
-        L"hr=0x%08X "
-        L"Start=%f "
-        L"End=%f "
-        L"Duration=%f\n",
-        hr,
-        Start,
-        End,
-        DurationSeconds);
-
-    RETURN_IF_FAILED(hr);
-
-    //
-    // Single segment.
-    //
-
-    hr = (*Animation)->AddCubic(0.0, Start, End - Start, 0.0, 0.0);
-
-    wprintf(
-        L"[Transition] AddCubic "
-        L"hr=0x%08X\n",
-        hr);
-
-    RETURN_IF_FAILED(hr);
+    RETURN_IF_FAILED((*Animation)->AddCubic(0.0, Start, End - Start, 0.0, 0.0));
 
     return S_OK;
 }
@@ -147,36 +123,6 @@ AnimationBuilder::CreateTransformGroup(
 
 #endif
 
-/*HRESULT
-AnimationBuilder::CreateOpacityAnimation(
-    IDCompositionVisual* Visual,
-    float StartOpacity,
-    float EndOpacity,
-    float DurationSeconds)
-{
-    if (!Visual)
-    {
-        return E_INVALIDARG;
-    }
-
-    ComPtr<IDCompositionAnimation>
-        animation;
-
-    RETURN_IF_FAILED(
-        CreateScalarAnimation(
-            StartOpacity,
-            EndOpacity,
-            DurationSeconds,
-            animation.GetAddressOf()));
-
-#ifndef TRANSITION_DISABLE_OPACITY
-    return Visual->SetOpacity(
-        animation.Get());
-#else
-    return S_OK;
-#endif
-}*/
-
 HRESULT
 AnimationBuilder::CreateOpacityAnimation(
     IDCompositionVisual *Visual,
@@ -184,8 +130,12 @@ AnimationBuilder::CreateOpacityAnimation(
     float EndOpacity,
     float DurationSeconds)
 {
+    UNREFERENCED_PARAMETER(Visual);
+
     UNREFERENCED_PARAMETER(StartOpacity);
+
     UNREFERENCED_PARAMETER(EndOpacity);
+
     UNREFERENCED_PARAMETER(DurationSeconds);
 
     return S_OK;

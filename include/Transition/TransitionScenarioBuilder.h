@@ -2,40 +2,9 @@
 
 #include "Transition\VisualLayoutBuilder.h"
 #include "Transition\TopologySnapshot.h"
+#include "Transition\TransitionScenario.h"
 
 namespace Transition {
-
-enum class ScenarioKind
-{
-    Unknown,
-
-    RotationChange,
-
-    Fold,
-    Unfold,
-
-    SingleToDual,
-    DualToSingle,
-
-    LandscapeToPortrait,
-    PortraitToLandscape,
-
-    Book,
-    Tent
-};
-
-struct Scenario
-{
-    ScenarioKind Kind = ScenarioKind::Unknown;
-
-    std::vector<VisualState> CurrentStates;
-
-    std::vector<VisualState> TargetStates;
-
-    UINT DurationMs = 250;
-
-    float CommitPoint = 0.50f;
-};
 
 class TransitionScenarioBuilder
 {

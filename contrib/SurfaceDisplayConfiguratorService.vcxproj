@@ -370,6 +370,8 @@
     <ClInclude Include="..\include\Transition\TransitionTrace.h" />
     <ClInclude Include="..\include\Transition\TransitionTypes.h" />
     <ClInclude Include="..\include\Transition\VisualLayoutBuilder.h" />
+    <ClInclude Include="..\include\Transition\RenderGeometry.h" />
+    <ClInclude Include="..\include\Transition\RenderGeometryBuilder.h" />
     <ClInclude Include="..\include\DisplayTransitionApi.h" />
   </ItemGroup>
   <ItemGroup>
@@ -401,6 +403,7 @@
     <ClCompile Include="..\src\Transition\TransitionStatistics.cpp" />
     <ClCompile Include="..\src\Transition\TransitionTrace.cpp" />
     <ClCompile Include="..\src\Transition\VisualLayoutBuilder.cpp" />
+    <ClCompile Include="..\src\Transition\RenderGeometryBuilder.cpp" />
     <ClCompile Include="..\src\DisplayTransitionApi.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

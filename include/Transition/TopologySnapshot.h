@@ -36,6 +36,13 @@ struct DisplayRegion
 
     RECT DesktopRect{};
 
+    //
+    // Geometry that is actually rendered.
+    // Animation code should use this rather
+    // than DesktopRect.
+    //
+    RECT RenderRect{};
+
     DisplayRole Role = DisplayRole::Unknown;
 
     DisplayRotation Rotation = DisplayRotation::Identity;
@@ -45,6 +52,10 @@ struct DisplayRegion
     bool Primary = false;
 
     bool Enabled = true;
+
+    UINT TextureWidth = 0;
+
+    UINT TextureHeight = 0;
 };
 
 struct TopologySnapshot

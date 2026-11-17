@@ -1,11 +1,14 @@
 #include "pch.h"
 
-#include "Transition\TransitionManager.h"
+#include "Transition\\TransitionManager.h"
 
-#include "Transition\AnimationClock.h"
-#include "Transition\TransitionStatistics.h"
-#include "Transition\TransitionTrace.h"
-#include "Transition\TopologySnapshot.h"
+#include "Transition\\AnimationClock.h"
+#include "Transition\\RenderGeometryBuilder.h"
+#include "Transition\\TransitionStatistics.h"
+#include "Transition\\TransitionTrace.h"
+#include "Transition\\TopologySnapshot.h"
+#include "Transition\\TransitionAnimator.h"
+#include "Transition\\TopologyCoordinator.h"
 
 #include <utility>
 
@@ -27,6 +30,7 @@ TransitionManager::BeginTransition(const Request &Request)
     }
 
     m_Request = Request;
+
     m_Active = true;
 
     return S_OK;
@@ -90,8 +94,8 @@ TransitionManager::ExecuteTransition(
 
     if (FAILED(beginHr))
     {
-        wprintf(L"BeginTransitionFailed!\n");
         cleanup();
+
         return beginHr;
     }
 
@@ -99,101 +103,53 @@ TransitionManager::ExecuteTransition(
 
     do
     {
-        hr = m_Overlay.Create();
-        if (FAILED(hr))
-        {
-            wprintf(L"Overlay Create failed!\n");
-            break;
-        }
+        RETURN_IF_FAILED(m_Overlay.Create());
 
         m_Overlay.Show();
 
-        hr = m_CompositionHost.Initialize(m_Overlay.GetWindow());
+        RETURN_IF_FAILED(m_CompositionHost.Initialize(m_Overlay.GetWindow()));
 
-        if (FAILED(hr))
-        {
-            wprintf(L"CompositionHost Init failed!\n");
-            break;
-        }
+        RETURN_IF_FAILED(m_CaptureManager.Initialize(m_CompositionHost.GetD3DDevice()));
 
-        hr = m_CaptureManager.Initialize(m_CompositionHost.GetD3DDevice());
+        RETURN_IF_FAILED(m_CaptureManager.Capture(m_CapturedDesktop));
 
-        if (FAILED(hr))
-        {
-            wprintf(L"CaptureManager Init failed!\n");
-            break;
-        }
+        //
+        // Build render geometry from the
+        // actual captured content.
+        //
 
-        hr = m_CaptureManager.Capture(m_CapturedDesktop);
+        RenderGeometryBuilder geometryBuilder;
 
-        if (FAILED(hr))
-        {
-            wprintf(L"CaptureManager Capture failed!\n");
-            break;
-        }
+        std::vector<RenderGeometry> currentGeometry;
+
+        std::vector<RenderGeometry> targetGeometry;
+
+        RETURN_IF_FAILED(geometryBuilder.Build(CurrentSnapshot, m_CapturedDesktop, currentGeometry));
+
+        RETURN_IF_FAILED(geometryBuilder.Build(TargetSnapshot, m_CapturedDesktop, targetGeometry));
 
         m_PanelVisuals.clear();
 
         for (const auto &panel : m_CapturedDesktop.Panels)
         {
-            wchar_t buffer[256];
-
-            swprintf_s(
-                buffer,
-                L"Captured panel: %ldx%ld texture=%p\n",
-                (panel.DesktopRect.right - panel.DesktopRect.left),
-                (panel.DesktopRect.bottom - panel.DesktopRect.top),
-                panel.Texture.Get());
-
-            wprintf(buffer);
-
             PanelVisual visual;
 
-            hr = m_SurfaceFactory.CreatePanelVisual(m_CompositionHost, panel, visual);
-
-            if (FAILED(hr))
-            {
-                wprintf(L"CreatePanelVisual failed! %d\n", hr);
-                break;
-            }
+            RETURN_IF_FAILED(m_SurfaceFactory.CreatePanelVisual(m_CompositionHost, panel, visual));
 
             m_PanelVisuals.emplace_back(std::move(visual));
         }
 
-        if (FAILED(hr))
-        {
-            break;
-        }
-
-        hr = m_CompositionHost.Commit();
-
-        wprintf(L"HELLO\n");
-        Sleep(5000);
-
-        if (FAILED(hr))
-        {
-            break;
-        }
+        RETURN_IF_FAILED(m_CompositionHost.Commit());
 
         Scenario scenario;
 
-        hr = m_ScenarioBuilder.BuildScenario(CurrentSnapshot, TargetSnapshot, scenario);
-
-        if (FAILED(hr))
-        {
-            break;
-        }
+        RETURN_IF_FAILED(m_ScenarioBuilder.BuildScenario(CurrentSnapshot, TargetSnapshot, scenario));
 
         TransitionAnimator animator(m_CompositionHost);
 
         TopologyCoordinator coordinator(m_Planner, animator, m_CaptureManager);
 
-        hr = coordinator.Execute(scenario, m_PanelVisuals, TopologyAction);
-
-        if (FAILED(hr))
-        {
-            break;
-        }
+        RETURN_IF_FAILED(coordinator.Execute(scenario, m_PanelVisuals, TopologyAction));
     } while (false);
 
     const auto durationMs = static_cast<uint64_t>(GetTickCount64() - startTick);

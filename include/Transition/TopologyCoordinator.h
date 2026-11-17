@@ -1,17 +1,17 @@
 #pragma once
 
-#include "Transition\AnimationClock.h"
-#include "Transition\AnimationPlanner.h"
-#include "Transition\DesktopCaptureManager.h"
-#include "Transition\DisplayRegionMatcher.h"
-#include "Transition\TopologyGeneration.h"
-#include "Transition\TransitionAnimator.h"
-#include "Transition\TransitionScenarioBuilder.h"
+#include "Transition\\AnimationPlanner.h"
+#include "Transition\\DesktopCaptureManager.h"
+#include "Transition\\DisplayRegionMatcher.h"
+#include "Transition\\TransitionAnimator.h"
+#include "Transition\\TransitionScenario.h"
 
 #include <functional>
 #include <vector>
 
 namespace Transition {
+
+struct PanelVisual;
 
 class TopologyCoordinator
 {

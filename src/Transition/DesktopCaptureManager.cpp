@@ -1,10 +1,10 @@
 #include "pch.h"
 
-#include "Transition\DesktopCaptureManager.h"
+#include "Transition\\DesktopCaptureManager.h"
 
-#include "Transition\DisplayTopologyFingerprint.h"
-#include "Transition\TransitionStatistics.h"
-#include "Transition\TransitionTrace.h"
+#include "Transition\\DisplayTopologyFingerprint.h"
+#include "Transition\\TransitionStatistics.h"
+#include "Transition\\TransitionTrace.h"
 
 #include <dxgi.h>
 
@@ -135,6 +135,18 @@ DesktopCaptureManager::Capture(CapturedDesktop &Desktop)
         panel.DesktopRect = m_Duplicators[i]->GetDesktopRect();
 
         panel.Texture = std::move(snapshot);
+
+        if (panel.Texture)
+        {
+            D3D11_TEXTURE2D_DESC
+            textureDesc{};
+
+            panel.Texture->GetDesc(&textureDesc);
+
+            panel.TextureWidth = textureDesc.Width;
+
+            panel.TextureHeight = textureDesc.Height;
+        }
 
         Desktop.Panels.emplace_back(std::move(panel));
     }

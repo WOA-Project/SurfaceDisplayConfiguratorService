@@ -1,9 +1,9 @@
 #include "pch.h"
 
-#include "Transition\DesktopDuplicator.h"
+#include "Transition\\DesktopDuplicator.h"
 
-#include "Transition\TransitionStatistics.h"
-#include "Transition\TransitionTrace.h"
+#include "Transition\\TransitionStatistics.h"
+#include "Transition\\TransitionTrace.h"
 
 #include <dxgi.h>
 

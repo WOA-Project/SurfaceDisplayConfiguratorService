@@ -15,6 +15,10 @@ struct CapturedPanel
 
     RECT DesktopRect{};
 
+    UINT TextureWidth = 0;
+
+    UINT TextureHeight = 0;
+
     Microsoft::WRL::ComPtr<ID3D11Texture2D> Texture;
 };
 
@@ -24,9 +28,7 @@ struct CapturedDesktop
 
     void Clear() { Panels.clear(); }
 
-    bool Empty() const noexcept { return Panels.empty(); }
-
-    size_t Count() const noexcept { return Panels.size(); }
+    bool IsEmpty() const { return Panels.empty(); }
 };
 
 } // namespace Transition

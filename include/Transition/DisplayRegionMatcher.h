@@ -1,30 +1,19 @@
 #pragma once
 
-#include "Transition\VisualLayoutBuilder.h"
+#include "Transition\\RegionPair.h"
+#include "Transition\\TransitionScenario.h"
 
 #include <vector>
 
 namespace Transition {
 
-struct RegionPair
-{
-    VisualState Current;
-
-    VisualState Target;
-};
-
 class DisplayRegionMatcher
 {
 public:
     HRESULT Match(
-        const std::vector<VisualState> &Current,
-        const std::vector<VisualState> &Target,
-        std::vector<RegionPair> &Pairs);
-
-private:
-    static VisualState MakeRemovedState(const VisualState &State);
-
-    static VisualState MakeAppearingState(const VisualState &State);
+        const std::vector<VisualState> &CurrentStates,
+        const std::vector<VisualState> &TargetStates,
+        std::vector<RegionPair> &Result);
 };
 
 } // namespace Transition
