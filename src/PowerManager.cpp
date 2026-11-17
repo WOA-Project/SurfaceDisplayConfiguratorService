@@ -8,18 +8,18 @@
 HPOWERNOTIFY g_SystemSuspendHandle = NULL;
 
 static TwoPanelHingedDevicePosture g_PostureSensorForPower{nullptr};
-//static FlipSensor g_FlipSensorForPower{nullptr};
+static FlipSensor g_FlipSensorForPower{nullptr};
 
 static VOID
 HandleSuspendResume(ULONG PowerEvent)
 {
     if (PowerEvent == PBT_APMSUSPEND)
     {
-        UnsubscribeSensorEvents(g_PostureSensorForPower/*, g_FlipSensorForPower*/);
+        UnsubscribeSensorEvents(g_PostureSensorForPower, g_FlipSensorForPower);
     }
     else if (PowerEvent == PBT_APMRESUMEAUTOMATIC || PowerEvent == PBT_APMRESUMESUSPEND)
     {
-        SubscribeSensorEvents(g_PostureSensorForPower/*, g_FlipSensorForPower*/);
+        SubscribeSensorEvents(g_PostureSensorForPower, g_FlipSensorForPower);
     }
 }
 
@@ -47,7 +47,7 @@ HandleDisplayPowerEvent(GUID SettingGuid, PVOID Value, ULONG ValueLength)
         return;
     }
 
-    if (!g_PostureSensorForPower/* || !g_FlipSensorForPower*/)
+    if (!g_PostureSensorForPower || !g_FlipSensorForPower)
     {
         return;
     }
@@ -60,14 +60,14 @@ HandleDisplayPowerEvent(GUID SettingGuid, PVOID Value, ULONG ValueLength)
         //
         // Display Off
         //
-        UnsubscribeSensorEvents(g_PostureSensorForPower/*, g_FlipSensorForPower*/);
+        UnsubscribeSensorEvents(g_PostureSensorForPower, g_FlipSensorForPower);
         break;
 
     case 1:
         //
         // Display On
         //
-        SubscribeSensorEvents(g_PostureSensorForPower/*, g_FlipSensorForPower*/);
+        SubscribeSensorEvents(g_PostureSensorForPower, g_FlipSensorForPower);
         break;
 
     case 2:
@@ -82,11 +82,11 @@ HandleDisplayPowerEvent(GUID SettingGuid, PVOID Value, ULONG ValueLength)
 }
 
 VOID WINAPI
-InitializePowerManagement(TwoPanelHingedDevicePosture PostureSensor/*, FlipSensor FlipSensorInstance*/)
+InitializePowerManagement(TwoPanelHingedDevicePosture PostureSensor, FlipSensor FlipSensorInstance)
 {
     g_PostureSensorForPower = PostureSensor;
 
-    //g_FlipSensorForPower = FlipSensorInstance;
+    g_FlipSensorForPower = FlipSensorInstance;
 
     DEVICE_NOTIFY_SUBSCRIBE_PARAMETERS Params{};
 

@@ -87,9 +87,9 @@ AutoRotateService::InitializeInfrastructure()
 
     m_TaskbarMonitorThread = CreateThread(nullptr, 0, TaskbarRegistryMonitorThread, nullptr, 0, nullptr);
 
-    InitializePowerManagement(m_SensorManager.GetPostureSensor()/*, m_SensorManager.GetFlipSensor()*/);
+    InitializePowerManagement(m_SensorManager.GetPostureSensor(), m_SensorManager.GetFlipSensor());
 
-    SubscribeSensorEvents(m_SensorManager.GetPostureSensor()/*, m_SensorManager.GetFlipSensor()*/);
+    SubscribeSensorEvents(m_SensorManager.GetPostureSensor(), m_SensorManager.GetFlipSensor());
 
     return ERROR_SUCCESS;
 }
@@ -249,7 +249,7 @@ AutoRotateService::Shutdown()
 
     ShutdownPowerManagement();
 
-    UnsubscribeSensorEvents(m_SensorManager.GetPostureSensor()/*, m_SensorManager.GetFlipSensor()*/);
+    UnsubscribeSensorEvents(m_SensorManager.GetPostureSensor(), m_SensorManager.GetFlipSensor());
 
     ShutdownTabletPostureSubscriptions();
 

@@ -120,7 +120,7 @@ ProcessCurrentPosture(TwoPanelHingedDevicePostureReading Reading)
     LeaveCriticalSection(&g_DisplayOperationLock);
 }
 
-/*VOID WINAPI
+VOID WINAPI
 TogglePreferredSingleScreen()
 {
     EnterCriticalSection(&g_DisplayOperationLock);
@@ -143,4 +143,4 @@ TogglePreferredSingleScreen()
     }
 
     ApplyPostureReading(Service->GetSensorManager().GetCurrentPosture());
-}*/
+}
