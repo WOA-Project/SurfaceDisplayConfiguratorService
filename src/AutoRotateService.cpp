@@ -138,7 +138,7 @@ AutoRotateService::Initialize()
         // Surface Duo hinge width.
         // Adjust during testing as needed.
         //
-        policy.GapPixels = 66;
+        policy.GapPixels = 84;
         InputStitching::g_InputSpaceRuntime.ApplyPolicy(policy);
 
         InputStitching::g_InputSpaceRuntime.Start();
