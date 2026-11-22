@@ -73,7 +73,7 @@ TestDualStitched()
     // Surface Duo hinge width.
     // Adjust during testing as needed.
     //
-    policy.GapPixels = 84;
+    policy.GapPixels = 66;
 
     return ApplyAndDump(policy);
 }
