@@ -31,7 +31,6 @@
 #include <strsafe.h>
 #include <cfgmgr32.h>
 #include <winternl.h>
-#define IUnknown ::IUnknown
 #include <shlobj.h>
 #include "TabletPostureManager.h"
 

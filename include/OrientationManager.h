@@ -3,8 +3,6 @@
 #include "winrt.h"
 #include <windows.h>
 
-#include "pch.h"
-
 constexpr INT DMDO_UNCHANGED = -1;
 
 INT WINAPI

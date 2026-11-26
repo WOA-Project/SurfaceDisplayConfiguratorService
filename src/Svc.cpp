@@ -56,6 +56,7 @@ int _tmain(int argc, TCHAR *argv[])
 
     while (1)
     {
+        Sleep(1);
     }
 
 }
