@@ -23,6 +23,8 @@ private:
 
     void MessageLoop();
 
+    static LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
 private:
     UINT_PTR m_previewTimerId{};
 
@@ -35,4 +37,6 @@ private:
     bool m_initialized{};
 
     bool m_comInitialized{};
+
+    HWND m_hiddenWindow{};
 };

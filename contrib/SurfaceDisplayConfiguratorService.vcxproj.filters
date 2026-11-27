@@ -96,16 +96,10 @@
     <ClCompile Include="..\src\WindowPlacement\WindowPlacementService.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\BrightnessManager.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\AutoRotateContext.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\src\AutoRotateService.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\DisplayActivation.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\src\DisplayConfiguration.cpp">
@@ -162,9 +156,6 @@
     <ClCompile Include="..\src\DisplaySynchronization.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\SdpPanelClient.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\InputStitching\InputSpaceBuilder.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -187,6 +178,18 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\src\InputStitching\InputSpaceValidation.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\InputStitching\InputSpaceConfiguration.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\InputStitching\InputSpaceOverlapValidation.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\InputStitching\InputSpacePolicyAdapter.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\InputStitching\InputSpaceRuntime.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -287,16 +290,10 @@
     <ClInclude Include="..\include\Configuration\Configuration.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\BrightnessManager.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\include\AutoRotateContext.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\include\AutoRotateService.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\include\DisplayActivation.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\include\DisplayConfiguration.h">
@@ -341,9 +338,6 @@
     <ClInclude Include="..\include\DisplaySynchronization.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\SdpPanelClient.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\include\InputStitching\InputSpaceAbi.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -381,6 +375,18 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\include\InputStitching\Plan.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\InputStitching\InputSpaceConfiguration.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\InputStitching\InputSpaceOverlapValidation.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\InputStitching\InputSpacePolicyAdapter.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\InputStitching\InputSpaceRuntime.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -38,7 +38,6 @@ public:
     HWND GetHandle() const;
 
 private:
-    const float VisualInset = 16.0f;
     static LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 private:

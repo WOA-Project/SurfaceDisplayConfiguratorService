@@ -45,6 +45,7 @@ using SetWindowCompositionAttribute_t = BOOL(WINAPI *)(HWND, WINDOWCOMPOSITIONAT
 
 namespace {
 constexpr wchar_t OverlayClassName[] = L"SurfaceDisplayConfiguratorSpanOverlay";
+const float VisualInset = 16.0f;
 
 SetWindowCompositionAttribute_t
 GetCompositionFunction()
@@ -70,13 +71,9 @@ OverlayWindow::Create(HINSTANCE instance)
     }
 
     WNDCLASSEXW wc{};
-
     wc.cbSize = sizeof(wc);
-
     wc.lpfnWndProc = WindowProc;
-
     wc.hInstance = instance;
-
     wc.lpszClassName = OverlayClassName;
 
     if (!RegisterClassExW(&wc) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS)
@@ -110,15 +107,11 @@ OverlayWindow::Create(HINSTANCE instance)
     if (auto composition = GetCompositionFunction())
     {
         ACCENT_POLICY policy{};
-
         policy.AccentState = ACCENT_ENABLE_HOSTBACKDROP;
 
         WINDOWCOMPOSITIONATTRIBDATA data{};
-
         data.Attrib = WCA_ACCENT_POLICY;
-
         data.pvData = &policy;
-
         data.cbData = sizeof(policy);
 
         composition(m_window, &data);
@@ -131,7 +124,7 @@ OverlayWindow::Create(HINSTANCE instance)
             winrt::put_abi(m_dispatcherQueueController))));
 
     namespace abi = ABI::Windows::UI::Composition::Desktop;
-    m_compositor = winrt::Windows::UI::Composition::Compositor();
+    m_compositor = Compositor();
 
     auto interop = m_compositor.as<abi::ICompositorDesktopInterop>();
 
