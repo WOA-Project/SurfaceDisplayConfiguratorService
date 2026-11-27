@@ -1,6 +1,5 @@
 #pragma once
 
-#include "pch.h"
 #include "winrt.h"
 
 class SensorManager

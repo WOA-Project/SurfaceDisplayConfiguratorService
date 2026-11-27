@@ -33,10 +33,20 @@
 #endif
 
 #include <Windows.h>
+#include <Unknwn.h>
+#include <inspectable.h>
 
 #include <ShellScalingApi.h>
 #include <ShObjIdl.h>
 #include <strsafe.h>
+
+#include <winrt/Windows.Foundation.h>
+#include <winrt/Windows.Foundation.Collections.h>
+#include <winrt/Windows.System.h>
+#include <winrt/Windows.Devices.Sensors.h>
+#include <winrt/Windows.System.Preview.h>
+#include <winrt/Windows.Internal.Devices.Sensors.h>
+#include <winrt/Windows.Internal.System.h>
 
 // Common.h
 
