@@ -110,8 +110,8 @@ GetDisplayDevicePLD(CONST WCHAR *DevicePanelId, PACPI_PLD_V2_BUFFER Pld)
 
     while (SetupDiEnumDeviceInfo(devInfo, i++, &devData))
     {
-        DEVPROPTYPE propType;
-        DWORD bufferSize;
+        DEVPROPTYPE propType{};
+        DWORD bufferSize{};
 
         SetupDiGetDevicePropertyW(devInfo, &devData, &DEVPKEY_Device_PanelId, &propType, NULL, 0, &bufferSize, 0);
 
