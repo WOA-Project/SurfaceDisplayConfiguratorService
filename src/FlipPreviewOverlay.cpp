@@ -9,12 +9,32 @@
 #include <algorithm>
 #include "resource.h"
 
-#include <uxtheme.h>
+#include <d3d11.h>
+#include <d2d1_1.h>
+#include <dwrite_3.h>
+#include <windows.system.h>
+#include <winrt/Windows.UI.Composition.h>
+#include <winrt/Windows.UI.Composition.Desktop.h>
+
+#include <dispatcherqueue.h>
+#include <windows.ui.composition.interop.h>
 
 #include "FlipConfirmationManager.h"
 #include <vector>
 
-#pragma comment(lib, "uxtheme.lib")
+#pragma comment(lib, "d3d11.lib")
+#pragma comment(lib, "d2d1.lib")
+#pragma comment(lib, "dwrite.lib")
+
+using namespace winrt;
+using namespace Windows::System;
+using namespace Windows::Foundation::Numerics;
+using namespace Windows::UI;
+using namespace Windows::UI::Composition;
+using namespace Windows::UI::Composition::Desktop;
+using namespace Windows::Graphics::DirectX;
+
+using namespace D2D1;
 
 enum ACCENT_STATE
 {
@@ -48,15 +68,20 @@ struct WINDOWCOMPOSITIONATTRIBDATA
 
 using SetWindowCompositionAttribute_t = BOOL(WINAPI *)(HWND, WINDOWCOMPOSITIONATTRIBDATA *);
 
-static HANDLE g_SurfaceFontResource = nullptr;
+// static HANDLE g_SurfaceFontResource = nullptr;
 
 struct OverlayInstance
 {
     HWND Window = nullptr;
-    float AnimationPhase = 0.0f;
-    BYTE WindowAlpha = 0;
-    bool FadingOut = false;
     RECT Rect{};
+
+    bool m_done;
+    DispatcherQueueController m_dispatcherQueueController{nullptr};
+    Compositor m_compositor{nullptr};
+    DesktopWindowTarget m_target{nullptr};
+    ContainerVisual m_rootVisual{nullptr};
+    ContainerVisual m_hostVisual{nullptr};
+    DispatcherQueueTimer m_delayTimer{nullptr};
 };
 
 static CRITICAL_SECTION g_OverlayLock;
@@ -74,61 +99,138 @@ struct OverlayCreateParams
     std::shared_ptr<OverlayInstance> Instance;
 };
 
-static bool
-LoadSurfaceAppFluentFont()
+static std::tuple<winrt::com_ptr<IDWriteFontCollection1>, std::wstring, winrt::com_ptr<IDWriteInMemoryFontFileLoader>>
+LoadCustomFontCollection(IDWriteFactory5 *dwriteFactory)
 {
-    if (g_SurfaceFontResource)
-    {
-        return true;
-    }
+    auto module = GetModuleHandleW(nullptr);
+    auto resource = FindResourceW(module, MAKEINTRESOURCEW(IDR_SURFACE_APP_FLUENT_FONT), RT_RCDATA);
+    winrt::check_pointer(resource);
 
-    HMODULE module = GetModuleHandleW(nullptr);
-    HRSRC resource = FindResourceW(module, MAKEINTRESOURCEW(IDR_SURFACE_APP_FLUENT_FONT), RT_RCDATA);
-    if (!resource)
-    {
-        return false;
-    }
+    auto resourceData = LoadResource(module, resource);
+    winrt::check_pointer(resourceData);
 
-    HGLOBAL resourceData = LoadResource(module, resource);
-    if (!resourceData)
-    {
-        return false;
-    }
+    auto size = SizeofResource(module, resource);
+    auto data = LockResource(resourceData);
+    winrt::check_pointer(data);
 
-    DWORD size = SizeofResource(module, resource);
-    void *data = LockResource(resourceData);
-    if (!data)
-    {
-        return false;
-    }
+    winrt::com_ptr<IDWriteInMemoryFontFileLoader> inMemoryLoader;
+    winrt::check_hresult(dwriteFactory->CreateInMemoryFontFileLoader(inMemoryLoader.put()));
+    winrt::check_hresult(dwriteFactory->RegisterFontFileLoader(inMemoryLoader.get()));
 
-    DWORD fontCount = 0;
-    g_SurfaceFontResource = AddFontMemResourceEx(data, size, nullptr, &fontCount);
-    return g_SurfaceFontResource != nullptr;
+    winrt::com_ptr<IDWriteFontFile> fontFile;
+    winrt::check_hresult(
+        inMemoryLoader->CreateInMemoryFontFileReference(dwriteFactory, data, size, nullptr, fontFile.put()));
+
+    winrt::com_ptr<IDWriteFontSetBuilder1> fontSetBuilder;
+    winrt::check_hresult(dwriteFactory->CreateFontSetBuilder(fontSetBuilder.put()));
+    winrt::check_hresult(fontSetBuilder->AddFontFile(fontFile.get()));
+
+    winrt::com_ptr<IDWriteFontSet> fontSet;
+    winrt::check_hresult(fontSetBuilder->CreateFontSet(fontSet.put()));
+
+    winrt::com_ptr<IDWriteFontCollection1> fontCollection;
+    winrt::check_hresult(dwriteFactory->CreateFontCollectionFromFontSet(fontSet.get(), fontCollection.put()));
+
+    winrt::com_ptr<IDWriteFontFamily> family;
+    winrt::check_hresult(fontCollection->GetFontFamily(0, family.put()));
+
+    winrt::com_ptr<IDWriteLocalizedStrings> familyNames;
+    winrt::check_hresult(family->GetFamilyNames(familyNames.put()));
+
+    UINT32 length = 0;
+    winrt::check_hresult(familyNames->GetStringLength(0, &length));
+
+    std::wstring familyName(length, L'\0');
+    winrt::check_hresult(familyNames->GetString(0, familyName.data(), length + 1));
+
+    return {fontCollection, familyName, inMemoryLoader};
+}
+
+static SpriteVisual
+CreateText(
+    Compositor const &compositor,
+    CompositionGraphicsDevice const &graphicsDevice,
+    IDWriteFactory5 *dwriteFactory,
+    float width,
+    float height)
+{
+    auto surface = graphicsDevice.CreateDrawingSurface(
+        {width, height}, DirectXPixelFormat::B8G8R8A8UIntNormalized, DirectXAlphaMode::Premultiplied);
+
+    auto surfaceInterop = surface.as<ABI::Windows::UI::Composition::ICompositionDrawingSurfaceInterop>();
+
+    POINT offset{};
+    winrt::com_ptr<ID2D1DeviceContext> d2d1Context;
+    winrt::check_hresult(surfaceInterop->BeginDraw(nullptr, IID_ID2D1DeviceContext, d2d1Context.put_void(), &offset));
+
+    d2d1Context->SetTransform(Matrix3x2F::Translation(static_cast<float>(offset.x), static_cast<float>(offset.y)));
+    d2d1Context->SetDpi(96.0f, 96.0f);
+    d2d1Context->Clear(ColorF(0, 0.0f));
+
+    winrt::com_ptr<ID2D1SolidColorBrush> textBrush;
+    winrt::check_hresult(d2d1Context->CreateSolidColorBrush(ColorF(ColorF::White, 1.0f), textBrush.put()));
+
+    auto [symbolCollection, symbolFamilyName, inMemoryLoader] = LoadCustomFontCollection(dwriteFactory);
+
+    winrt::com_ptr<IDWriteTextFormat> symbolFormat;
+    winrt::check_hresult(dwriteFactory->CreateTextFormat(
+        symbolFamilyName.c_str(),
+        symbolCollection.get(),
+        DWRITE_FONT_WEIGHT_NORMAL,
+        DWRITE_FONT_STYLE_NORMAL,
+        DWRITE_FONT_STRETCH_NORMAL,
+        280.0f,
+        L"en-us",
+        symbolFormat.put()));
+    symbolFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+    symbolFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+
+    winrt::com_ptr<IDWriteTextFormat> textFormat;
+    winrt::check_hresult(dwriteFactory->CreateTextFormat(
+        L"Segoe UI",
+        nullptr,
+        DWRITE_FONT_WEIGHT_NORMAL,
+        DWRITE_FONT_STYLE_NORMAL,
+        DWRITE_FONT_STRETCH_NORMAL,
+        46.0f,
+        L"en-us",
+        textFormat.put()));
+    textFormat->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+    textFormat->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+
+    auto groupHeight = 520.0f;
+    auto groupTop = (height - groupHeight) * 0.5f;
+
+    auto symbolRect = RectF(0.0f, groupTop + 10.0f, width, groupTop + 380.0f);
+    auto textRect = RectF(0.0f, groupTop + 430.0f, width, groupTop + groupHeight);
+
+    std::wstring symbolText = L"\uF4CE";
+    std::wstring labelText = L"Double-tap to switch screens";
+
+    d2d1Context->DrawText(
+        symbolText.c_str(), static_cast<UINT32>(symbolText.size()), symbolFormat.get(), symbolRect, textBrush.get());
+
+    d2d1Context->DrawText(
+        labelText.c_str(), static_cast<UINT32>(labelText.size()), textFormat.get(), textRect, textBrush.get());
+
+    winrt::check_hresult(surfaceInterop->EndDraw());
+
+    winrt::check_hresult(dwriteFactory->UnregisterFontFileLoader(inMemoryLoader.get()));
+
+    auto brush = compositor.CreateSurfaceBrush(surface);
+    brush.Stretch(CompositionStretch::None);
+
+    auto visual = compositor.CreateSpriteVisual();
+    visual.Brush(brush);
+    visual.Size({width, height});
+    visual.AnchorPoint({0.5f, 0.5f});
+    visual.RelativeOffsetAdjustment({0.5f, 0.5f, 0.0f});
+
+    return visual;
 }
 
 static void
-UnloadSurfaceAppFluentFont()
-{
-    if (!g_SurfaceFontResource)
-    {
-        return;
-    }
-
-    RemoveFontMemResourceEx(g_SurfaceFontResource);
-    g_SurfaceFontResource = nullptr;
-}
-
-struct FontInitializer
-{
-    FontInitializer() { LoadSurfaceAppFluentFont(); }
-    ~FontInitializer() { UnloadSurfaceAppFluentFont(); }
-};
-
-static FontInitializer g_FontInitializer;
-
-static void
-ApplyBackdrop(HWND hwnd)
+SetupContent(std::shared_ptr<OverlayInstance> instance)
 {
     auto composition = reinterpret_cast<SetWindowCompositionAttribute_t>(
         GetProcAddress(GetModuleHandleW(L"user32.dll"), "SetWindowCompositionAttribute"));
@@ -139,18 +241,134 @@ ApplyBackdrop(HWND hwnd)
     }
 
     ACCENT_POLICY policy{};
-    policy.AccentState = ACCENT_ENABLE_BLURBEHIND;
-    policy.GradientColor = 0x99202020;
+    policy.AccentState = ACCENT_ENABLE_HOSTBACKDROP;
 
     WINDOWCOMPOSITIONATTRIBDATA data{};
     data.Attrib = WCA_ACCENT_POLICY;
     data.pvData = &policy;
     data.cbData = sizeof(policy);
 
-    composition(hwnd, &data);
+    composition(instance->Window, &data);
 
-    MARGINS margins = {-1};
-    DwmExtendFrameIntoClientArea(hwnd, &margins);
+    DispatcherQueueOptions options{sizeof(DispatcherQueueOptions), DQTYPE_THREAD_CURRENT, DQTAT_COM_STA};
+    winrt::check_hresult(CreateDispatcherQueueController(
+        options,
+        reinterpret_cast<ABI::Windows::System::IDispatcherQueueController **>(
+            winrt::put_abi(instance->m_dispatcherQueueController))));
+
+    namespace abi = ABI::Windows::UI::Composition::Desktop;
+    auto &m_compositor = instance->m_compositor = Compositor();
+
+    auto interop = m_compositor.as<abi::ICompositorDesktopInterop>();
+
+    interop->CreateDesktopWindowTarget(
+        instance->Window, true, reinterpret_cast<abi::IDesktopWindowTarget **>(winrt::put_abi(instance->m_target)));
+
+    auto &m_rootVisual = instance->m_rootVisual = m_compositor.CreateContainerVisual();
+    m_rootVisual.RelativeSizeAdjustment({1.0f, 1.0f});
+
+    auto &m_hostVisual = instance->m_hostVisual = m_compositor.CreateContainerVisual();
+    m_hostVisual.RelativeSizeAdjustment({1.0f, 1.0f});
+    m_hostVisual.Opacity(0.0f);
+
+    auto backdropVisual = m_compositor.CreateSpriteVisual();
+    backdropVisual.Brush(m_compositor.CreateHostBackdropBrush());
+    backdropVisual.RelativeSizeAdjustment({1.0f, 1.0f});
+
+    auto tintVisual = m_compositor.CreateSpriteVisual();
+    tintVisual.Brush(m_compositor.CreateColorBrush(ColorHelper::FromArgb(99, 20, 20, 20)));
+    tintVisual.RelativeSizeAdjustment({1.0f, 1.0f});
+
+    winrt::com_ptr<ID3D11Device> device;
+    auto d3dDriverTypes = {D3D_DRIVER_TYPE_HARDWARE, D3D_DRIVER_TYPE_WARP};
+    HRESULT d3d11HR = NULL;
+
+    for (const auto &driver : d3dDriverTypes)
+    {
+        d3d11HR = D3D11CreateDevice(
+            nullptr,
+            driver,
+            NULL,
+            D3D11_CREATE_DEVICE_BGRA_SUPPORT,
+            nullptr,
+            0,
+            D3D11_SDK_VERSION,
+            device.put(),
+            nullptr,
+            nullptr);
+        if (SUCCEEDED(d3d11HR))
+            break;
+    }
+
+    winrt::check_hresult(d3d11HR);
+
+    winrt::com_ptr<ID2D1Device> d2d1Device;
+    auto pDXGIDevice = device.as<IDXGIDevice>();
+    winrt::check_hresult(D2D1CreateDevice(pDXGIDevice.get(), nullptr, d2d1Device.put()));
+
+    winrt::com_ptr<IDWriteFactory5> dwriteFactory;
+    winrt::check_hresult(DWriteCreateFactory(
+        DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), reinterpret_cast<IUnknown **>(dwriteFactory.put())));
+
+    auto compositorInterop = m_compositor.as<ABI::Windows::UI::Composition::ICompositorInterop>();
+    CompositionGraphicsDevice graphicsDevice{nullptr};
+    winrt::check_hresult(compositorInterop->CreateGraphicsDevice(
+        d2d1Device.get(),
+        reinterpret_cast<ABI::Windows::UI::Composition::ICompositionGraphicsDevice **>(
+            winrt::put_abi(graphicsDevice))));
+
+    RECT rc{};
+    GetClientRect(instance->Window, &rc);
+    float width = static_cast<float>(std::max<LONG>(1, rc.right - rc.left));
+    float height = static_cast<float>(std::max<LONG>(1, rc.bottom - rc.top));
+
+    m_hostVisual.Children().InsertAtTop(backdropVisual);
+    m_hostVisual.Children().InsertAtTop(tintVisual);
+    m_hostVisual.Children().InsertAtTop(CreateText(m_compositor, graphicsDevice, dwriteFactory.get(), width, height));
+
+    m_rootVisual.Children().InsertAtBottom(m_hostVisual);
+
+    instance->m_target.Root(m_rootVisual);
+
+    auto fadeIn = m_compositor.CreateScalarKeyFrameAnimation();
+    fadeIn.InsertKeyFrame(1.0f, 1.0f);
+    fadeIn.Duration(std::chrono::milliseconds(1000));
+
+    auto fadeInBatch = m_compositor.CreateScopedBatch(CompositionBatchTypes::Animation);
+
+    m_hostVisual.StartAnimation(L"Opacity", fadeIn);
+
+    fadeInBatch.Completed([instance](auto const &, auto const &) {
+        if (instance->m_done)
+            return;
+
+        auto dq = instance->m_dispatcherQueueController.DispatcherQueue();
+
+        instance->m_delayTimer = dq.CreateTimer();
+        instance->m_delayTimer.Interval(std::chrono::seconds(5));
+        instance->m_delayTimer.IsRepeating(false);
+
+        instance->m_delayTimer.Tick([instance](auto const &, auto const &) {
+            if (instance->m_done)
+                return;
+
+            auto fadeOut = instance->m_compositor.CreateScalarKeyFrameAnimation();
+            fadeOut.InsertKeyFrame(1.0f, 0.0f);
+            fadeOut.Duration(std::chrono::milliseconds(1000));
+
+            auto fadeOutBatch = instance->m_compositor.CreateScopedBatch(CompositionBatchTypes::Animation);
+
+            instance->m_hostVisual.StartAnimation(L"Opacity", fadeOut);
+
+            fadeOutBatch.Completed(
+                [instance](auto const &, auto const &) { PostMessage(instance->Window, WM_CLOSE, 0, 0); });
+            fadeOutBatch.End();
+
+        });
+
+        instance->m_delayTimer.Start();
+    });
+    fadeInBatch.End();
 }
 
 static OverlayInstance *
@@ -170,138 +388,46 @@ OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(cs->lpCreateParams));
         return TRUE;
     }
-    case WM_PAINT: {
-        PAINTSTRUCT ps;
-        HDC hdc = BeginPaint(hwnd, &ps);
-
-        RECT rc;
-        GetClientRect(hwnd, &rc);
-
-        auto *Instance = GetInstance(hwnd);
-
-        if (!Instance)
-        {
-            EndPaint(hwnd, &ps);
-            return 0;
-        }
-
-        float breathing = (sinf(Instance->AnimationPhase) + 1.0f) * 0.5f;
-
-        LONG groupHeight = 520;
-        LONG groupTop = (rc.bottom - groupHeight) / 2;
-
-        SetBkMode(hdc, TRANSPARENT);
-
-        //
-        // Icon
-        //
-        BYTE brightness = (BYTE)(90 + breathing * 165);
-        SetTextColor(hdc, RGB(brightness, brightness, brightness));
-        HFONT iconFont = CreateFontW(
-            -280,
-            0,
-            0,
-            0,
-            FW_NORMAL,
-            FALSE,
-            FALSE,
-            FALSE,
-            DEFAULT_CHARSET,
-            OUT_DEFAULT_PRECIS,
-            CLIP_DEFAULT_PRECIS,
-            CLEARTYPE_QUALITY,
-            DEFAULT_PITCH,
-            L"Surface App Fluent Icons");
-        HFONT oldFont = (HFONT)SelectObject(hdc, iconFont);
-        RECT iconRect = {0, groupTop + 10, rc.right, groupTop + 380};
-        DrawTextW(hdc, L"\xF4CE", 1, &iconRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-
-        //
-        // Text
-        //
-        SelectObject(hdc, oldFont);
-        DeleteObject(iconFont);
-
-        HFONT textFont = CreateFontW(
-            -46,
-            0,
-            0,
-            0,
-            FW_NORMAL,
-            FALSE,
-            FALSE,
-            FALSE,
-            DEFAULT_CHARSET,
-            OUT_DEFAULT_PRECIS,
-            CLIP_DEFAULT_PRECIS,
-            CLEARTYPE_QUALITY,
-            DEFAULT_PITCH,
-            L"Segoe UI");
-        oldFont = (HFONT)SelectObject(hdc, textFont);
-        SetTextColor(hdc, RGB(255, 255, 255));
-        RECT textRect = {0, groupTop + 430, rc.right, groupTop + groupHeight};
-        DrawTextW(hdc, L"Double-tap to switch screens", -1, &textRect, DT_CENTER | DT_SINGLELINE);
-
-        SelectObject(hdc, oldFont);
-        DeleteObject(textFont);
-        EndPaint(hwnd, &ps);
-        return 0;
-    }
-
     case WM_LBUTTONDBLCLK: {
-        TogglePendingFlipPreview();
-        return 0;
-    }
-
-    case WM_NCHITTEST: {
-        return HTCLIENT;
-    }
-
-    case WM_DESTROY: {
-        KillTimer(hwnd, 1);
-        PostQuitMessage(0);
-        return 0;
-    }
-
-    case WM_ERASEBKGND: {
-        return 1;
-    }
-
-    case WM_TIMER: {
         auto *Instance = GetInstance(hwnd);
-        if (!Instance)
+        if (Instance->m_done)
         {
             return 0;
         }
+        Instance->m_done = true;
 
-        Instance->AnimationPhase += 0.025f;
-        if (Instance->AnimationPhase > 6.2831853f)
-        {
-            Instance->AnimationPhase -= 6.2831853f;
-        }
+        auto tintVisual = Instance->m_compositor.CreateSpriteVisual();
+        tintVisual.Brush(Instance->m_compositor.CreateColorBrush(ColorHelper::FromArgb(255, 0, 0, 0)));
+        tintVisual.RelativeSizeAdjustment({1.0f, 1.0f});
+        tintVisual.Opacity(0.0);
 
-        if (Instance->FadingOut)
-        {
-            if (Instance->WindowAlpha > 4)
-            {
-                float alpha = Instance->WindowAlpha / 255.0f;
-                alpha *= 0.93f;
-                Instance->WindowAlpha = (BYTE)(alpha * 255.0f);
-                SetLayeredWindowAttributes(hwnd, 0, Instance->WindowAlpha, LWA_ALPHA);
-            }
-            else
-            {
-                PostMessage(hwnd, WM_CLOSE, 0, 0);
-                return 0;
-            }
-        }
-        else if (Instance->WindowAlpha < 255)
-        {
-            Instance->WindowAlpha = (BYTE)std::min(255, Instance->WindowAlpha + 10);
-            SetLayeredWindowAttributes(hwnd, 0, Instance->WindowAlpha, LWA_ALPHA);
-        }
+        Instance->m_rootVisual.Children().InsertAtTop(tintVisual);
 
-        RedrawWindow(hwnd, nullptr, nullptr, RDW_INVALIDATE | RDW_NOERASE);
+        auto fadeIn = Instance->m_compositor.CreateScalarKeyFrameAnimation();
+        fadeIn.InsertKeyFrame(1.0f, 1.0f);
+        fadeIn.Duration(std::chrono::milliseconds(300));
+
+        auto batch = Instance->m_compositor.CreateScopedBatch(CompositionBatchTypes::Animation);
+        tintVisual.StartAnimation(L"Opacity", fadeIn);
+
+        batch.Completed([](auto const &, auto const &) { TogglePendingFlipPreview(); });
+        batch.End();
+        return 0;
+    }
+    case WM_DESTROY: {
+        auto *Instance = GetInstance(hwnd);
+
+        Instance->m_delayTimer = nullptr;
+        Instance->m_hostVisual = nullptr;
+        Instance->m_rootVisual = nullptr;
+        Instance->m_target = nullptr;
+        Instance->m_compositor = nullptr;
+
+        auto shutdownOp = Instance->m_dispatcherQueueController.ShutdownQueueAsync();
+        shutdownOp.Completed([Instance](auto const &, auto const &) {
+            PostQuitMessage(0);
+            Instance->m_dispatcherQueueController = nullptr;
+        });
         return 0;
     }
     }
@@ -314,8 +440,6 @@ OverlayThreadProc(LPVOID Context)
 {
     OverlayCreateParams *Params = (OverlayCreateParams *)Context;
     std::shared_ptr<OverlayInstance> Instance = Params->Instance;
-
-    BufferedPaintInit();
 
     //
     // Register class
@@ -343,11 +467,9 @@ OverlayThreadProc(LPVOID Context)
     //
     // Create window
     //
-    Instance->FadingOut = false;
-    Instance->WindowAlpha = 0;
 
     Instance->Window = CreateWindowExW(
-        WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_LAYERED,
+        WS_EX_NOREDIRECTIONBITMAP | WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
         wc.lpszClassName,
         L"",
         WS_POPUP | WS_VISIBLE,
@@ -360,15 +482,7 @@ OverlayThreadProc(LPVOID Context)
         wc.hInstance,
         Params);
 
-    if (Instance->Window)
-    {
-        SetLayeredWindowAttributes(Instance->Window, 0, 0, LWA_ALPHA);
-        ApplyBackdrop(Instance->Window);
-
-        ShowWindow(Instance->Window, SW_SHOW);
-        SetTimer(Instance->Window, 1, 16, nullptr);
-        InvalidateRect(Instance->Window, nullptr, FALSE);
-    }
+    SetupContent(Instance);
 
     //
     // Message loop
@@ -390,7 +504,6 @@ OverlayThreadProc(LPVOID Context)
     }
     LeaveCriticalSection(&g_OverlayLock);
     delete Params;
-    BufferedPaintUnInit();
     return 0;
 }
 
@@ -434,7 +547,16 @@ HideFlipPreviewOverlay()
     LeaveCriticalSection(&g_OverlayLock);
     for (auto overlay : overlays)
     {
-        overlay->FadingOut = true;
+        overlay->m_done = true;
+        auto fadeIn = overlay->m_compositor.CreateScalarKeyFrameAnimation();
+        fadeIn.InsertKeyFrame(1.0f, 1.0f);
+        fadeIn.Duration(std::chrono::milliseconds(300));
+
+        auto batch = overlay->m_compositor.CreateScopedBatch(CompositionBatchTypes::Animation);
+        overlay->m_rootVisual.StartAnimation(L"Opacity", fadeIn);
+
+        batch.Completed([](auto const &, auto const &) { PostMessage(overlay->Window, WM_CLOSE, 0, 0); });
+        batch.End();
     }
 }
 

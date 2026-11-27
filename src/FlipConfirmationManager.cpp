@@ -159,7 +159,7 @@ BeginPendingFlip(
     }
 
     HANDLE newTimer = nullptr;
-    if (!CreateTimerQueueTimer(&newTimer, nullptr, PendingFlipTimer, nullptr, 3000, 0, WT_EXECUTEDEFAULT))
+    if (!CreateTimerQueueTimer(&newTimer, nullptr, PendingFlipTimer, nullptr, 7000, 0, WT_EXECUTEDEFAULT))
     {
         wprintf(L"Failed to create flip timer: %u\n", GetLastError());
         {

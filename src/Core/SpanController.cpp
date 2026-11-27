@@ -22,7 +22,7 @@ SpanController::Initialize()
 void
 SpanController::Shutdown()
 {
-    m_overlay.Hide();
+    m_overlay.Destroy();
     m_previewVisible = false;
     ResetDragState();
     m_lastCursor = {LONG_MIN, LONG_MIN};
@@ -195,6 +195,8 @@ SpanController::OnMoveSizeEnd(HWND window)
 
     if (delta < Configuration::CommitMargin && !m_spanManager.IsSpanned(m_dragWindow))
     {
+        m_monitorTopology.Refresh();
+
         m_spanManager.SpanWindow(m_dragWindow, m_monitorTopology.GetCombinedWorkArea());
     }
 

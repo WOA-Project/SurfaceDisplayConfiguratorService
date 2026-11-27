@@ -39,8 +39,8 @@ ReadPanelGroup(PCWSTR PanelId, ULONG *Group)
 
     while (SetupDiEnumDeviceInfo(DevInfo, Index++, &DevData))
     {
-        DEVPROPTYPE Type;
-        DWORD Size;
+        DEVPROPTYPE Type{};
+        DWORD Size{};
 
         SetupDiGetDevicePropertyW(DevInfo, &DevData, &DEVPKEY_Device_PanelId, &Type, nullptr, 0, &Size, 0);
 

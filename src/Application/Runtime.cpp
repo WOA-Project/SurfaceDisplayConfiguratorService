@@ -9,6 +9,8 @@
 namespace {
 constexpr UINT_PTR PreviewTimerId = 1;
 constexpr UINT PreviewTimerMs = 50;
+constexpr wchar_t RuntimeWindowClassName[] = L"SurfaceDisplayConfiguratorRuntime";
+constexpr auto RutimeObjectProp = L"SurfaceDisplayConfiguratorRuntimeProp";
 } // namespace
 
 Runtime::Runtime() {}
@@ -55,6 +57,30 @@ Runtime::Initialize()
         return false;
     }
 
+    WNDCLASSEXW wc = {};
+    wc.cbSize = sizeof(WNDCLASSEXW);
+    wc.lpfnWndProc = WindowProc;
+    wc.hInstance = GetModuleHandle(nullptr);
+    wc.lpszClassName = RuntimeWindowClassName;
+
+    RegisterClassExW(&wc);
+
+    m_hiddenWindow = winrt::check_pointer(CreateWindowExW(
+        WS_EX_NOACTIVATE | WS_EX_NOREDIRECTIONBITMAP,
+        RuntimeWindowClassName,
+        L"",
+        WS_OVERLAPPED,
+        0,
+        0,
+        0,
+        0,
+        nullptr,
+        nullptr,
+        wc.hInstance,
+        nullptr));
+
+    SetPropW(m_hiddenWindow, RutimeObjectProp, this);
+
     m_eventDispatcher = std::make_unique<WinEventDispatcher>(m_controller);
 
     m_mouseHook = std::make_unique<MouseHook>(m_controller);
@@ -71,7 +97,7 @@ Runtime::Initialize()
         return false;
     }
 
-    m_previewTimerId = SetTimer(nullptr, 0, PreviewTimerMs, nullptr);
+    m_previewTimerId = SetTimer(m_hiddenWindow, 1, PreviewTimerMs, nullptr);
 
     if (!m_previewTimerId)
     {
@@ -94,7 +120,7 @@ Runtime::Shutdown()
 
     if (m_previewTimerId)
     {
-        KillTimer(nullptr, m_previewTimerId);
+        KillTimer(m_hiddenWindow, m_previewTimerId);
 
         m_previewTimerId = 0;
     }
@@ -130,38 +156,49 @@ Runtime::MessageLoop()
 
     while (GetMessage(&message, nullptr, 0, 0))
     {
-        switch (message.message)
+        TranslateMessage(&message);
+        DispatchMessage(&message);
+    }
+}
+
+LRESULT CALLBACK
+Runtime::WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    auto _this = reinterpret_cast<Runtime *>(GetPropW(hwnd, RutimeObjectProp));
+
+    if (msg == WM_DESTROY)
+    {
+        RemovePropW(hwnd, RutimeObjectProp);
+    }
+    else if (_this)
+    {
+        switch (msg)
         {
         case WM_DISPLAYCHANGE: {
-            m_controller.OnDisplayConfigurationChanged();
+            _this->m_controller.OnDisplayConfigurationChanged();
 
             break;
         }
 
         case WM_SETTINGCHANGE: {
-            if (message.wParam == SPI_SETWORKAREA)
+            if (wParam == SPI_SETWORKAREA)
             {
-                m_controller.OnDisplayConfigurationChanged();
+                _this->m_controller.OnDisplayConfigurationChanged();
             }
 
             break;
         }
 
         case WM_TIMER: {
-            if (message.wParam == m_previewTimerId)
+            if (wParam == _this->m_previewTimerId)
             {
-                m_controller.UpdateDragPreview();
+                _this->m_controller.UpdateDragPreview();
             }
 
             break;
         }
-
-        default:
-            break;
         }
-
-        TranslateMessage(&message);
-
-        DispatchMessage(&message);
     }
+
+    return DefWindowProc(hwnd, msg, wParam, lParam);
 }

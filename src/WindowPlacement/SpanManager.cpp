@@ -6,7 +6,7 @@
 
 #pragma comment(lib, "dwmapi.lib")
 
-#ifndef DWMWA_WINDOW_CORNER_PREFERENCE
+#ifndef NTDDI_WIN11_ZN
 
 enum DWM_WINDOW_CORNER_PREFERENCE
 {
